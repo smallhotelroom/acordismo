@@ -1,6 +1,6 @@
 /**
  * @file src/App.jsx
- * @version 2.2.0
+ * @version 2.2.1
  */
 import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { transpose } from 'chord-transposer';
@@ -8,7 +8,7 @@ import { ArrowLeft, ArrowRight, MoreVertical, Search, Settings, Upload, RotateCc
 import executeQuery, { loadExternalDatabaseFile, resetToDefaultDatabase } from './shared/database';
 import { AppContext, AppProvider } from './shared/AppContext';
 
-export const __version__ = '2.2.0';
+export const __version__ = '2.2.1';
 
 function transposeChordToken(token, transposition) {
     if (!token || transposition === 0) {
@@ -101,7 +101,7 @@ function SongItem({ id, name, band_name, ft_band_name, onNavigate, originStr }) 
     return (
         <div
             className="list-item"
-            style={{ height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}
+            style={{ height: '68px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}
             onClick={() =>
                 onNavigate({
                     screen: 'Song',
