@@ -1,6 +1,6 @@
 /**
  * @file src/App.jsx
- * @version 2.3.0
+ * @version 2.3.1
  */
 import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { transpose } from 'chord-transposer';
@@ -8,7 +8,7 @@ import { ArrowLeft, ArrowRight, MoreVertical, Search, Settings, Upload, RotateCc
 import executeQuery, { loadExternalDatabaseFile, resetToDefaultDatabase } from './shared/database';
 import { AppContext, AppProvider } from './shared/AppContext';
 
-export const __version__ = '2.3.0';
+export const __version__ = '2.3.1';
 
 function transposeChordToken(token, transposition) {
     if (!token || transposition === 0) {
@@ -1135,34 +1135,19 @@ function SettingsScreen({ onBack }) {
 }
 
 /* -------------------------------------------------------------------------- */
-/*             MAIN ROUTER (Synced with Browser & Android Back Button)        */
+/*                                MAIN ROUTER                                 */
 /* -------------------------------------------------------------------------- */
 function MainNavigator() {
     const [history, setHistory] = useState([{ screen: 'Home', params: {} }]);
 
-    useEffect(() => {
-        // Initialize base state in browser history so back button has an anchor
-        window.history.replaceState({ depth: 0 }, '');
-
-        const handlePopState = () => {
-            setHistory((prev) => (prev.length > 1 ? prev.slice(0, -1) : prev));
-        };
-
-        window.addEventListener('popstate', handlePopState);
-        return () => window.removeEventListener('popstate', handlePopState);
-    }, []);
-
     const currentRoute = history[history.length - 1];
 
     const navigate = (nextRoute) => {
-        window.history.pushState({ depth: history.length }, '');
         setHistory((prev) => [...prev, nextRoute]);
     };
 
     const goBack = () => {
-        if (history.length > 1) {
-            window.history.back();
-        }
+        setHistory((prev) => (prev.length > 1 ? prev.slice(0, -1) : prev));
     };
 
     return (
