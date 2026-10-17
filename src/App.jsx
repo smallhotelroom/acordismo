@@ -1,6 +1,6 @@
 /**
  * @file src/App.jsx
- * @version 2.2.0
+ * @version 2.3.0
  */
 import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { transpose } from 'chord-transposer';
@@ -8,7 +8,7 @@ import { ArrowLeft, ArrowRight, MoreVertical, Search, Settings, Upload, RotateCc
 import executeQuery, { loadExternalDatabaseFile, resetToDefaultDatabase } from './shared/database';
 import { AppContext, AppProvider } from './shared/AppContext';
 
-export const __version__ = '2.2.0';
+export const __version__ = '2.3.0';
 
 function transposeChordToken(token, transposition) {
     if (!token || transposition === 0) {
@@ -49,7 +49,6 @@ function VirtualList({ items, itemHeight = 68, overscan = 8, renderItem }) {
         return () => observer.disconnect();
     }, []);
 
-    // Reset scroll position when the dataset changes drastically (e.g., tab switch)
     useEffect(() => {
         if (containerRef.current) {
             containerRef.current.scrollTop = 0;
@@ -68,7 +67,7 @@ function VirtualList({ items, itemHeight = 68, overscan = 8, renderItem }) {
     for (let i = startIndex; i <= endIndex; i++) {
         visibleItems.push(
             <div
-                key={items[i].id ?? i}
+                key={items[i].key ?? items[i].id ?? i}
                 style={{
                     position: 'absolute',
                     top: i * itemHeight,
@@ -101,7 +100,12 @@ function SongItem({ id, name, band_name, ft_band_name, onNavigate, originStr }) 
     return (
         <div
             className="list-item"
-            style={{ height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}
+            style={{
+                height: '68px',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center',
+            }}
             onClick={() =>
                 onNavigate({
                     screen: 'Song',
@@ -279,11 +283,11 @@ function HomeScreen({ onNavigate }) {
             {currentTab === 'Playlists' && (
                 <VirtualList
                     items={playlists}
-                    itemHeight={54}
+                    itemHeight={68}
                     renderItem={(item) => (
                         <div
                             className="list-item"
-                            style={{ height: '100%', display: 'flex', alignItems: 'center' }}
+                            style={{ height: '68px', display: 'flex', alignItems: 'center' }}
                             onClick={() =>
                                 onNavigate({
                                     screen: 'Playlist',
@@ -299,11 +303,11 @@ function HomeScreen({ onNavigate }) {
             {currentTab === 'Bands' && (
                 <VirtualList
                     items={bands}
-                    itemHeight={54}
+                    itemHeight={68}
                     renderItem={(item) => (
                         <div
                             className="list-item"
-                            style={{ height: '100%', display: 'flex', alignItems: 'center' }}
+                            style={{ height: '68px', display: 'flex', alignItems: 'center' }}
                             onClick={() =>
                                 onNavigate({
                                     screen: 'Band',
@@ -410,6 +414,29 @@ function BandScreen({ routeParams, onNavigate, onBack }) {
             .catch((err) => console.error(err));
     }, [selectedBandId, bandOrderStr, bandSearchStr]);
 
+    // Combine band songs + section header + featuring songs into VirtualList rows of uniform 68px height
+    const combinedRows = useMemo(() => {
+        const rows = bandSongs.map((s) => ({
+            key: `song-${s.id}`,
+            type: 'song',
+            item: s,
+        }));
+        if (bandFeaturing.length > 0) {
+            rows.push({
+                key: 'ft-header',
+                type: 'header',
+            });
+            bandFeaturing.forEach((ft) => {
+                rows.push({
+                    key: `ft-${ft.id}`,
+                    type: 'ft',
+                    item: ft,
+                });
+            });
+        }
+        return rows;
+    }, [bandSongs, bandFeaturing]);
+
     return (
         <>
             <header className="app-header">
@@ -446,36 +473,43 @@ function BandScreen({ routeParams, onNavigate, onBack }) {
                 </div>
             )}
 
-            <main className="content-scroll">
-                {bandSongs.map((item) => (
-                    <SongItem
-                        key={`song-${item.id}`}
-                        id={item.id}
-                        name={item.name}
-                        band_name=""
-                        ft_band_name=""
-                        onNavigate={onNavigate}
-                        originStr={bandName}
-                    />
-                ))}
-
-                {bandFeaturing.length > 0 && (
-                    <>
-                        <div className="section-header">Also featured in:</div>
-                        {bandFeaturing.map((item) => (
+            <VirtualList
+                items={combinedRows}
+                itemHeight={68}
+                renderItem={(row) => {
+                    if (row.type === 'header') {
+                        return (
+                            <div
+                                className="section-header"
+                                style={{ height: '68px', display: 'flex', alignItems: 'center' }}>
+                                Also featured in:
+                            </div>
+                        );
+                    }
+                    if (row.type === 'ft') {
+                        return (
                             <SongItem
-                                key={`ft-${item.id}`}
-                                id={item.id}
-                                name={item.name}
+                                id={row.item.id}
+                                name={row.item.name}
                                 band_name={bandName}
-                                ft_band_name={item.ft_band_name}
+                                ft_band_name={row.item.ft_band_name}
                                 onNavigate={onNavigate}
                                 originStr={bandName}
                             />
-                        ))}
-                    </>
-                )}
-            </main>
+                        );
+                    }
+                    return (
+                        <SongItem
+                            id={row.item.id}
+                            name={row.item.name}
+                            band_name=""
+                            ft_band_name=""
+                            onNavigate={onNavigate}
+                            originStr={bandName}
+                        />
+                    );
+                }}
+            />
 
             {bandModalVisible && (
                 <div className="modal-backdrop" onClick={() => setBandModalVisible(false)}>
@@ -1101,19 +1135,34 @@ function SettingsScreen({ onBack }) {
 }
 
 /* -------------------------------------------------------------------------- */
-/*                                MAIN ROUTER                                 */
+/*             MAIN ROUTER (Synced with Browser & Android Back Button)        */
 /* -------------------------------------------------------------------------- */
 function MainNavigator() {
     const [history, setHistory] = useState([{ screen: 'Home', params: {} }]);
 
+    useEffect(() => {
+        // Initialize base state in browser history so back button has an anchor
+        window.history.replaceState({ depth: 0 }, '');
+
+        const handlePopState = () => {
+            setHistory((prev) => (prev.length > 1 ? prev.slice(0, -1) : prev));
+        };
+
+        window.addEventListener('popstate', handlePopState);
+        return () => window.removeEventListener('popstate', handlePopState);
+    }, []);
+
     const currentRoute = history[history.length - 1];
 
     const navigate = (nextRoute) => {
+        window.history.pushState({ depth: history.length }, '');
         setHistory((prev) => [...prev, nextRoute]);
     };
 
     const goBack = () => {
-        setHistory((prev) => (prev.length > 1 ? prev.slice(0, -1) : prev));
+        if (history.length > 1) {
+            window.history.back();
+        }
     };
 
     return (
