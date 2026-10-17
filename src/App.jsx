@@ -1,6 +1,6 @@
 /**
  * @file src/App.jsx
- * @version 2.1.1
+ * @version 2.2.0
  */
 import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { transpose } from 'chord-transposer';
@@ -8,7 +8,7 @@ import { ArrowLeft, ArrowRight, MoreVertical, Search, Settings, Upload, RotateCc
 import executeQuery, { loadExternalDatabaseFile, resetToDefaultDatabase } from './shared/database';
 import { AppContext, AppProvider } from './shared/AppContext';
 
-export const __version__ = '2.1.1';
+export const __version__ = '2.2.0';
 
 function transposeChordToken(token, transposition) {
     if (!token || transposition === 0) {
@@ -26,23 +26,103 @@ function transposeChordToken(token, transposition) {
 }
 
 /* -------------------------------------------------------------------------- */
+/*                    VIRTUAL LIST (Replaces RN <FlatList>)                   */
+/* -------------------------------------------------------------------------- */
+function VirtualList({ items, itemHeight = 68, overscan = 8, renderItem }) {
+    const containerRef = useRef(null);
+    const [scrollTop, setScrollTop] = useState(0);
+    const [viewportHeight, setViewportHeight] = useState(800);
+
+    useEffect(() => {
+        const el = containerRef.current;
+        if (!el) {
+            return;
+        }
+        setViewportHeight(el.clientHeight || 800);
+
+        const observer = new ResizeObserver((entries) => {
+            for (const entry of entries) {
+                setViewportHeight(entry.contentRect.height);
+            }
+        });
+        observer.observe(el);
+        return () => observer.disconnect();
+    }, []);
+
+    // Reset scroll position when the dataset changes drastically (e.g., tab switch)
+    useEffect(() => {
+        if (containerRef.current) {
+            containerRef.current.scrollTop = 0;
+            setScrollTop(0);
+        }
+    }, [items]);
+
+    const totalHeight = items.length * itemHeight;
+    const startIndex = Math.max(0, Math.floor(scrollTop / itemHeight) - overscan);
+    const endIndex = Math.min(
+        items.length - 1,
+        Math.ceil((scrollTop + viewportHeight) / itemHeight) + overscan
+    );
+
+    const visibleItems = [];
+    for (let i = startIndex; i <= endIndex; i++) {
+        visibleItems.push(
+            <div
+                key={items[i].id ?? i}
+                style={{
+                    position: 'absolute',
+                    top: i * itemHeight,
+                    left: 0,
+                    right: 0,
+                    height: itemHeight,
+                }}>
+                {renderItem(items[i], i)}
+            </div>
+        );
+    }
+
+    return (
+        <main
+            ref={containerRef}
+            className="content-scroll"
+            onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)}
+            style={{ position: 'relative' }}>
+            <div style={{ height: totalHeight, position: 'relative', width: '100%' }}>
+                {visibleItems}
+            </div>
+        </main>
+    );
+}
+
+/* -------------------------------------------------------------------------- */
 /*                                 SONG ITEM                                  */
 /* -------------------------------------------------------------------------- */
 function SongItem({ id, name, band_name, ft_band_name, onNavigate, originStr }) {
     return (
         <div
             className="list-item"
+            style={{ height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}
             onClick={() =>
                 onNavigate({
                     screen: 'Song',
                     params: { selectedSongId: id, originStr },
                 })
             }>
-            <div className="list-item-title">{name}</div>
+            <div
+                className="list-item-title"
+                style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {name}
+            </div>
             {band_name === '' ? null : ft_band_name === '' ? (
-                <div className="list-item-subtitle">{band_name}</div>
+                <div
+                    className="list-item-subtitle"
+                    style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {band_name}
+                </div>
             ) : (
-                <div className="list-item-subtitle">
+                <div
+                    className="list-item-subtitle"
+                    style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {ft_band_name}; {band_name}
                 </div>
             )}
@@ -92,11 +172,7 @@ function HomeScreen({ onNavigate }) {
 
             executeQuery(`SELECT * FROM playlists${whereClause}${orderClause};`, params)
                 .then((data) => {
-                    const tmp = [];
-                    for (let i = 0; i < data.rows.length; i++) {
-                        tmp.push(data.rows.item(i));
-                    }
-                    setPlaylists(tmp);
+                    setPlaylists(data.rows._array);
                 })
                 .catch((err) => console.error(err));
         } else if (currentTab === 'Bands') {
@@ -111,11 +187,7 @@ function HomeScreen({ onNavigate }) {
 
             executeQuery(`SELECT * FROM bands${whereClause}${orderClause};`, params)
                 .then((data) => {
-                    const tmp = [];
-                    for (let i = 0; i < data.rows.length; i++) {
-                        tmp.push(data.rows.item(i));
-                    }
-                    setBands(tmp);
+                    setBands(data.rows._array);
                 })
                 .catch((err) => console.error(err));
         } else if (currentTab === 'Songs') {
@@ -133,11 +205,7 @@ function HomeScreen({ onNavigate }) {
                 params
             )
                 .then((data) => {
-                    const tmp = [];
-                    for (let i = 0; i < data.rows.length; i++) {
-                        tmp.push(data.rows.item(i));
-                    }
-                    setSongs(tmp);
+                    setSongs(data.rows._array);
                 })
                 .catch((err) => console.error(err));
         }
@@ -208,12 +276,14 @@ function HomeScreen({ onNavigate }) {
                 ))}
             </nav>
 
-            <main className="content-scroll">
-                {currentTab === 'Playlists' &&
-                    playlists.map((item) => (
+            {currentTab === 'Playlists' && (
+                <VirtualList
+                    items={playlists}
+                    itemHeight={54}
+                    renderItem={(item) => (
                         <div
-                            key={item.id}
                             className="list-item"
+                            style={{ height: '100%', display: 'flex', alignItems: 'center' }}
                             onClick={() =>
                                 onNavigate({
                                     screen: 'Playlist',
@@ -222,13 +292,18 @@ function HomeScreen({ onNavigate }) {
                             }>
                             <div className="list-item-title">{item.name}</div>
                         </div>
-                    ))}
+                    )}
+                />
+            )}
 
-                {currentTab === 'Bands' &&
-                    bands.map((item) => (
+            {currentTab === 'Bands' && (
+                <VirtualList
+                    items={bands}
+                    itemHeight={54}
+                    renderItem={(item) => (
                         <div
-                            key={item.id}
                             className="list-item"
+                            style={{ height: '100%', display: 'flex', alignItems: 'center' }}
                             onClick={() =>
                                 onNavigate({
                                     screen: 'Band',
@@ -237,12 +312,16 @@ function HomeScreen({ onNavigate }) {
                             }>
                             <div className="list-item-title">{item.name}</div>
                         </div>
-                    ))}
+                    )}
+                />
+            )}
 
-                {currentTab === 'Songs' &&
-                    songs.map((item) => (
+            {currentTab === 'Songs' && (
+                <VirtualList
+                    items={songs}
+                    itemHeight={68}
+                    renderItem={(item) => (
                         <SongItem
-                            key={item.id}
                             id={item.id}
                             name={item.name}
                             band_name={item.band_name}
@@ -250,8 +329,9 @@ function HomeScreen({ onNavigate }) {
                             onNavigate={onNavigate}
                             originStr={item.band_name}
                         />
-                    ))}
-            </main>
+                    )}
+                />
+            )}
 
             {homeModalVisible && (
                 <div className="modal-backdrop" onClick={() => setHomeModalVisible(false)}>
@@ -317,11 +397,7 @@ function BandScreen({ routeParams, onNavigate, onBack }) {
         const queryStr = 'SELECT id, name FROM songs WHERE band_id = ?';
         executeQuery(queryStr + searchClause + bandOrderStr + ';', queryParams)
             .then((data) => {
-                const tmp = [];
-                for (let i = 0; i < data.rows.length; i++) {
-                    tmp.push(data.rows.item(i));
-                }
-                setBandSongs(tmp);
+                setBandSongs(data.rows._array);
             })
             .catch((err) => console.error(err));
 
@@ -329,11 +405,7 @@ function BandScreen({ routeParams, onNavigate, onBack }) {
             'SELECT songs.id, songs.name, bands.name AS ft_band_name FROM songs INNER JOIN bands ON songs.band_id = bands.id WHERE songs.id IN (SELECT song_id FROM songs_ft_bands WHERE ft_band_id = ?)';
         executeQuery(queryFtStr + searchClause + bandOrderStr + ';', queryParams)
             .then((data) => {
-                const tmp = [];
-                for (let i = 0; i < data.rows.length; i++) {
-                    tmp.push(data.rows.item(i));
-                }
-                setBandFeaturing(tmp);
+                setBandFeaturing(data.rows._array);
             })
             .catch((err) => console.error(err));
     }, [selectedBandId, bandOrderStr, bandSearchStr]);
@@ -470,11 +542,7 @@ function PlaylistScreen({ routeParams, onNavigate, onBack }) {
             'SELECT songs.id, songs.name, bands.name AS band_name FROM songs INNER JOIN bands ON songs.band_id = bands.id WHERE songs.id IN (SELECT song_id FROM playlists_songs WHERE playlist_id = ?)';
         executeQuery(queryStr + searchClause + playlistOrderStr + ';', params)
             .then((data) => {
-                const tmp = [];
-                for (let i = 0; i < data.rows.length; i++) {
-                    tmp.push(data.rows.item(i));
-                }
-                setPlaylistSongs(tmp);
+                setPlaylistSongs(data.rows._array);
             })
             .catch((err) => console.error(err));
     }, [selectedPlaylistId, playlistOrderStr, playlistSearchStr]);
@@ -515,10 +583,11 @@ function PlaylistScreen({ routeParams, onNavigate, onBack }) {
                 </div>
             )}
 
-            <main className="content-scroll">
-                {playlistSongs.map((item) => (
+            <VirtualList
+                items={playlistSongs}
+                itemHeight={68}
+                renderItem={(item) => (
                     <SongItem
-                        key={item.id}
                         id={item.id}
                         name={item.name}
                         band_name={item.band_name}
@@ -526,8 +595,8 @@ function PlaylistScreen({ routeParams, onNavigate, onBack }) {
                         onNavigate={onNavigate}
                         originStr={playlistName}
                     />
-                ))}
-            </main>
+                )}
+            />
 
             {playlistModalVisible && (
                 <div className="modal-backdrop" onClick={() => setPlaylistModalVisible(false)}>
@@ -634,11 +703,7 @@ function SongScreen({ routeParams, onNavigate, onBack }) {
                     setBandName(bandRes.rows.item(0).name);
                 }
 
-                const ftArr = [];
-                for (let i = 0; i < ftRes.rows.length; i++) {
-                    ftArr.push(ftRes.rows.item(i));
-                }
-                setFeaturingBands(ftArr);
+                setFeaturingBands(ftRes.rows._array);
             } catch (err) {
                 console.error(err);
             }
