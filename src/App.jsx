@@ -1,14 +1,14 @@
 /**
  * @file src/App.jsx
- * @version 2.1.0
+ * @version 2.1.1
  */
 import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
-import Transposer from 'chord-transposer';
+import { transpose } from 'chord-transposer';
 import { ArrowLeft, ArrowRight, MoreVertical, Search, Settings, Upload, RotateCcw } from 'lucide-react';
 import executeQuery, { loadExternalDatabaseFile, resetToDefaultDatabase } from './shared/database';
 import { AppContext, AppProvider } from './shared/AppContext';
 
-export const __version__ = '2.1.0';
+export const __version__ = '2.1.1';
 
 function transposeChordToken(token, transposition) {
     if (!token || transposition === 0) {
@@ -16,9 +16,9 @@ function transposeChordToken(token, transposition) {
     }
     try {
         if (transposition > 0) {
-            return Transposer.transpose(token).up(transposition).toString();
+            return transpose(token).up(transposition).toString();
         }
-        return Transposer.transpose(token).down(-transposition).toString();
+        return transpose(token).down(-transposition).toString();
     } catch (err) {
         console.error(err);
         return token;

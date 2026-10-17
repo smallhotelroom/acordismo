@@ -1,10 +1,12 @@
 /**
  * @file src/shared/database.js
- * @version 2.1.0
+ * @version 2.1.1
  */
-import initSqlJs from 'sql.js';
+import * as sqlJsModule from 'sql.js';
 
-export const __version__ = '2.1.0';
+export const __version__ = '2.1.1';
+
+const initSqlJs = sqlJsModule.default || sqlJsModule;
 
 let sqlPromise = null;
 let dbInstance = null;
