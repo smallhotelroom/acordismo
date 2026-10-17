@@ -12,6 +12,7 @@
     "cap:sync": "vite build && npx cap sync"
   },
   "dependencies": {
+    "@capacitor/app": "^7.1.2",
     "@capacitor/core": "^7.0.0",
     "chord-transposer": "^3.0.1",
     "lucide-react": "^1.16.0",

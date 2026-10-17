@@ -1,14 +1,15 @@
 /**
  * @file src/App.jsx
- * @version 2.2.1
+ * @version 2.2.2
  */
 import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { transpose } from 'chord-transposer';
+import { App as CapacitorApp } from '@capacitor/app';
 import { ArrowLeft, ArrowRight, MoreVertical, Search, Settings, Upload, RotateCcw } from 'lucide-react';
 import executeQuery, { loadExternalDatabaseFile, resetToDefaultDatabase } from './shared/database';
 import { AppContext, AppProvider } from './shared/AppContext';
 
-export const __version__ = '2.2.1';
+export const __version__ = '2.2.2';
 
 function transposeChordToken(token, transposition) {
     if (!token || transposition === 0) {
@@ -135,6 +136,10 @@ function SongItem({ id, name, band_name, ft_band_name, onNavigate, originStr }) 
 /* -------------------------------------------------------------------------- */
 function HomeScreen({ onNavigate }) {
     const {
+        currentTab,
+        setCurrentTab,
+        tabOrders,
+        setTabOrders,
         homeSearchVisible,
         setHomeSearchVisible,
         homeSearchStr,
@@ -143,13 +148,6 @@ function HomeScreen({ onNavigate }) {
         setHomeModalVisible,
         dbRevision,
     } = useContext(AppContext);
-
-    const [currentTab, setCurrentTab] = useState('Playlists');
-    const [tabOrders, setTabOrders] = useState({
-        Playlists: 'Original',
-        Bands: 'ASC',
-        Songs: 'ASC',
-    });
 
     const [playlists, setPlaylists] = useState([]);
     const [bands, setBands] = useState([]);
@@ -1105,6 +1103,11 @@ function SettingsScreen({ onBack }) {
 /* -------------------------------------------------------------------------- */
 function MainNavigator() {
     const [history, setHistory] = useState([{ screen: 'Home', params: {} }]);
+    const historyRef = useRef(history);
+
+    useEffect(() => {
+        historyRef.current = history;
+    }, [history]);
 
     const currentRoute = history[history.length - 1];
 
@@ -1115,6 +1118,20 @@ function MainNavigator() {
     const goBack = () => {
         setHistory((prev) => (prev.length > 1 ? prev.slice(0, -1) : prev));
     };
+
+    useEffect(() => {
+        const listenerPromise = CapacitorApp.addListener('backButton', () => {
+            if (historyRef.current.length > 1) {
+                setHistory((prev) => (prev.length > 1 ? prev.slice(0, -1) : prev));
+            } else {
+                CapacitorApp.minimizeApp();
+            }
+        });
+
+        return () => {
+            listenerPromise.then((handle) => handle.remove());
+        };
+    }, []);
 
     return (
         <div className="app-shell">
