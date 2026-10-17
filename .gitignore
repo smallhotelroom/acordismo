@@ -1,5 +1,5 @@
-# .gitignore
-# Version: 1.0.0
+# File: .gitignore
+# Version: 1.1.0
 
 # Logs
 logs
@@ -23,11 +23,18 @@ python/*.db
 *.sqlite
 *.sqlite3
 
-# External / Unowned Song Directories (keep only your own band scripts tracked)
+# External / Unowned Song Directories
 python/external/
 python/packs/
 
-# Capacitor & Mobile Build Artifacts
+# Capacitor Generated Web Assets & Configs inside Native Folders
+android/app/src/main/assets/public/
+android/app/src/main/assets/capacitor.config.json
+android/app/src/main/assets/capacitor.plugins.json
+ios/App/App/public/
+ios/App/App/capacitor.config.json
+
+# Mobile Build Artifacts & Caches
 android/app/build/
 android/.gradle/
 android/build/

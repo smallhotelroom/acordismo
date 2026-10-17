@@ -1,0 +1,24 @@
+# File: docker-compose.yml
+# Version: 1.1.0
+services:
+  android-builder:
+    build: .
+    container_name: acordismo-android-builder
+    volumes:
+      - .:/app
+      - gradle-cache:/root/.gradle
+    network_mode: host
+    privileged: true
+    devices:
+      - /dev/bus/usb:/dev/bus/usb
+    command: >
+      bash -c "
+        npm run build &&
+        npx cap sync android &&
+        cd android &&
+        ./gradlew assembleDebug &&
+        chown -R $(stat -c '%u:%g' /app) /app/dist /app/android
+      "
+
+volumes:
+  gradle-cache:
