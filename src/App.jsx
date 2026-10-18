@@ -1,15 +1,27 @@
 /**
  * @file src/App.jsx
- * @version 2.2.2
+ * @version 2.3.0
  */
 import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { transpose } from 'chord-transposer';
 import { App as CapacitorApp } from '@capacitor/app';
-import { ArrowLeft, ArrowRight, MoreVertical, Search, Settings, Upload, RotateCcw } from 'lucide-react';
+import {
+    ArrowLeft,
+    ArrowRight,
+    MoreVertical,
+    Moon,
+    Pause,
+    Play,
+    RotateCcw,
+    Search,
+    Settings,
+    Sun,
+    Upload,
+} from 'lucide-react';
 import executeQuery, { loadExternalDatabaseFile, resetToDefaultDatabase } from './shared/database';
 import { AppContext, AppProvider } from './shared/AppContext';
 
-export const __version__ = '2.2.2';
+export const __version__ = '2.3.0';
 
 function transposeChordToken(token, transposition) {
     if (!token || transposition === 0) {
@@ -136,6 +148,8 @@ function SongItem({ id, name, band_name, ft_band_name, onNavigate, originStr }) 
 /* -------------------------------------------------------------------------- */
 function HomeScreen({ onNavigate }) {
     const {
+        darkMode,
+        setDarkMode,
         currentTab,
         setCurrentTab,
         tabOrders,
@@ -227,6 +241,12 @@ function HomeScreen({ onNavigate }) {
                     <h1 className="header-title">Acordismo</h1>
                 </div>
                 <div className="header-actions">
+                    <button
+                        className="icon-btn"
+                        title="Toggle Dark Mode"
+                        onClick={() => setDarkMode(!darkMode)}>
+                        {darkMode ? <Sun size={20} /> : <Moon size={20} />}
+                    </button>
                     <button
                         className="icon-btn"
                         title="Search"
@@ -671,6 +691,11 @@ function SongScreen({ routeParams, onNavigate, onBack }) {
     const pinchStartDistRef = useRef(null);
     const pinchStartSizeRef = useRef(14);
 
+    // Auto-scroll state
+    const scrollContainerRef = useRef(null);
+    const [autoScrollActive, setAutoScrollActive] = useState(false);
+    const [scrollSpeed, setScrollSpeed] = useState(2); // 1 (slow) to 5 (fast)
+
     useEffect(() => {
         let isMounted = true;
 
@@ -712,6 +737,42 @@ function SongScreen({ routeParams, onNavigate, onBack }) {
             isMounted = false;
         };
     }, [selectedSongId]);
+
+    // Smooth 60fps Auto-Scroll loop
+    useEffect(() => {
+        if (!autoScrollActive) {
+            return;
+        }
+        let animationFrameId;
+        let lastTime = performance.now();
+        let subPixelAccumulator = 0;
+
+        const pixelsPerSecond = scrollSpeed * 14; // 14px/s at 1x up to 70px/s at 5x
+
+        const step = (now) => {
+            const dt = (now - lastTime) / 1000;
+            lastTime = now;
+
+            const el = scrollContainerRef.current;
+            if (el) {
+                subPixelAccumulator += pixelsPerSecond * dt;
+                if (subPixelAccumulator >= 1) {
+                    const wholePixels = Math.floor(subPixelAccumulator);
+                    el.scrollTop += wholePixels;
+                    subPixelAccumulator -= wholePixels;
+
+                    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 2) {
+                        setAutoScrollActive(false);
+                        return;
+                    }
+                }
+            }
+            animationFrameId = requestAnimationFrame(step);
+        };
+
+        animationFrameId = requestAnimationFrame(step);
+        return () => cancelAnimationFrame(animationFrameId);
+    }, [autoScrollActive, scrollSpeed]);
 
     const songScreenItems = useMemo(() => {
         if (!songData) {
@@ -840,6 +901,28 @@ function SongScreen({ routeParams, onNavigate, onBack }) {
                     <h1 className="header-title">{headerTitle}</h1>
                 </div>
                 <div className="header-actions">
+                    <div className="autoscroll-pill">
+                        <button
+                            className="icon-btn"
+                            style={{ padding: 4 }}
+                            title={autoScrollActive ? 'Pause Auto-Scroll' : 'Start Auto-Scroll'}
+                            onClick={() => setAutoScrollActive((v) => !v)}>
+                            {autoScrollActive ? <Pause size={16} /> : <Play size={16} />}
+                        </button>
+                        <button
+                            className="autoscroll-speed-btn"
+                            title="Slower"
+                            onClick={() => setScrollSpeed((s) => Math.max(1, s - 1))}>
+                            -
+                        </button>
+                        <span style={{ fontSize: '0.78rem', fontWeight: 600 }}>{scrollSpeed}x</span>
+                        <button
+                            className="autoscroll-speed-btn"
+                            title="Faster"
+                            onClick={() => setScrollSpeed((s) => Math.min(5, s + 1))}>
+                            +
+                        </button>
+                    </div>
                     <button className="btn-primary" onClick={() => setSongModalVisible(true)}>
                         Info
                     </button>
@@ -847,6 +930,7 @@ function SongScreen({ routeParams, onNavigate, onBack }) {
             </header>
 
             <main
+                ref={scrollContainerRef}
                 className="content-scroll song-sheet-container"
                 onTouchStart={handleTouchStart}
                 onTouchMove={handleTouchMove}
@@ -862,7 +946,7 @@ function SongScreen({ routeParams, onNavigate, onBack }) {
                     <div className="modal-card" onClick={(e) => e.stopPropagation()}>
                         <div
                             style={{
-                                borderBottom: '1px solid black',
+                                borderBottom: '1px solid var(--border-color)',
                                 paddingBottom: 15,
                                 lineHeight: 1.6,
                             }}>
@@ -936,7 +1020,7 @@ function SongScreen({ routeParams, onNavigate, onBack }) {
                                 </div>
                             )}
                             {songData.content_hash && (
-                                <div style={{ fontSize: '0.78rem', color: '#666', marginTop: 6 }}>
+                                <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: 6 }}>
                                     Hash: <code>{songData.content_hash}</code>
                                 </div>
                             )}
@@ -944,7 +1028,7 @@ function SongScreen({ routeParams, onNavigate, onBack }) {
 
                         <div
                             style={{
-                                borderBottom: '1px solid black',
+                                borderBottom: '1px solid var(--border-color)',
                                 padding: '15px 0',
                                 display: 'flex',
                                 justifyContent: 'space-between',
@@ -975,6 +1059,8 @@ function SettingsScreen({ onBack }) {
     const {
         transposition,
         setTransposition,
+        darkMode,
+        setDarkMode,
         activeDbLabel,
         setActiveDbLabel,
         setDbRevision,
@@ -1024,6 +1110,29 @@ function SettingsScreen({ onBack }) {
                         alignItems: 'center',
                         justifyContent: 'space-between',
                         padding: 15,
+                        borderBottom: '1px solid var(--border-color)',
+                    }}>
+                    <div>
+                        <strong>Appearance (Stage Mode)</strong>
+                        <div style={{ fontSize: '0.88rem', color: 'var(--text-secondary)' }}>
+                            {darkMode ? 'Dark mode enabled' : 'Light mode enabled'}
+                        </div>
+                    </div>
+                    <button
+                        className="btn-primary"
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                        onClick={() => setDarkMode(!darkMode)}>
+                        {darkMode ? <Sun size={16} /> : <Moon size={16} />}
+                        {darkMode ? 'Switch to Light' : 'Switch to Dark'}
+                    </button>
+                </div>
+
+                <div
+                    style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: 15,
                         gap: 10,
                     }}>
                     <div style={{ flex: 4 }}>Transposition: {transposition}</div>
@@ -1051,7 +1160,7 @@ function SettingsScreen({ onBack }) {
                 <div
                     style={{
                         padding: '0 15px 15px 15px',
-                        borderBottom: '1px solid black',
+                        borderBottom: '1px solid var(--border-color)',
                     }}>
                     <div>Examples for Ukelele:</div>
                     <div>{'\u2022'} Play most songs on Ukelele: -5</div>
@@ -1059,7 +1168,7 @@ function SettingsScreen({ onBack }) {
                 </div>
 
                 {/* Songbook Database Pack Loader (Local / Offline Extension) */}
-                <div style={{ padding: 15, borderBottom: '1px solid black' }}>
+                <div style={{ padding: 15, borderBottom: '1px solid var(--border-color)' }}>
                     <div style={{ fontWeight: 'bold', marginBottom: 8 }}>
                         Songbook Database Pack
                     </div>
