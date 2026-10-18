@@ -36,7 +36,19 @@ docker compose build
 Compile the debug APK (`android/app/build/outputs/apk/debug/app-debug.apk`):
 
 ```bash
+docker compose up
+```
+
+Install the debug APK onto a USB-connected Android device:
+
+```bash
 docker compose run --rm android-builder adb install -r android/app/build/outputs/apk/debug/app-debug.apk
+```
+
+If fails, possibly you may locally (`sudo apt install android-tools-adb`):
+
+```bash
+adb install -r android/app/build/outputs/apk/debug/app-debug.apk
 ```
 
 Debug / view live Android device logs:
@@ -49,6 +61,18 @@ Open an interactive shell inside the Android builder container:
 
 ```bash
 docker compose run --rm android-builder bash
+```
+
+Compile the release APK (`android/app/build/outputs/apk/release/app-release-unsigned.apk`):
+
+```bash
+GRADLE_TASK=assembleRelease docker compose up
+```
+
+Compile the Play Store bundle (`android/app/build/outputs/bundle/release/app-release.aab`):
+
+```bash
+GRADLE_TASK=bundleRelease docker compose up
 ```
 
 ## 4. iOS

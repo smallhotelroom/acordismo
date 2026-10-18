@@ -1,5 +1,5 @@
 # File: docker-compose.yml
-# Version: 1.1.0
+# Version: 1.3.0
 services:
   android-builder:
     build: .
@@ -11,12 +11,14 @@ services:
     privileged: true
     devices:
       - /dev/bus/usb:/dev/bus/usb
+    environment:
+      - GRADLE_TASK=${GRADLE_TASK:-assembleDebug}
     command: >
       bash -c "
         npm run build &&
         npx cap sync android &&
         cd android &&
-        ./gradlew assembleDebug &&
+        ./gradlew $${GRADLE_TASK} &&
         chown -R $(stat -c '%u:%g' /app) /app/dist /app/android
       "
 
