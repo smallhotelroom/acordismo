@@ -1,5 +1,5 @@
 /* File: src/index.css */
-/* Version: 2.3.0 */
+/* Version: 2.5.0 */
 :root {
   --bg-primary: #ffffff;
   --bg-secondary: #f5f5f7;
@@ -9,6 +9,7 @@
   --shell-border: #e5e7eb;
   --accent-color: #2563eb;
   --chord-color: #111111;
+  --status-bar-bg: #7c7c7c;
 }
 
 [data-theme="dark"] {
@@ -20,6 +21,7 @@
   --shell-border: #22262e;
   --accent-color: #3b82f6;
   --chord-color: #60a5fa;
+  --status-bar-bg: #1f242d;
 }
 
 * {
@@ -45,6 +47,16 @@ html, body, #root {
   margin: 0 auto;
   border-left: 1px solid var(--shell-border);
   border-right: 1px solid var(--shell-border);
+}
+
+/* Top grey status bar spacer (Default: ON) to clear Android 15+ / S25 status bar & camera cutout */
+[data-top-space="true"] .app-shell::before {
+  content: "";
+  display: block;
+  width: 100%;
+  height: max(env(safe-area-inset-top, 0px), 36px);
+  flex-shrink: 0;
+  background-color: var(--status-bar-bg);
 }
 
 .app-header {

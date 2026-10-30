@@ -1,11 +1,11 @@
 /**
  * @file src/shared/AppContext.jsx
- * @version 2.3.0
+ * @version 2.5.0
  */
 import React, { createContext, useEffect, useState } from 'react';
 import { getSavedDbLabel } from './database';
 
-export const __version__ = '2.3.0';
+export const __version__ = '2.5.0';
 
 export const AppContext = createContext(null);
 
@@ -13,6 +13,10 @@ export function AppProvider({ children }) {
     const [transposition, setTransposition] = useState(0);
     const [darkMode, setDarkMode] = useState(() => {
         return localStorage.getItem('acordismo_dark_mode') === 'true';
+    });
+    const [topSpaceEnabled, setTopSpaceEnabled] = useState(() => {
+        const saved = localStorage.getItem('acordismo_top_space');
+        return saved === null ? true : saved === 'true';
     });
     const [currentTab, setCurrentTab] = useState('Playlists');
     const [tabOrders, setTabOrders] = useState({
@@ -37,6 +41,14 @@ export function AppProvider({ children }) {
         document.documentElement.setAttribute('data-theme', darkMode ? 'dark' : 'light');
     }, [darkMode]);
 
+    useEffect(() => {
+        localStorage.setItem('acordismo_top_space', String(topSpaceEnabled));
+        document.documentElement.setAttribute(
+            'data-top-space',
+            topSpaceEnabled ? 'true' : 'false'
+        );
+    }, [topSpaceEnabled]);
+
     return (
         <AppContext.Provider
             value={{
@@ -44,6 +56,8 @@ export function AppProvider({ children }) {
                 setTransposition,
                 darkMode,
                 setDarkMode,
+                topSpaceEnabled,
+                setTopSpaceEnabled,
                 currentTab,
                 setCurrentTab,
                 tabOrders,

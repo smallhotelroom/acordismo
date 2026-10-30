@@ -1,13 +1,13 @@
 /**
  * @file src/screens/SettingsScreen.jsx
- * @version 2.4.0
+ * @version 2.5.0
  */
 import React, { useContext, useRef } from 'react';
 import { ArrowLeft, Moon, RotateCcw, Sun, Upload } from 'lucide-react';
 import { loadExternalDatabaseFile, resetToDefaultDatabase } from '../shared/database';
 import { AppContext } from '../shared/AppContext';
 
-export const __version__ = '2.4.0';
+export const __version__ = '2.5.0';
 
 export default function SettingsScreen({ onBack }) {
     const {
@@ -15,6 +15,8 @@ export default function SettingsScreen({ onBack }) {
         setTransposition,
         darkMode,
         setDarkMode,
+        topSpaceEnabled,
+        setTopSpaceEnabled,
         activeDbLabel,
         setActiveDbLabel,
         setDbRevision,
@@ -87,6 +89,29 @@ export default function SettingsScreen({ onBack }) {
                         alignItems: 'center',
                         justifyContent: 'space-between',
                         padding: 15,
+                        borderBottom: '1px solid var(--border-color)',
+                    }}>
+                    <div>
+                        <strong>Top Status Bar Space</strong>
+                        <div style={{ fontSize: '0.88rem', color: 'var(--text-secondary)' }}>
+                            {topSpaceEnabled
+                                ? 'Enabled (avoids camera cutout / status bar)'
+                                : 'Disabled (full-height header)'}
+                        </div>
+                    </div>
+                    <button
+                        className="btn-primary"
+                        onClick={() => setTopSpaceEnabled(!topSpaceEnabled)}>
+                        {topSpaceEnabled ? 'Disable' : 'Enable'}
+                    </button>
+                </div>
+
+                <div
+                    style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: 15,
                         gap: 10,
                     }}>
                     <div style={{ flex: 4 }}>Transposition: {transposition}</div>
@@ -100,7 +125,9 @@ export default function SettingsScreen({ onBack }) {
                         onClick={() => setTransposition(transposition - 1)}>
                         DOWN
                     </button>
-                    <button className="btn-primary" onClick={() => setTransposition(0)}>
+                    <button
+                        className="btn-primary"
+                        onClick={() => setTransposition(0)}>
                         RESET
                     </button>
                 </div>
