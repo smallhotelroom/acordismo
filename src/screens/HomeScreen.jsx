@@ -1,15 +1,15 @@
 /**
  * @file src/screens/HomeScreen.jsx
- * @version 2.4.0
+ * @version 2.5.1
  */
 import React, { useContext, useEffect, useState } from 'react';
-import { ArrowRight, MoreVertical, Moon, Search, Settings, Sun } from 'lucide-react';
+import { ArrowRight, Menu, MoreVertical, Moon, Search, Sun } from 'lucide-react';
 import VirtualList from '../components/VirtualList';
 import SongItem from '../components/SongItem';
 import executeQuery from '../shared/database';
 import { AppContext } from '../shared/AppContext';
 
-export const __version__ = '2.4.0';
+export const __version__ = '2.5.1';
 
 export default function HomeScreen({ onNavigate }) {
     const {
@@ -103,6 +103,12 @@ export default function HomeScreen({ onNavigate }) {
         <>
             <header className="app-header">
                 <div className="header-left">
+                    <button
+                        className="icon-btn"
+                        title="Settings"
+                        onClick={() => onNavigate({ screen: 'Settings' })}>
+                        <Menu size={24} />
+                    </button>
                     <h1 className="header-title">Acordismo</h1>
                 </div>
                 <div className="header-actions">
@@ -123,12 +129,6 @@ export default function HomeScreen({ onNavigate }) {
                         title="Order"
                         onClick={() => setHomeModalVisible(true)}>
                         <MoreVertical size={22} />
-                    </button>
-                    <button
-                        className="icon-btn"
-                        title="Settings"
-                        onClick={() => onNavigate({ screen: 'Settings' })}>
-                        <Settings size={22} />
                     </button>
                 </div>
             </header>
