@@ -1,13 +1,18 @@
 /**
  * @file src/shared/AppContext.jsx
- * @version 2.5.0
+ * @version 2.5.2
  */
 import React, { createContext, useEffect, useState } from 'react';
+import { Capacitor } from '@capacitor/core';
 import { getSavedDbLabel } from './database';
 
-export const __version__ = '2.5.0';
+export const __version__ = '2.5.2';
 
 export const AppContext = createContext(null);
+
+const TOP_SPACE_STORAGE_KEY = Capacitor.isNativePlatform()
+    ? 'acordismo_top_space_native'
+    : 'acordismo_top_space_web';
 
 export function AppProvider({ children }) {
     const [transposition, setTransposition] = useState(0);
@@ -15,8 +20,12 @@ export function AppProvider({ children }) {
         return localStorage.getItem('acordismo_dark_mode') === 'true';
     });
     const [topSpaceEnabled, setTopSpaceEnabled] = useState(() => {
-        const saved = localStorage.getItem('acordismo_top_space');
-        return saved === null ? true : saved === 'true';
+        const saved = localStorage.getItem(TOP_SPACE_STORAGE_KEY);
+        if (saved !== null) {
+            return saved === 'true';
+        }
+        // Default ON for native mobile apps (Android/iOS), OFF for desktop/web browsers
+        return Capacitor.isNativePlatform();
     });
     const [currentTab, setCurrentTab] = useState('Playlists');
     const [tabOrders, setTabOrders] = useState({
@@ -42,7 +51,7 @@ export function AppProvider({ children }) {
     }, [darkMode]);
 
     useEffect(() => {
-        localStorage.setItem('acordismo_top_space', String(topSpaceEnabled));
+        localStorage.setItem(TOP_SPACE_STORAGE_KEY, String(topSpaceEnabled));
         document.documentElement.setAttribute(
             'data-top-space',
             topSpaceEnabled ? 'true' : 'false'
