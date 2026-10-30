@@ -1,6 +1,6 @@
 /**
  * @file src/screens/SongScreen.jsx
- * @version 2.4.0
+ * @version 2.8.2
  */
 import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Pause, Play } from 'lucide-react';
@@ -8,7 +8,10 @@ import executeQuery from '../shared/database';
 import { AppContext } from '../shared/AppContext';
 import { transposeChordToken } from '../shared/chordTransposer';
 
-export const __version__ = '2.4.0';
+export const __version__ = '2.8.2';
+
+const SCROLL_SPEED_STORAGE_KEY = 'acordismo_scroll_speed';
+const TARGET_DURATION_SECONDS = 210; // 3 minutes 30 seconds at 1.0x
 
 export default function SongScreen({ routeParams, onNavigate, onBack }) {
     const { selectedSongId, originStr } = routeParams;
@@ -24,10 +27,24 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
     const pinchStartDistRef = useRef(null);
     const pinchStartSizeRef = useRef(14);
 
-    // Auto-scroll state
+    // Auto-scroll state (calibrated: 1.0x = full song in 3:30, range 0.0x to 3.0x in 0.1 steps, default 1.0x)
     const scrollContainerRef = useRef(null);
     const [autoScrollActive, setAutoScrollActive] = useState(false);
-    const [scrollSpeed, setScrollSpeed] = useState(2); // 1 (slow) to 5 (fast)
+    const [speedMenuOpen, setSpeedMenuOpen] = useState(false);
+    const [scrollSpeed, setScrollSpeed] = useState(() => {
+        const saved = parseFloat(localStorage.getItem(SCROLL_SPEED_STORAGE_KEY));
+        return !Number.isNaN(saved) && saved >= 0.0 && saved <= 3.0 ? saved : 1.0;
+    });
+
+    const updateScrollSpeed = (nextVal) => {
+        const clamped = Math.max(0.0, Math.min(3.0, Math.round(nextVal * 10) / 10));
+        setScrollSpeed(clamped);
+        localStorage.setItem(SCROLL_SPEED_STORAGE_KEY, String(clamped));
+    };
+
+    const handleTogglePlay = () => {
+        setAutoScrollActive((prev) => !prev);
+    };
 
     useEffect(() => {
         let isMounted = true;
@@ -71,7 +88,7 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
         };
     }, [selectedSongId]);
 
-    // Smooth 60fps Auto-Scroll loop
+    // Smooth 60fps Auto-Scroll loop dynamically scaled so 1.0x = 3:30 (210s) at current zoom level
     useEffect(() => {
         if (!autoScrollActive) {
             return;
@@ -80,23 +97,28 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
         let lastTime = performance.now();
         let subPixelAccumulator = 0;
 
-        const pixelsPerSecond = scrollSpeed * 14; // 14px/s at 1x up to 70px/s at 5x
-
         const step = (now) => {
             const dt = (now - lastTime) / 1000;
             lastTime = now;
 
             const el = scrollContainerRef.current;
             if (el) {
-                subPixelAccumulator += pixelsPerSecond * dt;
-                if (subPixelAccumulator >= 1) {
-                    const wholePixels = Math.floor(subPixelAccumulator);
-                    el.scrollTop += wholePixels;
-                    subPixelAccumulator -= wholePixels;
+                const totalScrollableDistance = Math.max(0, el.scrollHeight - el.clientHeight);
+                if (totalScrollableDistance > 0 && scrollSpeed > 0) {
+                    // Base velocity so 1.0x covers totalScrollableDistance in 210 seconds (3:30)
+                    const basePixelsPerSecond = totalScrollableDistance / TARGET_DURATION_SECONDS;
+                    const pixelsPerSecond = basePixelsPerSecond * scrollSpeed;
 
-                    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 2) {
-                        setAutoScrollActive(false);
-                        return;
+                    subPixelAccumulator += pixelsPerSecond * dt;
+                    if (subPixelAccumulator >= 1) {
+                        const wholePixels = Math.floor(subPixelAccumulator);
+                        el.scrollTop += wholePixels;
+                        subPixelAccumulator -= wholePixels;
+
+                        if (el.scrollTop + el.clientHeight >= el.scrollHeight - 2) {
+                            setAutoScrollActive(false);
+                            return;
+                        }
                     }
                 }
             }
@@ -234,28 +256,70 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
                     <h1 className="header-title">{headerTitle}</h1>
                 </div>
                 <div className="header-actions">
-                    <div className="autoscroll-pill">
-                        <button
-                            className="icon-btn"
-                            style={{ padding: 4 }}
-                            title={autoScrollActive ? 'Pause Auto-Scroll' : 'Start Auto-Scroll'}
-                            onClick={() => setAutoScrollActive((v) => !v)}>
-                            {autoScrollActive ? <Pause size={16} /> : <Play size={16} />}
-                        </button>
-                        <button
-                            className="autoscroll-speed-btn"
-                            title="Slower"
-                            onClick={() => setScrollSpeed((s) => Math.max(1, s - 1))}>
-                            -
-                        </button>
-                        <span style={{ fontSize: '0.78rem', fontWeight: 600 }}>{scrollSpeed}x</span>
-                        <button
-                            className="autoscroll-speed-btn"
-                            title="Faster"
-                            onClick={() => setScrollSpeed((s) => Math.min(5, s + 1))}>
-                            +
-                        </button>
+                    <div className="autoscroll-anchor">
+                        <div className={`autoscroll-pill ${autoScrollActive ? 'active' : ''}`}>
+                            <button
+                                className="autoscroll-play-btn"
+                                title={autoScrollActive ? 'Pause Auto-Scroll' : 'Start Auto-Scroll'}
+                                onClick={handleTogglePlay}>
+                                {autoScrollActive ? <Pause size={15} /> : <Play size={15} />}
+                            </button>
+                            <button
+                                className="autoscroll-speed-trigger"
+                                title="Adjust Scroll Speed"
+                                onClick={() => setSpeedMenuOpen((o) => !o)}>
+                                {scrollSpeed.toFixed(1)}x
+                            </button>
+                        </div>
+
+                        {speedMenuOpen && (
+                            <div
+                                className="autoscroll-vertical-popover"
+                                onClick={(e) => e.stopPropagation()}>
+                                <button
+                                    className="autoscroll-step-btn"
+                                    title="Faster (+0.1x)"
+                                    onClick={() => updateScrollSpeed(scrollSpeed + 0.1)}>
+                                    +
+                                </button>
+                                <div
+                                    className="autoscroll-vertical-slider-wrap"
+                                    onDoubleClick={() => updateScrollSpeed(1.0)}
+                                    title="Double-click to reset to 1.0x">
+                                    <input
+                                        type="range"
+                                        className="autoscroll-vertical-slider"
+                                        min="0.0"
+                                        max="3.0"
+                                        step="0.1"
+                                        value={scrollSpeed}
+                                        onChange={(e) =>
+                                            updateScrollSpeed(parseFloat(e.target.value))
+                                        }
+                                        onDoubleClick={() => updateScrollSpeed(1.0)}
+                                    />
+                                </div>
+                                <span
+                                    style={{
+                                        fontWeight: 700,
+                                        fontSize: '0.82rem',
+                                        cursor: 'pointer',
+                                        userSelect: 'none',
+                                    }}
+                                    title="Double-click to reset to 1.0x"
+                                    onDoubleClick={() => updateScrollSpeed(1.0)}>
+                                    {scrollSpeed.toFixed(1)}x
+                                </span>
+                                <button
+                                    className="autoscroll-step-btn"
+                                    title="Slower (-0.1x)"
+                                    onClick={() => updateScrollSpeed(scrollSpeed - 0.1)}>
+                                    -
+                                </button>
+                            </div>
+                        )}
                     </div>
+
                     <button className="btn-primary" onClick={() => setSongModalVisible(true)}>
                         Info
                     </button>
@@ -265,6 +329,11 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
             <main
                 ref={scrollContainerRef}
                 className="content-scroll song-sheet-container"
+                onClick={() => {
+                    if (speedMenuOpen) {
+                        setSpeedMenuOpen(false);
+                    }
+                }}
                 onTouchStart={handleTouchStart}
                 onTouchMove={handleTouchMove}
                 onTouchEnd={handleTouchEnd}
