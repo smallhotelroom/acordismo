@@ -1,13 +1,13 @@
 /**
  * @file src/screens/SettingsScreen.jsx
- * @version 2.5.0
+ * @version 2.8.5
  */
 import React, { useContext, useRef } from 'react';
 import { ArrowLeft, Moon, RotateCcw, Sun, Upload } from 'lucide-react';
 import { loadExternalDatabaseFile, resetToDefaultDatabase } from '../shared/database';
 import { AppContext } from '../shared/AppContext';
 
-export const __version__ = '2.5.0';
+export const __version__ = '2.8.5';
 
 export default function SettingsScreen({ onBack }) {
     const {
@@ -57,6 +57,14 @@ export default function SettingsScreen({ onBack }) {
                     </button>
                     <h1 className="header-title">Settings</h1>
                 </div>
+                <div className="header-actions">
+                    <button
+                        className="icon-btn"
+                        title="Toggle Dark Mode"
+                        onClick={() => setDarkMode(!darkMode)}>
+                        {darkMode ? <Sun size={20} /> : <Moon size={20} />}
+                    </button>
+                </div>
             </header>
 
             <main className="content-scroll">
@@ -66,55 +74,11 @@ export default function SettingsScreen({ onBack }) {
                         alignItems: 'center',
                         justifyContent: 'space-between',
                         padding: 15,
-                        borderBottom: '1px solid var(--border-color)',
-                    }}>
-                    <div>
-                        <strong>Appearance (Stage Mode)</strong>
-                        <div style={{ fontSize: '0.88rem', color: 'var(--text-secondary)' }}>
-                            {darkMode ? 'Dark mode enabled' : 'Light mode enabled'}
-                        </div>
-                    </div>
-                    <button
-                        className="btn-primary"
-                        style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
-                        onClick={() => setDarkMode(!darkMode)}>
-                        {darkMode ? <Sun size={16} /> : <Moon size={16} />}
-                        {darkMode ? 'Switch to Light' : 'Switch to Dark'}
-                    </button>
-                </div>
-
-                <div
-                    style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        padding: 15,
-                        borderBottom: '1px solid var(--border-color)',
-                    }}>
-                    <div>
-                        <strong>Top Status Bar Space</strong>
-                        <div style={{ fontSize: '0.88rem', color: 'var(--text-secondary)' }}>
-                            {topSpaceEnabled
-                                ? 'Enabled (avoids camera cutout / status bar)'
-                                : 'Disabled (full-height header)'}
-                        </div>
-                    </div>
-                    <button
-                        className="btn-primary"
-                        onClick={() => setTopSpaceEnabled(!topSpaceEnabled)}>
-                        {topSpaceEnabled ? 'Disable' : 'Enable'}
-                    </button>
-                </div>
-
-                <div
-                    style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        padding: 15,
                         gap: 10,
                     }}>
-                    <div style={{ flex: 4 }}>Transposition: {transposition}</div>
+                    <div style={{ flex: 4 }}>
+                        <strong>Transposition:</strong> {transposition}
+                    </div>
                     <button
                         className="btn-primary"
                         onClick={() => setTransposition(transposition + 1)}>
@@ -146,6 +110,29 @@ export default function SettingsScreen({ onBack }) {
                     <div>Examples for Ukelele:</div>
                     <div>{'\u2022'} Play most songs on Ukelele: -5</div>
                     <div>{'\u2022'} Play song on Ukelele, but song says Capo on 2: -3</div>
+                </div>
+
+                <div
+                    style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: 15,
+                        borderBottom: '1px solid var(--border-color)',
+                    }}>
+                    <div>
+                        <strong>Top Status Bar Space</strong>
+                        <div style={{ fontSize: '0.88rem', color: 'var(--text-secondary)' }}>
+                            {topSpaceEnabled
+                                ? 'Enabled (avoids camera cutout / status bar)'
+                                : 'Disabled (full-height header)'}
+                        </div>
+                    </div>
+                    <button
+                        className="btn-primary"
+                        onClick={() => setTopSpaceEnabled(!topSpaceEnabled)}>
+                        {topSpaceEnabled ? 'Disable' : 'Enable'}
+                    </button>
                 </div>
 
                 {/* Songbook Database Pack Loader (Local / Offline Extension) */}
