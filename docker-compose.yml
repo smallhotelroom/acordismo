@@ -1,5 +1,5 @@
 # File: docker-compose.yml
-# Version: 1.6.0
+# Version: 1.6.1
 services:
   android-builder:
     build: .
@@ -17,6 +17,10 @@ services:
       - GRADLE_TASK=${GRADLE_TASK:-assembleDebug}
     command: >
       bash -c "
+        if [ -z \"$$(ls -A /root/.gradle/wrapper/dists 2>/dev/null)\" ] && [ -f /opt/gradle-dist/gradle-8.11.1-all.zip ]; then
+          mkdir -p /root/.gradle/wrapper/dists/gradle-8.11.1-all/2qik7nd48slq1ooc2496pTF4i &&
+          cp /opt/gradle-dist/gradle-8.11.1-all.zip /root/.gradle/wrapper/dists/gradle-8.11.1-all/2qik7nd48slq1ooc2496pTF4i/;
+        fi &&
         npm run build &&
         if [ ! -f android/capacitor.settings.gradle ]; then
           npx cap sync android;
@@ -32,7 +36,7 @@ services:
             cp -f \"$$src\" \"app/build/outputs/apk/$$type/acordismo-$$type-$$ts.apk\";
           fi;
         done &&
-        chown -R $(stat -c '%u:%g' /app) /app/dist /app/android
+        chown -R $(stat -c '%u:%g' /app) /app/dist /app/android/app/src/main/assets /app/android/app/build/outputs
       "
 
 volumes:
