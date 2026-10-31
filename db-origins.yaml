@@ -1,0 +1,60 @@
+# File: db-origins.yaml
+# Version: 1.0.0
+# Order of layers defines priority (first layer = highest priority, overrides duplicates below).
+# Missing paths or unset environment variables are logged clearly and skipped without failing.
+
+layers:
+  - id: "official"
+    output: "public/songs.db"
+    also_copy_to: "dist-dbs/songs-official.db"
+    sources:
+      - type: "markdown_dir"
+        path: "${ACORDISMO_OFFICIAL_DIR:-../smallhotelroom.github.io/src/contents/songs}"
+        playlist: "★ Small Hotel Room"
+
+  - id: "curated"
+    output: "dist-dbs/songs-curated.db"
+    sources:
+      - type: "markdown_dir"
+        path: "${ACORDISMO_CURATED_DIR}/0-GUITAR/english"
+        playlist: "English"
+      - type: "markdown_dir"
+        path: "${ACORDISMO_CURATED_DIR}/0-GUITAR/espanol"
+        playlist: "Español"
+      - type: "markdown_dir"
+        path: "${ACORDISMO_CURATED_DIR}/0-GUITAR/francais"
+        playlist: "Français"
+      - type: "markdown_dir"
+        path: "${ACORDISMO_CURATED_DIR}/0-GUITAR/italiano"
+        playlist: "Italiano"
+      - type: "markdown_dir"
+        path: "${ACORDISMO_CURATED_DIR}/0-GUITAR/japanese"
+        playlist: "日本"
+      - type: "markdown_dir"
+        path: "${ACORDISMO_CURATED_DIR}/0-GUITAR/portugues"
+        playlist: "Português"
+    playlists:
+      - name: "★ cancionesdejuan"
+        match: "Cancionesdejuan - *"
+      - name: "★ Small Hotel Room"
+        match: "Small Hotel Room - *"
+      - name: "★ Metal, Rock y Punk"
+        from_file: "${ACORDISMO_CURATED_DIR}/additionalPlaylists/metal-rock-punk.txt"
+
+  - id: "crawler"
+    output: "dist-dbs/songs-crawler.db"
+    sources:
+      - type: "dataset_zk"
+        path: "${ACORDISMO_CRAWLER_DIR}"
+        cache: "${ACORDISMO_CRAWLER_CACHE_DIR}"
+        subdir: "${ACORDISMO_ZK_SUBDIR}"
+        playlist: "OrigenZK"
+        max_errors: 5
+      - type: "dataset_lk"
+        path: "${ACORDISMO_CRAWLER_DIR}"
+        cache: "${ACORDISMO_CRAWLER_CACHE_DIR}"
+        subdir: "${ACORDISMO_LK_SUBDIR}"
+        playlist: "OrigenLK"
+        max_errors: 5
+
+merged_output: "dist-dbs/songs-merged.db"

@@ -1,13 +1,30 @@
 /**
  * @file src/screens/SettingsScreen.jsx
- * @version 2.8.5
+ * @version 3.0.0
  */
-import React, { useContext, useRef } from 'react';
-import { ArrowLeft, Moon, RotateCcw, Sun, Upload } from 'lucide-react';
-import { loadExternalDatabaseFile, resetToDefaultDatabase } from '../shared/database';
+import React, { useContext, useEffect, useRef, useState } from 'react';
+import {
+    ArrowDown,
+    ArrowLeft,
+    ArrowUp,
+    Moon,
+    RotateCcw,
+    Sun,
+    Trash2,
+    Upload,
+} from 'lucide-react';
+import {
+    getDatabaseLayerStack,
+    getSavedDbLabel,
+    loadExternalDatabaseFile,
+    moveDatabaseLayer,
+    removeDatabaseLayer,
+    resetToDefaultDatabase,
+    toggleDatabaseLayer,
+} from '../shared/database';
 import { AppContext } from '../shared/AppContext';
 
-export const __version__ = '2.8.5';
+export const __version__ = '3.0.0';
 
 export default function SettingsScreen({ onBack }) {
     const {
@@ -23,25 +40,59 @@ export default function SettingsScreen({ onBack }) {
     } = useContext(AppContext);
 
     const fileInputRef = useRef(null);
+    const [layerStack, setLayerStack] = useState([]);
+
+    const refreshStackState = async () => {
+        const stack = await getDatabaseLayerStack();
+        const label = await getSavedDbLabel();
+        setLayerStack(stack);
+        setActiveDbLabel(label);
+    };
+
+    useEffect(() => {
+        refreshStackState();
+    }, []);
 
     const handleFileUpload = async (e) => {
-        const file = e.target.files?.[0];
-        if (!file) {
+        const files = Array.from(e.target.files || []);
+        if (files.length === 0) {
             return;
         }
         try {
-            await loadExternalDatabaseFile(file);
-            setActiveDbLabel(file.name);
+            for (const file of files) {
+                await loadExternalDatabaseFile(file);
+            }
+            await refreshStackState();
             setDbRevision((r) => r + 1);
         } catch (err) {
             console.error('Failed to load external database:', err);
+        } finally {
+            e.target.value = '';
         }
+    };
+
+    const handleToggleLayer = async (layerId) => {
+        await toggleDatabaseLayer(layerId);
+        await refreshStackState();
+        setDbRevision((r) => r + 1);
+    };
+
+    const handleMoveLayer = async (layerId, direction) => {
+        await moveDatabaseLayer(layerId, direction);
+        await refreshStackState();
+        setDbRevision((r) => r + 1);
+    };
+
+    const handleRemoveLayer = async (layerId) => {
+        await removeDatabaseLayer(layerId);
+        await refreshStackState();
+        setDbRevision((r) => r + 1);
     };
 
     const handleResetDb = async () => {
         try {
             await resetToDefaultDatabase();
-            setActiveDbLabel('Default (Small Hotel Room)');
+            await refreshStackState();
             setDbRevision((r) => r + 1);
         } catch (err) {
             console.error('Failed to reset database:', err);
@@ -135,18 +186,109 @@ export default function SettingsScreen({ onBack }) {
                     </button>
                 </div>
 
-                {/* Songbook Database Pack Loader (Local / Offline Extension) */}
+                {/* N-Layer Songbook Database Priority Stack */}
                 <div style={{ padding: 15, borderBottom: '1px solid var(--border-color)' }}>
-                    <div style={{ fontWeight: 'bold', marginBottom: 8 }}>
-                        Songbook Database Pack
+                    <div style={{ fontWeight: 'bold', marginBottom: 4 }}>
+                        Songbook Database Layers (Priority Order)
                     </div>
-                    <div style={{ marginBottom: 12, fontSize: '0.9rem' }}>
-                        Active DB: <strong>{activeDbLabel}</strong>
+                    <div
+                        style={{
+                            marginBottom: 12,
+                            fontSize: '0.85rem',
+                            color: 'var(--text-secondary)',
+                        }}>
+                        Higher layers override duplicate songs in lower layers. Active:{' '}
+                        <strong>{activeDbLabel}</strong>
                     </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
+                        {layerStack.map((layer, index) => (
+                            <div
+                                key={layer.id}
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    padding: '10px 12px',
+                                    borderRadius: 6,
+                                    border: '1px solid var(--border-color)',
+                                    background: 'var(--bg-surface)',
+                                    opacity: layer.enabled ? 1 : 0.55,
+                                    gap: 8,
+                                }}>
+                                <label
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 10,
+                                        flex: 1,
+                                        minWidth: 0,
+                                        cursor: 'pointer',
+                                    }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={layer.enabled}
+                                        onChange={() => handleToggleLayer(layer.id)}
+                                        style={{ width: 18, height: 18, cursor: 'pointer' }}
+                                    />
+                                    <div style={{ minWidth: 0 }}>
+                                        <div
+                                            style={{
+                                                fontWeight: 700,
+                                                whiteSpace: 'nowrap',
+                                                overflow: 'hidden',
+                                                textOverflow: 'ellipsis',
+                                            }}>
+                                            #{index + 1} {layer.name}
+                                        </div>
+                                        <div
+                                            style={{
+                                                fontSize: '0.8rem',
+                                                color: 'var(--text-secondary)',
+                                            }}>
+                                            {layer.songCount} songs · {layer.bandCount} bands
+                                            {layer.builtin ? ' · Built-in' : ''}
+                                        </div>
+                                    </div>
+                                </label>
+
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                    <button
+                                        className="icon-btn"
+                                        title="Move Priority Up"
+                                        disabled={index === 0}
+                                        style={{ opacity: index === 0 ? 0.3 : 1 }}
+                                        onClick={() => handleMoveLayer(layer.id, -1)}>
+                                        <ArrowUp size={18} />
+                                    </button>
+                                    <button
+                                        className="icon-btn"
+                                        title="Move Priority Down"
+                                        disabled={index === layerStack.length - 1}
+                                        style={{
+                                            opacity: index === layerStack.length - 1 ? 0.3 : 1,
+                                        }}
+                                        onClick={() => handleMoveLayer(layer.id, 1)}>
+                                        <ArrowDown size={18} />
+                                    </button>
+                                    {!layer.builtin && (
+                                        <button
+                                            className="icon-btn"
+                                            title="Remove Layer"
+                                            onClick={() => handleRemoveLayer(layer.id)}>
+                                            <Trash2 size={18} />
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
                     <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                         <input
                             ref={fileInputRef}
                             type="file"
+                            multiple
                             accept=".db,.sqlite,.sqlite3"
                             style={{ display: 'none' }}
                             onChange={handleFileUpload}
@@ -155,7 +297,7 @@ export default function SettingsScreen({ onBack }) {
                             className="btn-primary"
                             style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
                             onClick={() => fileInputRef.current?.click()}>
-                            <Upload size={16} /> Load External .db Pack
+                            <Upload size={16} /> Add .db Layer Pack(s)
                         </button>
                         <button
                             className="btn-primary"
