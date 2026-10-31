@@ -16,16 +16,19 @@ dist
 dist-ssr
 *.local
 
-# Binary & Generated Assets (generated locally by Python / npm)
+# Local environment variables (keep .env.example tracked)
+.env
+.env.*
+!.env.example
+
+# Binary & Generated Assets (generated locally by npm)
 public/songs.db
 public/sql-wasm.wasm
-python/*.db
 *.sqlite
 *.sqlite3
 
-# External / Unowned Song Directories
-python/external/
-python/packs/
+# Generated multi-layer databases
+dist-dbs/
 
 # Capacitor Generated Web Assets & Configs inside Native Folders
 android/app/src/main/assets/public/
