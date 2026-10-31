@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "postinstall": "node -e \"const fs = require('fs'); if (fs.existsSync('node_modules/sql.js/dist/sql-wasm.wasm')) fs.copyFileSync('node_modules/sql.js/dist/sql-wasm.wasm', 'public/sql-wasm.wasm');\"",
+    "db:build": "node scripts/build-db.mjs",
     "dev": "vite",
     "build": "vite build",
     "lint": "oxlint",
