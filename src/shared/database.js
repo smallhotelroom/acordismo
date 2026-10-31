@@ -1,17 +1,19 @@
 /**
  * @file src/shared/database.js
- * @version 3.0.0
+ * @version 3.1.0
  */
 import * as sqlJsModule from 'sql.js';
 import { inspectDatabase, mergeDatabasesInPriorityOrder } from './dbMerger';
 
-export const __version__ = '3.0.0';
+export const __version__ = '3.1.0';
 
 const initSqlJs = sqlJsModule.default || sqlJsModule;
 
 const IDB_NAME = 'acordismo_storage';
 const IDB_STORE = 'db_packs';
 const IDB_KEY_STACK = 'db_layer_stack_v1';
+const IDB_KEY_MERGED_CACHE = 'db_merged_cache_v1';
+const IDB_KEY_ACTIVE_LABEL = 'db_active_label_v1';
 
 // Legacy single-pack keys (migrated automatically if present)
 const LEGACY_KEY_BYTES = 'custom_db_bytes';
@@ -19,6 +21,7 @@ const LEGACY_KEY_LABEL = 'custom_db_label';
 
 let sqlPromise = null;
 let dbInstance = null;
+let initPromise = null;
 let cachedDefaultBytes = null;
 
 function openIdb() {
@@ -61,6 +64,20 @@ async function idbSet(key, value) {
     }
 }
 
+async function idbDelete(key) {
+    try {
+        const db = await openIdb();
+        return await new Promise((resolve, reject) => {
+            const tx = db.transaction(IDB_STORE, 'readwrite');
+            tx.objectStore(IDB_STORE).delete(key);
+            tx.oncomplete = () => resolve();
+            tx.onerror = () => reject(tx.error);
+        });
+    } catch (err) {
+        console.error('IndexedDB delete error:', err);
+    }
+}
+
 async function idbClear() {
     try {
         const db = await openIdb();
@@ -97,15 +114,26 @@ async function fetchDefaultDbBytes() {
     return cachedDefaultBytes;
 }
 
+function computeStackLabel(stack) {
+    const enabled = (stack || []).filter((l) => l.enabled);
+    if (enabled.length === 0) {
+        return 'None (All Layers Disabled)';
+    }
+    if (enabled.length === 1 && enabled[0].builtin) {
+        return 'Default (Small Hotel Room)';
+    }
+    return enabled.map((l, idx) => `#${idx + 1} ${l.name}`).join(' + ');
+}
+
 /**
  * Returns the persisted N-layer stack from IndexedDB, initializing with the built-in
  * official pack at Priority 1 if no stack is stored yet.
  */
 export async function getDatabaseLayerStack() {
-    const SQL = await getSqlEngine();
     let stack = await idbGet(IDB_KEY_STACK);
 
     if (!Array.isArray(stack) || stack.length === 0) {
+        const SQL = await getSqlEngine();
         const defaultBytes = await fetchDefaultDbBytes();
         const tmpDb = new SQL.Database(defaultBytes);
         const stats = inspectDatabase(tmpDb, 'official');
@@ -119,7 +147,7 @@ export async function getDatabaseLayerStack() {
                 enabled: true,
                 songCount: stats.songCount,
                 bandCount: stats.bandCount,
-                bytes: null, // Loaded from /songs.db
+                bytes: null,
             },
         ];
 
@@ -142,40 +170,55 @@ export async function getDatabaseLayerStack() {
         }
 
         await idbSet(IDB_KEY_STACK, stack);
+        await idbSet(IDB_KEY_ACTIVE_LABEL, computeStackLabel(stack));
     }
 
     return stack;
 }
 
+/**
+ * Fast label lookup that avoids loading multi-megabyte Uint8Array layer packs on app boot.
+ */
 export async function getSavedDbLabel() {
+    const cachedLabel = await idbGet(IDB_KEY_ACTIVE_LABEL);
+    if (cachedLabel) {
+        return cachedLabel;
+    }
     const stack = await getDatabaseLayerStack();
-    const enabled = stack.filter((l) => l.enabled);
-    if (enabled.length === 0) {
-        return 'None (All Layers Disabled)';
-    }
-    if (enabled.length === 1 && enabled[0].builtin) {
-        return 'Default (Small Hotel Room)';
-    }
-    return enabled.map((l, idx) => `#${idx + 1} ${l.name}`).join(' + ');
+    const label = computeStackLabel(stack);
+    await idbSet(IDB_KEY_ACTIVE_LABEL, label);
+    return label;
 }
 
 /**
- * Rebuilds the active in-memory SQLite database by merging all enabled layers in priority order.
+ * Rebuilds the active in-memory SQLite database by merging all enabled layers in priority order,
+ * and caches the resulting merged binary in IndexedDB for instant startup on future launches.
  */
-export async function rebuildMergedDatabase() {
+export async function rebuildMergedDatabase(providedStack = null) {
     const SQL = await getSqlEngine();
-    const stack = await getDatabaseLayerStack();
+    const stack = providedStack || (await getDatabaseLayerStack());
     const enabledLayers = stack.filter((l) => l.enabled);
+
+    await idbSet(IDB_KEY_ACTIVE_LABEL, computeStackLabel(stack));
 
     if (dbInstance) {
         dbInstance.close();
         dbInstance = null;
     }
 
-    // Fast path: if only a single layer is active and has no wildcard rules needing cross-layer evaluation
+    // Fast path 1: Only the built-in official layer is active
     if (enabledLayers.length === 1 && enabledLayers[0].builtin) {
+        await idbDelete(IDB_KEY_MERGED_CACHE);
         const defaultBytes = await fetchDefaultDbBytes();
         dbInstance = new SQL.Database(defaultBytes);
+        return dbInstance;
+    }
+
+    // Fast path 2: Only a single external layer is active (no cross-layer merging needed)
+    if (enabledLayers.length === 1 && !enabledLayers[0].builtin && enabledLayers[0].bytes) {
+        const singleBytes = enabledLayers[0].bytes;
+        await idbSet(IDB_KEY_MERGED_CACHE, singleBytes);
+        dbInstance = new SQL.Database(singleBytes);
         return dbInstance;
     }
 
@@ -188,6 +231,8 @@ export async function rebuildMergedDatabase() {
             }
         }
         dbInstance = mergeDatabasesInPriorityOrder(SQL, openedDbs, 'runtime-merged');
+        const exportedMerged = dbInstance.export();
+        await idbSet(IDB_KEY_MERGED_CACHE, exportedMerged);
     } finally {
         for (const d of openedDbs) {
             d.close();
@@ -208,11 +253,42 @@ export async function initDatabase(customUint8Array = null) {
         return dbInstance;
     }
 
-    if (!dbInstance) {
-        await rebuildMergedDatabase();
+    if (dbInstance) {
+        return dbInstance;
     }
 
-    return dbInstance;
+    // Prevent concurrent queries on HomeScreen mount from triggering duplicate initializations
+    if (!initPromise) {
+        initPromise = (async () => {
+            // 1. Check if we already have a pre-merged database binary cached in IndexedDB
+            const cachedMergedBytes = await idbGet(IDB_KEY_MERGED_CACHE);
+            if (cachedMergedBytes && cachedMergedBytes instanceof Uint8Array) {
+                dbInstance = new SQL.Database(cachedMergedBytes);
+                return dbInstance;
+            }
+
+            // 2. Check if the user has custom layers configured without a cache yet
+            const stack = await idbGet(IDB_KEY_STACK);
+            if (Array.isArray(stack) && stack.length > 0) {
+                const enabled = stack.filter((l) => l.enabled);
+                if (enabled.length === 1 && enabled[0].builtin) {
+                    const defaultBytes = await fetchDefaultDbBytes();
+                    dbInstance = new SQL.Database(defaultBytes);
+                    return dbInstance;
+                }
+                return await rebuildMergedDatabase(stack);
+            }
+
+            // 3. Default clean startup: load bundled /songs.db directly with zero IndexedDB blob writes
+            const defaultBytes = await fetchDefaultDbBytes();
+            dbInstance = new SQL.Database(defaultBytes);
+            return dbInstance;
+        })().finally(() => {
+            initPromise = null;
+        });
+    }
+
+    return initPromise;
 }
 
 /**
@@ -231,7 +307,10 @@ export async function loadExternalDatabaseFile(file) {
     const existingIdx = stack.findIndex((l) => !l.builtin && l.name === file.name);
 
     const layerEntry = {
-        id: existingIdx !== -1 ? stack[existingIdx].id : `layer-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        id:
+            existingIdx !== -1
+                ? stack[existingIdx].id
+                : `layer-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
         name: file.name,
         builtin: false,
         enabled: true,
@@ -247,7 +326,7 @@ export async function loadExternalDatabaseFile(file) {
     }
 
     await idbSet(IDB_KEY_STACK, stack);
-    await rebuildMergedDatabase();
+    await rebuildMergedDatabase(stack);
     return stack;
 }
 
@@ -260,7 +339,7 @@ export async function toggleDatabaseLayer(layerId) {
         l.id === layerId ? { ...l, enabled: !l.enabled } : l
     );
     await idbSet(IDB_KEY_STACK, nextStack);
-    await rebuildMergedDatabase();
+    await rebuildMergedDatabase(nextStack);
     return nextStack;
 }
 
@@ -282,7 +361,7 @@ export async function moveDatabaseLayer(layerId, direction) {
     nextStack.splice(targetIdx, 0, moved);
 
     await idbSet(IDB_KEY_STACK, nextStack);
-    await rebuildMergedDatabase();
+    await rebuildMergedDatabase(nextStack);
     return nextStack;
 }
 
@@ -293,7 +372,7 @@ export async function removeDatabaseLayer(layerId) {
     const stack = await getDatabaseLayerStack();
     const nextStack = stack.filter((l) => l.builtin || l.id !== layerId);
     await idbSet(IDB_KEY_STACK, nextStack);
-    await rebuildMergedDatabase();
+    await rebuildMergedDatabase(nextStack);
     return nextStack;
 }
 
@@ -306,7 +385,7 @@ export async function resetToDefaultDatabase() {
         dbInstance.close();
         dbInstance = null;
     }
-    await rebuildMergedDatabase();
+    await initDatabase();
 }
 
 /**

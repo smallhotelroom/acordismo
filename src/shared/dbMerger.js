@@ -1,9 +1,9 @@
 /**
  * @file src/shared/dbMerger.js
- * @version 1.0.0
+ * @version 1.1.0
  */
 
-export const __version__ = '1.0.0';
+export const __version__ = '1.1.0';
 
 export const SCHEMA_SQL = `
     CREATE TABLE IF NOT EXISTS meta (
@@ -134,10 +134,8 @@ export function inspectDatabase(db, fallbackLabel = 'Database Pack') {
  * Merges an ordered array of sql.js Database instances (index 0 = highest priority)
  * into a brand-new sql.js Database instance.
  *
- * - Higher-priority songs override lower-priority duplicates with the same (band_name, song_name).
- * - Overridden songs still inherit playlist memberships from lower-priority layers.
- * - Dynamic wildcard rules in `playlist_rules` are evaluated across the final merged catalog.
- * - Empty bands and empty playlists are never inserted.
+ * Uses synchronous JS ID counters and prepared statements inside a single transaction
+ * to avoid thousands of `SELECT last_insert_rowid()` roundtrips across WASM.
  */
 export function mergeDatabasesInPriorityOrder(SQL, dbList, label = 'merged') {
     if (!dbList || dbList.length === 0) {
@@ -147,10 +145,9 @@ export function mergeDatabasesInPriorityOrder(SQL, dbList, label = 'merged') {
     }
 
     const mergedDb = new SQL.Database();
+    mergedDb.run('PRAGMA synchronous = OFF; PRAGMA journal_mode = MEMORY;');
     mergedDb.run(SCHEMA_SQL);
 
-    // Canonical registries in priority order
-    // songKey = `${bandName.toLowerCase()}|||${songName.toLowerCase()}`
     const songsByKey = new Map();
     const playlistOrder = [];
     const playlistOrderSet = new Set();
@@ -218,7 +215,6 @@ export function mergeDatabasesInPriorityOrder(SQL, dbList, label = 'merged') {
             const songKey = `${bandName.toLowerCase()}|||${songName.toLowerCase()}`;
             srcSongIdToKey.set(s.id, songKey);
 
-            // First layer to define (bandName, songName) wins!
             if (!songsByKey.has(songKey)) {
                 songsByKey.set(songKey, {
                     ...s,
@@ -268,32 +264,37 @@ export function mergeDatabasesInPriorityOrder(SQL, dbList, label = 'merged') {
         }
     }
 
-    // Keep "★ ..." curated playlists ordered at the bottom (matching classic Cordismo layout)
     const regularPlaylists = playlistOrder.filter((p) => !p.startsWith('★'));
     const starPlaylists = playlistOrder.filter((p) => p.startsWith('★'));
     const finalPlaylistOrder = [...regularPlaylists, ...starPlaylists];
 
     mergedDb.run('BEGIN TRANSACTION;');
 
+    let nextBandId = 1;
+    let nextSongId = 1;
+    let nextPlaylistId = 1;
+
     const bandIdByLower = new Map();
+    const insertBandStmt = mergedDb.prepare('INSERT INTO bands (id, name) VALUES (?, ?);');
+
     const getOrCreateBandId = (bandName) => {
         const clean = String(bandName).trim();
         const key = clean.toLowerCase();
         if (bandIdByLower.has(key)) {
             return bandIdByLower.get(key);
         }
-        mergedDb.run('INSERT INTO bands (name) VALUES (?);', [clean]);
-        const newId = queryAll(mergedDb, 'SELECT last_insert_rowid() AS id;')[0].id;
+        const newId = nextBandId++;
+        insertBandStmt.run([newId, clean]);
         bandIdByLower.set(key, newId);
         return newId;
     };
 
     const insertSongStmt = mergedDb.prepare(`
         INSERT INTO songs (
-            content_hash, name, band_id, origin_id, album, author, bpm, capo,
+            id, content_hash, name, band_id, origin_id, album, author, bpm, capo,
             falsetto, highest, isrc, key, lang, license, musicians, spotify,
             time_signature, track, url, writer, contents
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
     `);
 
     const insertFtStmt = mergedDb.prepare(
@@ -304,7 +305,9 @@ export function mergeDatabasesInPriorityOrder(SQL, dbList, label = 'merged') {
 
     for (const [songKey, s] of songsByKey.entries()) {
         const bandId = getOrCreateBandId(s.bandName);
+        const songId = nextSongId++;
         insertSongStmt.run([
+            songId,
             s.content_hash ?? null,
             s.songName,
             bandId,
@@ -328,7 +331,6 @@ export function mergeDatabasesInPriorityOrder(SQL, dbList, label = 'merged') {
             s.contents ?? '',
         ]);
 
-        const songId = queryAll(mergedDb, 'SELECT last_insert_rowid() AS id;')[0].id;
         newSongIdByKey.set(songKey, songId);
 
         for (const ftName of s.ftBandNames) {
@@ -337,9 +339,11 @@ export function mergeDatabasesInPriorityOrder(SQL, dbList, label = 'merged') {
         }
     }
 
+    insertBandStmt.free();
     insertSongStmt.free();
     insertFtStmt.free();
 
+    const insertPlaylistStmt = mergedDb.prepare('INSERT INTO playlists (id, name) VALUES (?, ?);');
     const insertPlaylistSongStmt = mergedDb.prepare(
         'INSERT INTO playlists_songs (playlist_id, song_id) VALUES (?, ?);'
     );
@@ -349,8 +353,8 @@ export function mergeDatabasesInPriorityOrder(SQL, dbList, label = 'merged') {
         if (!songKeys || songKeys.size === 0) {
             continue;
         }
-        mergedDb.run('INSERT INTO playlists (name) VALUES (?);', [pName]);
-        const playlistId = queryAll(mergedDb, 'SELECT last_insert_rowid() AS id;')[0].id;
+        const playlistId = nextPlaylistId++;
+        insertPlaylistStmt.run([playlistId, pName]);
 
         for (const sKey of songKeys) {
             const songId = newSongIdByKey.get(sKey);
@@ -360,14 +364,16 @@ export function mergeDatabasesInPriorityOrder(SQL, dbList, label = 'merged') {
         }
     }
 
+    insertPlaylistStmt.free();
     insertPlaylistSongStmt.free();
 
+    const insertRuleStmt = mergedDb.prepare(
+        'INSERT INTO playlist_rules (playlist_name, match_pattern) VALUES (?, ?);'
+    );
     for (const rule of wildcardRules) {
-        mergedDb.run(
-            'INSERT INTO playlist_rules (playlist_name, match_pattern) VALUES (?, ?);',
-            [rule.playlist_name, rule.match_pattern]
-        );
+        insertRuleStmt.run([rule.playlist_name, rule.match_pattern]);
     }
+    insertRuleStmt.free();
 
     mergedDb.run('INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?);', ['layer_id', label]);
     mergedDb.run('INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?);', [
