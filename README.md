@@ -63,13 +63,13 @@ Open an interactive shell inside the Android builder container:
 docker compose run --rm android-builder bash
 ```
 
-Compile the release APK (`android/app/build/outputs/apk/release/app-release-unsigned.apk`):
+Or compile the release APK (`ls android/app/build/outputs/apk/release/acordismo-release-*.apk`):
 
 ```bash
 GRADLE_TASK=assembleRelease docker compose up
 ```
 
-Compile the Play Store bundle (`android/app/build/outputs/bundle/release/app-release.aab`):
+Or compile the Play Store bundle (`ls android/app/build/outputs/bundle/release/app-release.aab`):
 
 ```bash
 GRADLE_TASK=bundleRelease docker compose up

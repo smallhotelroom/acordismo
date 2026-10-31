@@ -1,6 +1,6 @@
 /**
  * @file android/app/build.gradle
- * @version 2.8.2
+ * @version 2.8.6
  */
 apply plugin: 'com.android.application'
 
@@ -45,6 +45,12 @@ android {
             }
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+    applicationVariants.all { variant ->
+        variant.outputs.all { output ->
+            def buildTime = new Date().format('yyyy-MM-dd_HH-mm')
+            outputFileName = "acordismo-${variant.buildType.name}-${buildTime}.apk"
         }
     }
 }

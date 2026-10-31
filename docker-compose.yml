@@ -1,5 +1,5 @@
 # File: docker-compose.yml
-# Version: 1.4.0
+# Version: 1.5.0
 services:
   android-builder:
     build: .
@@ -8,6 +8,7 @@ services:
       - .:/app
       - gradle-cache:/root/.gradle
       - npm-cache:/root/.npm
+      - /etc/localtime:/etc/localtime:ro
     network_mode: host
     privileged: true
     devices:
@@ -20,6 +21,12 @@ services:
         npx cap sync android &&
         cd android &&
         (./gradlew $${GRADLE_TASK} --build-cache || ./gradlew $${GRADLE_TASK} --build-cache --offline) &&
+        for dir in app/build/outputs/apk/debug app/build/outputs/apk/release; do
+          latest=$$(ls -t $$dir/acordismo-*.apk 2>/dev/null | head -n 1);
+          if [ -n \"$$latest\" ]; then
+            cp -f \"$$latest\" \"$$dir/app-$$(basename $$dir).apk\";
+          fi;
+        done &&
         chown -R $(stat -c '%u:%g' /app) /app/dist /app/android
       "
 
