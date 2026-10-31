@@ -1,5 +1,5 @@
 # File: Dockerfile
-# Version: 1.3.0
+# Version: 1.4.1
 FROM ubuntu:24.04
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -33,9 +33,12 @@ RUN mkdir -p ${ANDROID_HOME}/cmdline-tools \
     && mv ${ANDROID_HOME}/cmdline-tools/cmdline-tools ${ANDROID_HOME}/cmdline-tools/latest \
     && rm android_tools.zip
 
-# Accept licenses and install Android SDK 35 (Capacitor 7 target)
+# Accept licenses and install SDK Platform 35 (Capacitor 7 target) + Build-Tools 34.0.0 (AGP 8.7 default)
 RUN yes | sdkmanager --licenses \
-    && sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0" \
+    && sdkmanager \
+        "platform-tools" \
+        "platforms;android-35" \
+        "build-tools;34.0.0" \
     && chmod -R 777 ${ANDROID_HOME}
 
 # Pre-bake Gradle 8.11.1 distribution into the image so it never fails if distribution servers change
