@@ -27,11 +27,27 @@ npm run preview
 
 ## 3. Android (via Docker)
 
-Build the Docker compiler image (only needed once or when `Dockerfile` changes):
+First, download or build the Docker image (only needed once or when `Dockerfile` changes)
 
-```bash
-docker compose build
-```
+
+**Option A: Pull the pre-built image (Fastest)**
+
+The build environment is hosted privately on the GitHub Container Registry to save time.
+
+1. Create a [GitHub Personal Access Token (Classic)](https://github.com/settings/tokens) and check the `read:packages` scope.
+2. Log in to the registry (replace with your username and token):
+   ```bash
+   echo "YOUR_TOKEN" | docker login ghcr.io -u YOUR_USERNAME --password-stdin
+3. Later on (when you run the compiler), Docker will automatically pull the image.
+
+**Option B: Build locally**
+
+1. Build the Docker compiler image:
+    ```bash
+    docker compose build
+    ```
+
+### 3.1. Android (via Docker): Debug
 
 Compile the debug APK (`android/app/build/outputs/apk/debug/app-debug.apk`):
 
@@ -51,23 +67,27 @@ If fails, possibly you may locally (`sudo apt install android-tools-adb`):
 adb install -r android/app/build/outputs/apk/debug/app-debug.apk
 ```
 
-Debug / view live Android device logs:
+More useful debug commands: debug/view live Android device logs:
 
 ```bash
 docker compose run --rm android-builder adb logcat | grep -i capacitor
 ```
 
-Open an interactive shell inside the Android builder container:
+Even more useful debug commands: Open an interactive shell inside the Android builder container:
 
 ```bash
 docker compose run --rm android-builder bash
 ```
+
+### 3.2. Android (via Docker): Release APK
 
 Or compile the release APK (`ls android/app/build/outputs/apk/release/acordismo-release-*.apk`):
 
 ```bash
 GRADLE_TASK=assembleRelease docker compose up
 ```
+
+### 3.3. Android (via Docker): Play Store bundle
 
 Or compile the Play Store bundle (`ls android/app/build/outputs/bundle/release/app-release.aab`):
 
