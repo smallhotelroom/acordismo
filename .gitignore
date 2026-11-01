@@ -20,6 +20,7 @@ dist-ssr
 .env
 .env.*
 !.env.example
+tools/acordismo-linter/.acordismo-root
 
 # Binary & Generated Assets (generated locally by npm)
 public/songs.db

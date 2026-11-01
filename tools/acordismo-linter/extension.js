@@ -1,23 +1,37 @@
 /**
  * @file tools/acordismo-linter/extension.js
- * @version 2.3.0
- * Zero-copy VS Code Linter: dynamically imports both songSchema.js and chordTransposer.js
- * directly from smallhotelroom.github.io/src/shared/.
+ * @version 2.4.0
+ * Zero-copy VS Code Linter: uses fs.realpathSync(__dirname) so Windows Junctions
+ * and Linux Symlinks both resolve back to the real git repository.
  */
 const vscode = require('vscode');
+const fs = require('fs');
 const path = require('path');
 const { pathToFileURL } = require('url');
 
-const __version__ = '2.3.0';
+const __version__ = '2.4.0';
 
 const diagnosticCollection = vscode.languages.createDiagnosticCollection('acordismoLinter');
-
+let statusBarItem = null;
 let modulesPromise = null;
+
+function resolveAcordismoRoot() {
+    // 1. Check if install-linter.mjs wrote an explicit .acordismo-root pointer
+    const pointerFile = path.join(__dirname, '.acordismo-root');
+    if (fs.existsSync(pointerFile)) {
+        const target = fs.readFileSync(pointerFile, 'utf8').trim();
+        if (target && fs.existsSync(target)) {
+            return target;
+        }
+    }
+    // 2. Otherwise resolve symlink/junction realpath
+    const realExtDir = fs.realpathSync(__dirname);
+    return path.resolve(realExtDir, '..', '..');
+}
 
 function loadSharedModules() {
     if (!modulesPromise) {
-        const realExtDir = __dirname;
-        const acordismoRoot = path.resolve(realExtDir, '..', '..');
+        const acordismoRoot = resolveAcordismoRoot();
         const shrSharedDir = path.resolve(
             acordismoRoot,
             '..',
@@ -44,7 +58,8 @@ function loadSharedModules() {
  * @param {vscode.TextDocument} document
  */
 async function updateDiagnostics(document) {
-    if (document.languageId !== 'markdown') {
+    if (document.languageId !== 'markdown' && document.languageId !== 'plaintext') {
+        if (statusBarItem) statusBarItem.hide();
         return;
     }
 
@@ -72,7 +87,14 @@ async function updateDiagnostics(document) {
     const isStrictProject = schemaMod.STRICT_PROJECT_NAMES.includes(effectiveArtist);
     if (!isStrictProject) {
         diagnosticCollection.set(document.uri, []);
+        if (statusBarItem) statusBarItem.hide();
         return;
+    }
+
+    if (statusBarItem) {
+        statusBarItem.text = `$(music) Acordismo Linter v${__version__}`;
+        statusBarItem.tooltip = `Linting '${rawFileName}' (${effectiveArtist})`;
+        statusBarItem.show();
     }
 
     if (!parsed.hasFrontmatter || Object.keys(parsed.data).length === 0) {
@@ -192,6 +214,9 @@ async function updateDiagnostics(document) {
 }
 
 function activate(context) {
+    statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
+    context.subscriptions.push(statusBarItem);
+
     if (vscode.window.activeTextEditor) {
         updateDiagnostics(vscode.window.activeTextEditor.document);
     }
@@ -203,9 +228,11 @@ function activate(context) {
     );
 
     context.subscriptions.push(
-        vscode.workspace.onDidChangeActiveTextEditor((editor) => {
+        vscode.window.onDidChangeActiveTextEditor((editor) => {
             if (editor) {
                 updateDiagnostics(editor.document);
+            } else if (statusBarItem) {
+                statusBarItem.hide();
             }
         })
     );
