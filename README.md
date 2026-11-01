@@ -14,7 +14,7 @@ npm run db:build
 
 ## 2. PDF Generator
 
-Build PDF from `public/songs.db`:
+Build PDF from `public/songs-official.db`:
 
 ```bash
 npm run pdf:build -- --output SmallHotelRoom.pdf 
