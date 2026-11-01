@@ -2,9 +2,11 @@
 
 Offline chord and lyric reader built with Vite, React, SQLite (`sql.js` WASM), and Capacitor.
 
-## 1. Database (`songs.db`)
+Depends on `smallhotelroom.github.io` (git clone it next to this repository).
 
-Generate the default clean SQLite database (`public/songs.db`) from `smallhotelroom.github.io` Markdown songs:
+## 1. Database (`songs-official.db`)
+
+Generate the default official ("clean") SQLite database (`public/songs-official.db`) from `smallhotelroom.github.io` Markdown songs:
 
 ```bash
 npm run db:build
