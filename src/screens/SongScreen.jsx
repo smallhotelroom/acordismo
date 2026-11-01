@@ -1,30 +1,40 @@
 /**
  * @file src/screens/SongScreen.jsx
- * @version 2.10.0
+ * @version 2.11.0
  */
-import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Pause, Play } from 'lucide-react';
 import executeQuery from '../shared/database';
 import { AppContext } from '../shared/AppContext';
+import { FREEZE_CHORDS_STORAGE_KEY } from './SettingsScreen';
 import {
     CHORD_GROUP_DELIMITER_REGEX,
     deduceSongUseFlats,
-     transposeChordToken,
+    transposeChordToken,
 } from '@shr-shared/chordTransposer.js';
 
-export const __version__ = '2.10.0';
+export const __version__ = '2.11.0';
 
 const SCROLL_SPEED_STORAGE_KEY = 'acordismo_scroll_speed';
 const TARGET_DURATION_SECONDS = 210; // 3 minutes 30 seconds at 1.0x
 
 export default function SongScreen({ routeParams, onNavigate, onBack }) {
     const { selectedSongId, originStr } = routeParams;
-    const { transposition } = useContext(AppContext);
+    const { transposition, freezeChordsEnabled: ctxFreezeChords } = useContext(AppContext);
+
+    const freezeChordsEnabled = useMemo(() => {
+        if (ctxFreezeChords !== undefined) {
+            return ctxFreezeChords;
+        }
+        const saved = localStorage.getItem(FREEZE_CHORDS_STORAGE_KEY);
+        return saved !== null ? saved === 'true' : true;
+    }, [ctxFreezeChords]);
 
     const [songModalVisible, setSongModalVisible] = useState(false);
     const [songData, setSongData] = useState(null);
     const [bandName, setBandName] = useState('');
     const [featuringBands, setFeaturingBands] = useState([]);
+    const [frozenChordText, setFrozenChordText] = useState('');
 
     // Pinch-to-zoom and single-tap reset state
     const [fontSize, setFontSize] = useState(14);
@@ -76,6 +86,7 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
                 }
 
                 setSongData(tmpSong);
+                setFrozenChordText('');
                 if (bandRes.rows.length > 0) {
                     setBandName(bandRes.rows.item(0).name);
                 }
@@ -91,6 +102,39 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
             isMounted = false;
         };
     }, [selectedSongId]);
+
+    // Updates the Excel-style frozen top chord row based on current scroll position
+    const handleScrollUpdateFrozenChords = useCallback(() => {
+        if (!freezeChordsEnabled) {
+            setFrozenChordText('');
+            return;
+        }
+        const container = scrollContainerRef.current;
+        if (!container) {
+            return;
+        }
+        if (container.scrollTop <= 4) {
+            setFrozenChordText('');
+            return;
+        }
+
+        const containerTop = container.getBoundingClientRect().top;
+        const chordElements = container.querySelectorAll('[data-chord-line]');
+        let activeChords = '';
+
+        for (let i = 0; i < chordElements.length; i++) {
+            const el = chordElements[i];
+            const rect = el.getBoundingClientRect();
+            // If this chord line has reached or scrolled past the top edge of the scroll container
+            if (rect.top <= containerTop + 8) {
+                activeChords = el.getAttribute('data-chord-line') || '';
+            } else {
+                break;
+            }
+        }
+
+        setFrozenChordText((prev) => (prev !== activeChords ? activeChords : prev));
+    }, [freezeChordsEnabled]);
 
     // Smooth 60fps Auto-Scroll loop dynamically scaled so 1.0x = 3:30 (210s) at current zoom level
     useEffect(() => {
@@ -158,71 +202,110 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
 
         const lyrics = songData.contents || '';
         const useFlats = deduceSongUseFlats(lyrics, transposition, songData.key);
-        const re1 = /\((.+?)\)/g;
-        let array1;
+        const lines = lyrics.split('\n');
         let counter = 0;
-        let outerLastIndex = 0;
 
-        while ((array1 = re1.exec(lyrics)) !== null) {
-            //console.log("here: "+array1);// prints:"(chords),chords"
-            tmpSongScreenItems.push(
-                <span key={counter}>
-                    {lyrics.slice(outerLastIndex, re1.lastIndex - array1[0].length)}
-                </span>
-            );
-            //console.log("---");
-            //console.log("- "+array1[0]);
-            let chordGroup = array1[1];
-            let transposedStr = '(';
-            let innerDone = false;
+        lines.forEach((lineText, lineIndex) => {
+            const re1 = /\((.+?)\)/g;
+            let array1;
+            let outerLastIndex = 0;
+            const lineNodes = [];
+            const lineChordGroups = [];
 
-            while (innerDone === false) {
-                //console.log("** chordGroup: ["+chordGroup+"]");
-                const prefilter = /bpm|tempo|key|highest|falsetto|all|chords for/i.exec(chordGroup);
-                if (prefilter !== null) {
-                    transposedStr += chordGroup;
-                    innerDone = true;
-                    continue;
-                }
-                const delimiter = CHORD_GROUP_DELIMITER_REGEX.exec(chordGroup);
-                if (delimiter !== null) {
-                    //console.log("** At "+delimiter.index+" found delimiter ["+delimiter+"] of size: "+delimiter[0].length);
-                    const treatable = chordGroup.slice(0, delimiter.index);
-                    chordGroup = chordGroup.slice(
-                        delimiter.index + delimiter[0].length,
-                        chordGroup.length
-                    );
-                    if (delimiter.index === 0) {
+            while ((array1 = re1.exec(lineText)) !== null) {
+                //console.log("here: "+array1);// prints:"(chords),chords"
+                lineNodes.push(
+                    <span key={counter}>
+                        {lineText.slice(outerLastIndex, re1.lastIndex - array1[0].length)}
+                    </span>
+                );
+                //console.log("---");
+                //console.log("- "+array1[0]);
+                let chordGroup = array1[1];
+                let transposedStr = '(';
+                let innerDone = false;
+                let isDirectiveGroup = false;
+
+                while (innerDone === false) {
+                    //console.log("** chordGroup: ["+chordGroup+"]");
+                    const prefilter =
+                        /bpm|tempo|key|highest|falsetto|all|chords for|capo|drop/i.exec(
+                            chordGroup
+                        );
+                    if (prefilter !== null) {
+                        isDirectiveGroup = true;
+                        transposedStr += chordGroup;
+                        innerDone = true;
+                        continue;
+                    }
+                    const delimiter = CHORD_GROUP_DELIMITER_REGEX.exec(chordGroup);
+                    if (delimiter !== null) {
+                        //console.log("** At "+delimiter.index+" found delimiter ["+delimiter+"] of size: "+delimiter[0].length);
+                        const treatable = chordGroup.slice(0, delimiter.index);
+                        chordGroup = chordGroup.slice(
+                            delimiter.index + delimiter[0].length,
+                            chordGroup.length
+                        );
+                        if (delimiter.index === 0) {
+                            transposedStr += delimiter;
+                            continue;
+                        }
+                        //console.log("** treatable: {"+treatable+"}");
+                        transposedStr += transposeChordToken(treatable, transposition, useFlats);
                         transposedStr += delimiter;
                         continue;
                     }
-                    //console.log("** treatable: {"+treatable+"}");
-                    transposedStr += transposeChordToken(treatable, transposition, useFlats);
-                    transposedStr += delimiter;
-                    continue;
+                    //Transposer.transpose(chord).up(0).toString();
+                    //console.log("** Pre-END!");
+                    if (chordGroup.length > 0) {
+                        //console.log("** treatable: {"+chordGroup+"}");
+                        transposedStr += transposeChordToken(chordGroup, transposition, useFlats);
+                    }
+                    //console.log("** END!");
+                    innerDone = true;
                 }
-                //Transposer.transpose(chord).up(0).toString();
-                //console.log("** Pre-END!");
-                if (chordGroup.length > 0) {
-                    //console.log("** treatable: {"+chordGroup+"}");
-                    transposedStr += transposeChordToken(chordGroup, transposition, useFlats);
+                transposedStr += ')';
+                if (!isDirectiveGroup) {
+                    lineChordGroups.push(transposedStr);
                 }
-                //console.log("** END!");
-                innerDone = true;
+                //console.log("+ "+transposedStr);
+                lineNodes.push(<strong key={counter + 1}>{transposedStr}</strong>);
+                counter = counter + 2;
+                outerLastIndex = re1.lastIndex;
             }
-            transposedStr += ')';
-            //console.log("+ "+transposedStr);
-            tmpSongScreenItems.push(<strong key={counter + 1}>{transposedStr}</strong>);
-            counter = counter + 2;
-            outerLastIndex = re1.lastIndex;
-        }
 
-        tmpSongScreenItems.push(
-            <span key={counter}>{lyrics.slice(outerLastIndex, lyrics.length)}</span>
-        );
+            lineNodes.push(
+                <span key={counter}>{lineText.slice(outerLastIndex, lineText.length)}</span>
+            );
+            counter += 1;
+
+            const isLastLine = lineIndex === lines.length - 1;
+            if (lineChordGroups.length > 0) {
+                tmpSongScreenItems.push(
+                    <span
+                        key={`line-${lineIndex}`}
+                        data-chord-line={lineChordGroups.join('  ')}>
+                        {lineNodes}
+                        {!isLastLine ? '\n' : ''}
+                    </span>
+                );
+            } else {
+                tmpSongScreenItems.push(
+                    <span key={`line-${lineIndex}`}>
+                        {lineNodes}
+                        {!isLastLine ? '\n' : ''}
+                    </span>
+                );
+            }
+        });
 
         return tmpSongScreenItems;
     }, [songData, transposition]);
+
+    // Re-evaluate frozen chords when transposition changes
+    useEffect(() => {
+        handleScrollUpdateFrozenChords();
+    }, [transposition, freezeChordsEnabled, handleScrollUpdateFrozenChords]);
 
     // Touch pinch-to-zoom handlers
     const handleTouchStart = (e) => {
@@ -331,9 +414,28 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
                 </div>
             </header>
 
+            {/* Discreet Excel-style Frozen Top Chord Row */}
+            {freezeChordsEnabled && frozenChordText && (
+                <div
+                    className="song-lyrics-monospace"
+                    style={{
+                        padding: '6px 15px',
+                        background: 'var(--bg-surface)',
+                        borderBottom: '1px solid var(--border-color)',
+                        boxShadow: '0 2px 6px rgba(0, 0, 0, 0.12)',
+                        fontSize: `${fontSize}px`,
+                        fontWeight: 700,
+                        whiteSpace: 'pre-wrap',
+                        zIndex: 5,
+                    }}>
+                    {frozenChordText}
+                </div>
+            )}
+
             <main
                 ref={scrollContainerRef}
                 className="content-scroll song-sheet-container"
+                onScroll={handleScrollUpdateFrozenChords}
                 onClick={() => {
                     if (speedMenuOpen) {
                         setSpeedMenuOpen(false);

@@ -1,6 +1,6 @@
 /**
  * @file src/screens/SettingsScreen.jsx
- * @version 3.0.0
+ * @version 3.1.0
  */
 import React, { useContext, useEffect, useRef, useState } from 'react';
 import {
@@ -24,7 +24,9 @@ import {
 } from '../shared/database';
 import { AppContext } from '../shared/AppContext';
 
-export const __version__ = '3.0.0';
+export const __version__ = '3.1.0';
+
+export const FREEZE_CHORDS_STORAGE_KEY = 'acordismo_freeze_chords';
 
 export default function SettingsScreen({ onBack }) {
     const {
@@ -34,10 +36,29 @@ export default function SettingsScreen({ onBack }) {
         setDarkMode,
         topSpaceEnabled,
         setTopSpaceEnabled,
+        freezeChordsEnabled: ctxFreezeChords,
+        setFreezeChordsEnabled: ctxSetFreezeChords,
         activeDbLabel,
         setActiveDbLabel,
         setDbRevision,
     } = useContext(AppContext);
+
+    const [localFreezeChords, setLocalFreezeChords] = useState(() => {
+        const saved = localStorage.getItem(FREEZE_CHORDS_STORAGE_KEY);
+        return saved !== null ? saved === 'true' : true;
+    });
+
+    const freezeChordsEnabled =
+        ctxFreezeChords !== undefined ? ctxFreezeChords : localFreezeChords;
+
+    const handleToggleFreezeChords = () => {
+        const nextVal = !freezeChordsEnabled;
+        localStorage.setItem(FREEZE_CHORDS_STORAGE_KEY, String(nextVal));
+        setLocalFreezeChords(nextVal);
+        if (ctxSetFreezeChords) {
+            ctxSetFreezeChords(nextVal);
+        }
+    };
 
     const fileInputRef = useRef(null);
     const [layerStack, setLayerStack] = useState([]);
@@ -161,6 +182,30 @@ export default function SettingsScreen({ onBack }) {
                     <div>Examples for Ukelele:</div>
                     <div>{'\u2022'} Play most songs on Ukelele: -5</div>
                     <div>{'\u2022'} Play song on Ukelele, but song says Capo on 2: -3</div>
+                </div>
+
+                {/* Freeze Top Chord Row Option */}
+                <div
+                    style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: 15,
+                        borderBottom: '1px solid var(--border-color)',
+                    }}>
+                    <div>
+                        <strong>Freeze Top Chord Row</strong>
+                        <div style={{ fontSize: '0.88rem', color: 'var(--text-secondary)' }}>
+                            {freezeChordsEnabled
+                                ? 'Enabled (keeps active chords pinned at top while scrolling)'
+                                : 'Disabled (standard scrolling)'}
+                        </div>
+                    </div>
+                    <button
+                        className="btn-primary"
+                        onClick={handleToggleFreezeChords}>
+                        {freezeChordsEnabled ? 'Disable' : 'Enable'}
+                    </button>
                 </div>
 
                 <div
