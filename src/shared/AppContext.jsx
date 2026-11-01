@@ -1,18 +1,20 @@
 /**
  * @file src/shared/AppContext.jsx
- * @version 2.5.2
+ * @version 2.6.0
  */
 import React, { createContext, useEffect, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
-import { getSavedDbLabel } from './database';
+import { getSavedDbLabel, loadExternalDatabaseBytes } from './database';
 
-export const __version__ = '2.5.2';
+export const __version__ = '2.6.0';
 
 export const AppContext = createContext(null);
 
 const TOP_SPACE_STORAGE_KEY = Capacitor.isNativePlatform()
     ? 'acordismo_top_space_native'
     : 'acordismo_top_space_web';
+
+const FREEZE_CHORDS_STORAGE_KEY = 'acordismo_freeze_chords';
 
 export function AppProvider({ children }) {
     const [transposition, setTransposition] = useState(0);
@@ -26,6 +28,10 @@ export function AppProvider({ children }) {
         }
         // Default ON for native mobile apps (Android/iOS), OFF for desktop/web browsers
         return Capacitor.isNativePlatform();
+    });
+    const [freezeChordsEnabled, setFreezeChordsEnabled] = useState(() => {
+        const saved = localStorage.getItem(FREEZE_CHORDS_STORAGE_KEY);
+        return saved !== null ? saved === 'true' : true;
     });
     const [currentTab, setCurrentTab] = useState('Playlists');
     const [tabOrders, setTabOrders] = useState({
@@ -45,6 +51,43 @@ export function AppProvider({ children }) {
         });
     }, []);
 
+    // Handle external .db files opened via Android "Open with Acordismo" or "Share to Acordismo"
+    useEffect(() => {
+        const importBase64Payload = async (payload) => {
+            if (!payload || !payload.base64) {
+                return;
+            }
+            try {
+                const binaryString = window.atob(payload.base64);
+                const len = binaryString.length;
+                const bytes = new Uint8Array(len);
+                for (let i = 0; i < len; i++) {
+                    bytes[i] = binaryString.charCodeAt(i);
+                }
+                await loadExternalDatabaseBytes(bytes, payload.name || 'shared-pack.db');
+                const nextLabel = await getSavedDbLabel();
+                setActiveDbLabel(nextLabel);
+                setDbRevision((r) => r + 1);
+            } catch (err) {
+                console.error('Failed to import shared database:', err);
+            }
+        };
+
+        if (window.__acordismoPendingDb) {
+            const pending = window.__acordismoPendingDb;
+            window.__acordismoPendingDb = null;
+            importBase64Payload(pending);
+        }
+
+        const handleOpenDbEvent = (e) => {
+            window.__acordismoPendingDb = null;
+            importBase64Payload(e.detail);
+        };
+
+        window.addEventListener('acordismo-open-db', handleOpenDbEvent);
+        return () => window.removeEventListener('acordismo-open-db', handleOpenDbEvent);
+    }, []);
+
     useEffect(() => {
         localStorage.setItem('acordismo_dark_mode', String(darkMode));
         document.documentElement.setAttribute('data-theme', darkMode ? 'dark' : 'light');
@@ -58,6 +101,10 @@ export function AppProvider({ children }) {
         );
     }, [topSpaceEnabled]);
 
+    useEffect(() => {
+        localStorage.setItem(FREEZE_CHORDS_STORAGE_KEY, String(freezeChordsEnabled));
+    }, [freezeChordsEnabled]);
+
     return (
         <AppContext.Provider
             value={{
@@ -67,6 +114,8 @@ export function AppProvider({ children }) {
                 setDarkMode,
                 topSpaceEnabled,
                 setTopSpaceEnabled,
+                freezeChordsEnabled,
+                setFreezeChordsEnabled,
                 currentTab,
                 setCurrentTab,
                 tabOrders,
