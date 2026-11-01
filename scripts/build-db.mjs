@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * @file scripts/build-db.mjs
- * @version 3.0.0
+ * @version 3.1.0
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -16,13 +16,27 @@ import {
     mergeDatabasesInPriorityOrder,
 } from '../src/shared/dbMerger.js';
 
-export const __version__ = '3.0.0';
+export const __version__ = '3.1.0';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const ROOT_DIR = path.resolve(__dirname, '..');
 
-// Treated frontmatter keys (matching db-insert-songdirectory.py & songSchema.js v1.6.0)
+// Strict schema rules from songSchema.js v1.6.0
+const STRICT_PROJECT_NAMES = ['Small Hotel Room', 'cancionesdejuan'];
+const STRICT_PROJECT_KEYS = [
+    'album',
+    'author',
+    'bpm',
+    'isrc',
+    'lang',
+    'license',
+    'musicians',
+    'spotify',
+    'track',
+    'url',
+];
+
 const TREATED_KEYS = new Set([
     'album',
     'artist',
@@ -46,9 +60,36 @@ const TREATED_KEYS = new Set([
     'writer',
 ]);
 
-/**
- * Loads key=value pairs from .env if present without overriding existing environment variables.
- */
+function validateSongFrontmatter(frontmatterData, rawFileName, isOfficialLayer = false) {
+    const errors = [];
+    const keys = Object.keys(frontmatterData);
+    if (keys.length === 0 && !isOfficialLayer) {
+        return errors;
+    }
+
+    let derivedArtist = frontmatterData.artist;
+    if (!derivedArtist && rawFileName.includes(' - ')) {
+        derivedArtist = rawFileName.split(' - ')[0].trim();
+    }
+
+    if (isOfficialLayer && STRICT_PROJECT_NAMES.includes(derivedArtist)) {
+        const missing = STRICT_PROJECT_KEYS.filter(
+            (reqKey) => frontmatterData[reqKey] === undefined || frontmatterData[reqKey] === null
+        );
+        if (missing.length > 0) {
+            errors.push(`Missing required keys: ${missing.join(', ')}`);
+        }
+    }
+
+    const sortedKeys = [...keys].sort();
+    const isAlphabetical = keys.every((key, idx) => key === sortedKeys[idx]);
+    if (!isAlphabetical) {
+        errors.push(`Keys are not in alphabetical order (expected: ${sortedKeys.join(', ')})`);
+    }
+
+    return errors;
+}
+
 function loadDotEnv() {
     const envPath = path.join(ROOT_DIR, '.env');
     if (!fs.existsSync(envPath)) {
@@ -78,9 +119,6 @@ function loadDotEnv() {
     }
 }
 
-/**
- * Expands ${VAR:-default}, ${VAR}, and leading ~ in paths in an OS-safe way.
- */
 function resolveConfigPath(rawStr) {
     if (!rawStr || typeof rawStr !== 'string') {
         return null;
@@ -131,13 +169,10 @@ function expandEnvString(rawStr) {
     return missingVar ? '' : expanded.trim();
 }
 
-/**
- * Minimal, dependency-free YAML parser tailored for db-origins.yaml.
- */
 function parseDbOriginsYaml(yamlText) {
     const config = { layers: [], merged_output: null };
     let currentLayer = null;
-    let currentSection = null; // 'sources' | 'playlists'
+    let currentSection = null;
     let currentItem = null;
 
     const unquote = (v) => {
@@ -233,10 +268,7 @@ function parseDbOriginsYaml(yamlText) {
     return config;
 }
 
-/**
- * Parses YAML frontmatter and body from a Markdown/Txt song file (matching python-frontmatter).
- */
-function parseFrontmatterFile(rawText) {
+export function parseFrontmatterFile(rawText) {
     const normalized = rawText.replace(/\r\n/g, '\n');
     if (!normalized.startsWith('---\n')) {
         return { data: {}, content: normalized };
@@ -345,9 +377,6 @@ function queryAll(db, sql, params = []) {
     return out;
 }
 
-/**
- * Builds a single layer SQLite database in memory and writes it to disk if it contains songs.
- */
 function buildLayerDatabase(SQL, layerConfig) {
     console.log(`\n========================================`);
     console.log(`Building Layer: ${layerConfig.id}`);
@@ -356,9 +385,10 @@ function buildLayerDatabase(SQL, layerConfig) {
     const db = new SQL.Database();
     db.run(SCHEMA_SQL);
 
-    const bandCache = new Map(); // bandName -> bandId
-    const playlistCache = new Map(); // playlistName -> playlistId
+    const bandCache = new Map();
+    const playlistCache = new Map();
     let insertedSongsCount = 0;
+    const isOfficialLayer = layerConfig.id === 'official';
 
     const getOrCreateBand = (bandName) => {
         const clean = bandName.trim();
@@ -385,13 +415,17 @@ function buildLayerDatabase(SQL, layerConfig) {
     db.run('BEGIN TRANSACTION;');
 
     for (const src of layerConfig.sources || []) {
+        // Default source type is 'markdown_dir'
+        const srcType = src.type || 'markdown_dir';
         const srcPath = resolveConfigPath(src.path);
         if (!srcPath || !fs.existsSync(srcPath)) {
-            console.log(`⚠️  [SKIP] Source in layer '${layerConfig.id}': path not found or env unset (${src.path})`);
+            console.log(
+                `⚠️  [SKIP] Source in layer '${layerConfig.id}': path not found or env unset (${src.path})`
+            );
             continue;
         }
 
-        if (src.type === 'markdown_dir') {
+        if (srcType === 'markdown_dir') {
             console.log(`-> Ingesting markdown_dir: ${srcPath} -> Playlist "${src.playlist}"`);
             const files = walkFilesSorted(srcPath);
 
@@ -412,11 +446,24 @@ function buildLayerDatabase(SQL, layerConfig) {
 
                 const bandName = baseName.slice(0, splitIdx);
                 const songName = baseName.slice(splitIdx + 3);
-                const bandId = getOrCreateBand(bandName);
-                const playlistId = getOrCreatePlaylist(src.playlist);
 
                 const rawText = fs.readFileSync(fullPath, 'utf8');
                 const { data: song, content } = parseFrontmatterFile(rawText);
+
+                // Draconian schema check for official layer (and alphabetical warning for curated)
+                const schemaErrors = validateSongFrontmatter(song, baseName, isOfficialLayer);
+                if (schemaErrors.length > 0) {
+                    if (isOfficialLayer) {
+                        throw new Error(
+                            `Schema validation failed for '${filename}':\n  - ${schemaErrors.join('\n  - ')}`
+                        );
+                    } else {
+                        console.log(`** [Schema Notice] ${filename}: ${schemaErrors.join('; ')}`);
+                    }
+                }
+
+                const bandId = getOrCreateBand(bandName);
+                const playlistId = getOrCreatePlaylist(src.playlist);
 
                 const album = song.album ?? null;
                 const author = song.author ?? null;
@@ -509,16 +556,17 @@ function buildLayerDatabase(SQL, layerConfig) {
                     songId,
                 ]);
             }
-        } else if (src.type === 'dataset_zk' || src.type === 'dataset_lk') {
+        } else if (srcType === 'dataset_zk' || srcType === 'dataset_lk') {
             const subDirName = expandEnvString(src.subdir);
             const cacheRoot = resolveConfigPath(src.cache);
             if (!subDirName) {
-                console.log(`⚠️  [SKIP] Crawler source '${src.type}': subdir env var not set`);
+                console.log(`⚠️  [SKIP] Crawler source '${srcType}': subdir env var not set`);
                 continue;
             }
 
             const cacheTypeDir = cacheRoot ? path.join(cacheRoot, subDirName) : null;
-            const playlistName = src.playlist || (src.type === 'dataset_zk' ? 'OrigenZK' : 'OrigenLK');
+            const playlistName =
+                src.playlist || (srcType === 'dataset_zk' ? 'OrigenZK' : 'OrigenLK');
             const maxErrors = Number(src.max_errors || 5);
             let errorCount = 0;
 
@@ -536,7 +584,7 @@ function buildLayerDatabase(SQL, layerConfig) {
 
                 console.log('* ' + bandName);
 
-                if (src.type === 'dataset_zk') {
+                if (srcType === 'dataset_zk') {
                     const files = walkFilesSorted(inputDirectory);
                     for (const fullFileName of files) {
                         const filename = path.basename(fullFileName);
@@ -547,7 +595,9 @@ function buildLayerDatabase(SQL, layerConfig) {
                         let songContent = null;
 
                         const cacheBandDir = cacheTypeDir ? path.join(cacheTypeDir, bandName) : null;
-                        const cacheFilePath = cacheBandDir ? path.join(cacheBandDir, `${name}.json`) : null;
+                        const cacheFilePath = cacheBandDir
+                            ? path.join(cacheBandDir, `${name}.json`)
+                            : null;
 
                         let useCache = false;
                         if (cacheFilePath && fs.existsSync(cacheFilePath)) {
@@ -567,7 +617,9 @@ function buildLayerDatabase(SQL, layerConfig) {
                         } else {
                             const html = fs.readFileSync(fullFileName, 'utf8');
                             const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
-                            const rawTitle = titleMatch ? decodeHtmlEntities(titleMatch[1].trim()) : '';
+                            const rawTitle = titleMatch
+                                ? decodeHtmlEntities(titleMatch[1].trim())
+                                : '';
 
                             if (rawTitle.includes('Página no encontrada')) {
                                 console.log('** Skipping (404 Page): ' + fullFileName);
@@ -581,11 +633,13 @@ function buildLayerDatabase(SQL, layerConfig) {
                             songName = `${rawTitle.split(' - ')[0]} (${playlistName})`;
                             const preMatch = html.match(/<pre[^>]*>([\s\S]*?)<\/pre>/i);
                             if (!preMatch) {
-                                console.log('** Skipping (Unknown error, no <pre> tag): ' + fullFileName);
+                                console.log(
+                                    '** Skipping (Unknown error, no <pre> tag): ' + fullFileName
+                                );
                                 errorCount++;
                                 if (errorCount > maxErrors) {
                                     throw new Error(
-                                        `CRITICAL ERROR: Exceeded ${maxErrors} malformed files in ${src.type}.`
+                                        `CRITICAL ERROR: Exceeded ${maxErrors} malformed files in ${srcType}.`
                                     );
                                 }
                                 continue;
@@ -618,7 +672,7 @@ function buildLayerDatabase(SQL, layerConfig) {
                             insertedSongsCount++;
                         }
                     }
-                } else if (src.type === 'dataset_lk') {
+                } else if (srcType === 'dataset_lk') {
                     const subDirs = fs
                         .readdirSync(inputDirectory, { withFileTypes: true })
                         .filter((e) => e.isDirectory())
@@ -660,7 +714,9 @@ function buildLayerDatabase(SQL, layerConfig) {
                             console.log(`** (cached) ${bandName} - ${songName}`);
                         } else {
                             const htmlContent = fs.readFileSync(fullFileName, 'utf8');
-                            const titleMatch = htmlContent.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+                            const titleMatch = htmlContent.match(
+                                /<title[^>]*>([\s\S]*?)<\/title>/i
+                            );
                             const rawTitle = titleMatch
                                 ? decodeHtmlEntities(titleMatch[1].trim())
                                 : '';
@@ -692,7 +748,7 @@ function buildLayerDatabase(SQL, layerConfig) {
                                     errorCount++;
                                     if (errorCount > maxErrors) {
                                         throw new Error(
-                                            `CRITICAL ERROR: Exceeded ${maxErrors} malformed files in ${src.type}.`
+                                            `CRITICAL ERROR: Exceeded ${maxErrors} malformed files in ${srcType}.`
                                         );
                                     }
                                     continue;
@@ -731,7 +787,6 @@ function buildLayerDatabase(SQL, layerConfig) {
         }
     }
 
-    // Evaluate layer playlist rules (wildcard matches or from_file lists)
     for (const plRule of layerConfig.playlists || []) {
         if (!plRule.name) {
             continue;
@@ -879,7 +934,9 @@ async function main() {
     }
 }
 
-main().catch((err) => {
-    console.error(err);
-    process.exit(1);
-});
+if (process.argv[1] && path.resolve(process.argv[1]) === __filename) {
+    main().catch((err) => {
+        console.error(err);
+        process.exit(1);
+    });
+}

@@ -1,37 +1,30 @@
 # File: db-origins.yaml
-# Version: 1.0.0
+# Version: 1.1.0
 # Order of layers defines priority (first layer = highest priority, overrides duplicates below).
-# Missing paths or unset environment variables are logged clearly and skipped without failing.
+# Default source type is "markdown_dir" (only crawler outlier sources need an explicit "type").
 
 layers:
   - id: "official"
     output: "public/songs.db"
     also_copy_to: "dist-dbs/songs-official.db"
     sources:
-      - type: "markdown_dir"
-        path: "${ACORDISMO_OFFICIAL_DIR:-../smallhotelroom.github.io/src/contents/songs}"
+      - path: "${ACORDISMO_OFFICIAL_DIR:-../smallhotelroom.github.io/src/contents/songs}"
         playlist: "★ Small Hotel Room"
 
   - id: "curated"
     output: "dist-dbs/songs-curated.db"
     sources:
-      - type: "markdown_dir"
-        path: "${ACORDISMO_CURATED_DIR}/0-GUITAR/english"
+      - path: "${ACORDISMO_CURATED_DIR}/0-GUITAR/english"
         playlist: "English"
-      - type: "markdown_dir"
-        path: "${ACORDISMO_CURATED_DIR}/0-GUITAR/espanol"
+      - path: "${ACORDISMO_CURATED_DIR}/0-GUITAR/espanol"
         playlist: "Español"
-      - type: "markdown_dir"
-        path: "${ACORDISMO_CURATED_DIR}/0-GUITAR/francais"
+      - path: "${ACORDISMO_CURATED_DIR}/0-GUITAR/francais"
         playlist: "Français"
-      - type: "markdown_dir"
-        path: "${ACORDISMO_CURATED_DIR}/0-GUITAR/italiano"
+      - path: "${ACORDISMO_CURATED_DIR}/0-GUITAR/italiano"
         playlist: "Italiano"
-      - type: "markdown_dir"
-        path: "${ACORDISMO_CURATED_DIR}/0-GUITAR/japanese"
+      - path: "${ACORDISMO_CURATED_DIR}/0-GUITAR/japanese"
         playlist: "日本"
-      - type: "markdown_dir"
-        path: "${ACORDISMO_CURATED_DIR}/0-GUITAR/portugues"
+      - path: "${ACORDISMO_CURATED_DIR}/0-GUITAR/portugues"
         playlist: "Português"
     playlists:
       - name: "★ cancionesdejuan"

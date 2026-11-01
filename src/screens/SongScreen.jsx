@@ -1,14 +1,14 @@
 /**
  * @file src/screens/SongScreen.jsx
- * @version 2.8.2
+ * @version 2.9.0
  */
 import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Pause, Play } from 'lucide-react';
 import executeQuery from '../shared/database';
 import { AppContext } from '../shared/AppContext';
-import { transposeChordToken } from '../shared/chordTransposer';
+import { deduceSongUseFlats, transposeChordToken } from '../shared/chordTransposer';
 
-export const __version__ = '2.8.2';
+export const __version__ = '2.9.0';
 
 const SCROLL_SPEED_STORAGE_KEY = 'acordismo_scroll_speed';
 const TARGET_DURATION_SECONDS = 210; // 3 minutes 30 seconds at 1.0x
@@ -153,6 +153,7 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
         }
 
         const lyrics = songData.contents || '';
+        const useFlats = deduceSongUseFlats(lyrics, transposition, songData.key);
         const re1 = /\((.+?)\)/g;
         let array1;
         let counter = 0;
@@ -173,13 +174,16 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
 
             while (innerDone === false) {
                 //console.log("** chordGroup: ["+chordGroup+"]");
-                const prefilter = /bpm/g.exec(chordGroup);
+                const prefilter = /bpm|tempo|key|highest|falsetto|all|chords for/i.exec(chordGroup);
                 if (prefilter !== null) {
                     transposedStr += chordGroup;
                     innerDone = true;
                     continue;
                 }
-                const delimiter = /  |_|!|riff|sus4|\.\.\.|\.\./g.exec(chordGroup);
+                const delimiter =
+                    /  |_|!|\.\.\.|\.\.|: |\*|high|open|bass|riff|palm mute|notes|sus4/g.exec(
+                        chordGroup
+                    );
                 if (delimiter !== null) {
                     //console.log("** At "+delimiter.index+" found delimiter ["+delimiter+"] of size: "+delimiter[0].length);
                     const treatable = chordGroup.slice(0, delimiter.index);
@@ -192,7 +196,7 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
                         continue;
                     }
                     //console.log("** treatable: {"+treatable+"}");
-                    transposedStr += transposeChordToken(treatable, transposition);
+                    transposedStr += transposeChordToken(treatable, transposition, useFlats);
                     transposedStr += delimiter;
                     continue;
                 }
@@ -200,7 +204,7 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
                 //console.log("** Pre-END!");
                 if (chordGroup.length > 0) {
                     //console.log("** treatable: {"+chordGroup+"}");
-                    transposedStr += transposeChordToken(chordGroup, transposition);
+                    transposedStr += transposeChordToken(chordGroup, transposition, useFlats);
                 }
                 //console.log("** END!");
                 innerDone = true;

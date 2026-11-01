@@ -1,0 +1,66 @@
+% File: templates/espanol.tex
+% Version: 1.1.0
+\documentclass[11pt,a4paper,openany]{book}  % book format
+\usepackage[margin=0.7in]{geometry}
+\usepackage[utf8]{inputenc}  %-- tildes
+\usepackage[spanish]{babel}  %-- contents a español
+\usepackage{graphics}
+\usepackage[dvips]{graphicx}
+\usepackage{alltt}  %--replaces verbatim
+\renewcommand{\ttdefault}{txtt}  %--replaces verbatim
+
+\usepackage[makeindex]{imakeidx}
+\makeindex[name=aux-song-index-file, title=Indice de canciones, intoc]
+
+\usepackage{titletoc}
+\titlecontents{chapter}[2.5em]
+{\addvspace{0.5pc}\bfseries}
+{\contentslabel{2em}}
+{}
+{\titlerule*[0.3pc]{.}\contentspage}
+
+\usepackage{hyperref}
+
+\hypersetup{
+    pdftitle={TITLE},
+    pdfsubject={TITLE},
+    pdfauthor={smallhotelroom},
+    pdfkeywords={acordismo} {TITLE},
+    colorlinks,
+    citecolor=black,
+    filecolor=black,
+    linkcolor=black,
+    urlcolor=black,
+    bookmarks
+}
+
+\makeatletter
+\renewcommand{\@makechapterhead}[1]{%
+{\setlength{\parindent}{0pt} \raggedright \normalfont
+\bfseries S-\thechapter.\ #1
+\par\nobreak\vspace{10 pt}}}
+\makeatother
+
+\begin{document}
+
+\frontmatter
+
+\Large
+
+\title{TITLE}
+\author{Generado utilizando https://github.com/smallhotelroom/acordismo}
+
+\maketitle
+\cleardoublepage
+\tableofcontents
+\newpage
+
+\mainmatter
+
+genSongbook
+
+\backmatter
+
+\printindex[aux-song-index-file]
+
+\end{document}

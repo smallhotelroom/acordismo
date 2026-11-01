@@ -7,10 +7,24 @@ Offline chord and lyric reader built with Vite, React, SQLite (`sql.js` WASM), a
 Generate the default clean SQLite database (`public/songs.db`) from `smallhotelroom.github.io` Markdown songs:
 
 ```bash
-./python/run-clean.sh
+npm run db:build
 ```
 
-## 2. Local Web Development
+## 2. PDF Generator
+
+Build PDF from `public/songs.db`:
+
+```bash
+npm run pdf:build -- --output SmallHotelRoom.pdf 
+```
+
+More examples:
+
+```bash
+npm run pdf:build -- --db dist-dbs/songs-curated.db --playlist "Español" --template templates/espanol.tex --transpose -5 --capo-drop-correction --output Ukelele_Espanol.pdf
+```
+
+## 3. Local Web Development
 
 ```bash
 nvm use
@@ -25,7 +39,7 @@ npm run build
 npm run preview
 ```
 
-## 3. Android (via Docker)
+## 4. Android (via Docker)
 
 First, download or build the Docker image (only needed once or when `Dockerfile` changes)
 
@@ -47,7 +61,7 @@ The build environment is hosted privately on the GitHub Container Registry to sa
     docker compose build
     ```
 
-### 3.1. Android (via Docker): Debug
+### 4.1. Android (via Docker): Debug
 
 Compile the debug APK (`android/app/build/outputs/apk/debug/app-debug.apk`):
 
@@ -79,7 +93,7 @@ Even more useful debug commands: Open an interactive shell inside the Android bu
 docker compose run --rm android-builder bash
 ```
 
-### 3.2. Android (via Docker): Release APK
+### 4.2. Android (via Docker): Release APK
 
 Or compile the release APK (`ls android/app/build/outputs/apk/release/acordismo-release-*.apk`):
 
@@ -87,7 +101,7 @@ Or compile the release APK (`ls android/app/build/outputs/apk/release/acordismo-
 GRADLE_TASK=assembleRelease docker compose up
 ```
 
-### 3.3. Android (via Docker): Play Store bundle
+### 4.3. Android (via Docker): Play Store bundle
 
 Or compile the Play Store bundle (`ls android/app/build/outputs/bundle/release/app-release.aab`):
 
@@ -95,7 +109,7 @@ Or compile the Play Store bundle (`ls android/app/build/outputs/bundle/release/a
 GRADLE_TASK=bundleRelease docker compose up
 ```
 
-## 4. iOS
+## 5. iOS
 
 Sync web assets and Capacitor plugins to the Xcode project (`ios/`):
 
