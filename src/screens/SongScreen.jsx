@@ -1,14 +1,18 @@
 /**
  * @file src/screens/SongScreen.jsx
- * @version 2.9.0
+ * @version 2.10.0
  */
 import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Pause, Play } from 'lucide-react';
 import executeQuery from '../shared/database';
 import { AppContext } from '../shared/AppContext';
-import { deduceSongUseFlats, transposeChordToken } from '../shared/chordTransposer';
+import {
+    CHORD_GROUP_DELIMITER_REGEX,
+    deduceSongUseFlats,
+     transposeChordToken,
+} from '@shr-shared/chordTransposer.js';
 
-export const __version__ = '2.9.0';
+export const __version__ = '2.10.0';
 
 const SCROLL_SPEED_STORAGE_KEY = 'acordismo_scroll_speed';
 const TARGET_DURATION_SECONDS = 210; // 3 minutes 30 seconds at 1.0x
@@ -180,10 +184,7 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
                     innerDone = true;
                     continue;
                 }
-                const delimiter =
-                    /  |_|!|\.\.\.|\.\.|: |\*|high|open|bass|riff|palm mute|notes|sus4/g.exec(
-                        chordGroup
-                    );
+                const delimiter = CHORD_GROUP_DELIMITER_REGEX.exec(chordGroup);
                 if (delimiter !== null) {
                     //console.log("** At "+delimiter.index+" found delimiter ["+delimiter+"] of size: "+delimiter[0].length);
                     const treatable = chordGroup.slice(0, delimiter.index);

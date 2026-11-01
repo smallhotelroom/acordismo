@@ -1,14 +1,14 @@
 /**
  * @file tools/acordismo-linter/extension.js
- * @version 2.2.0
- * Zero-copy VS Code Linter: dynamically imports smallhotelroom.github.io/src/shared/songSchema.js
- * and acordismo/src/shared/chordTransposer.js directly from their canonical paths.
+ * @version 2.3.0
+ * Zero-copy VS Code Linter: dynamically imports both songSchema.js and chordTransposer.js
+ * directly from smallhotelroom.github.io/src/shared/.
  */
 const vscode = require('vscode');
 const path = require('path');
 const { pathToFileURL } = require('url');
 
-const __version__ = '2.2.0';
+const __version__ = '2.3.0';
 
 const diagnosticCollection = vscode.languages.createDiagnosticCollection('acordismoLinter');
 
@@ -18,20 +18,15 @@ function loadSharedModules() {
     if (!modulesPromise) {
         const realExtDir = __dirname;
         const acordismoRoot = path.resolve(realExtDir, '..', '..');
-        const schemaPath = path.resolve(
+        const shrSharedDir = path.resolve(
             acordismoRoot,
             '..',
             'smallhotelroom.github.io',
             'src',
-            'shared',
-            'songSchema.js'
+            'shared'
         );
-        const transposerPath = path.resolve(
-            acordismoRoot,
-            'src',
-            'shared',
-            'chordTransposer.js'
-        );
+        const schemaPath = path.join(shrSharedDir, 'songSchema.js');
+        const transposerPath = path.join(shrSharedDir, 'chordTransposer.js');
 
         modulesPromise = Promise.all([
             import(pathToFileURL(schemaPath).href),
@@ -130,7 +125,7 @@ async function updateDiagnostics(document) {
         }
     }
 
-    // 3. Check song chord palette consistency using chordTransposer
+    // 3. Check song chord palette consistency using songSchema & chordTransposer
     const sharpNotesFound = new Set();
     const flatNotesFound = new Set();
     const letterToNotes = new Map();
@@ -155,10 +150,10 @@ async function updateDiagnostics(document) {
         let match;
         while ((match = parenRegex.exec(lineStr)) !== null) {
             const fullParen = match[0].toLowerCase();
-            if (transposerMod.SKIP_PAREN_PREFIXES.some((p) => fullParen.startsWith(p))) continue;
+            if (schemaMod.SKIP_PAREN_PREFIXES.some((p) => fullParen.startsWith(p))) continue;
             if (fullParen.includes('capo') || fullParen.includes('drop')) continue;
 
-            const tokens = match[1].split(transposerMod.CHORD_GROUP_DELIMITER_REGEX);
+            const tokens = match[1].split(schemaMod.CHORD_GROUP_DELIMITER_REGEX);
             for (const tok of tokens) {
                 const chord = transposerMod.parseChordToken(tok);
                 if (chord) {
@@ -208,7 +203,7 @@ function activate(context) {
     );
 
     context.subscriptions.push(
-        vscode.window.onDidChangeActiveTextEditor((editor) => {
+        vscode.workspace.onDidChangeActiveTextEditor((editor) => {
             if (editor) {
                 updateDiagnostics(editor.document);
             }

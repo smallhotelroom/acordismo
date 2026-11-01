@@ -1,22 +1,55 @@
 #!/usr/bin/env node
 /**
  * @file scripts/build-pdf.mjs
- * @version 1.2.0
+ * @version 1.3.0
  */
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import initSqlJs from 'sql.js';
-import { transposeSongContents } from '../src/shared/chordTransposer.js';
 import { loadMasterSongSchema } from './build-db.mjs';
 
-export const __version__ = '1.2.0';
+export const __version__ = '1.3.0';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const ROOT_DIR = path.resolve(__dirname, '..');
 const DEFAULT_PDF_OUT_DIR = path.join(ROOT_DIR, 'dist-pdfs');
+
+const EXTERNAL_TRANSPOSER_PATH = path.resolve(
+    ROOT_DIR,
+    '../smallhotelroom.github.io/src/shared/chordTransposer.js'
+);
+
+async function loadMasterChordTransposer() {
+    if (!fs.existsSync(EXTERNAL_TRANSPOSER_PATH)) {
+        throw new Error(
+            `[Draconian Check] Master chordTransposer.js not found at ${EXTERNAL_TRANSPOSER_PATH}.`
+        );
+    }
+    return await import(pathToFileURL(EXTERNAL_TRANSPOSER_PATH).href);
+}
+
+/**
+ * Escapes characters that are active/special inside LaTeX's alltt environment (#, %, &, _)
+ * so chords like (F#m) and Markdown headers like "## Español" render cleanly with exit code 0.
+ */
+function escapeLatexAlltt(text) {
+    return String(text || '')
+        .replace(/#/g, '\\#')
+        .replace(/%/g, '\\%')
+        .replace(/&/g, '\\&')
+        .replace(/_/g, '\\_');
+}
+
+function escapeLatexHeader(text) {
+    return String(text || '')
+        .replace(/#/g, '\\#')
+        .replace(/%/g, '\\%')
+        .replace(/&/g, '\\&')
+        .replace(/_/g, '\\_');
+}
 
 function parseArgs(argv) {
     const args = {
@@ -162,6 +195,7 @@ async function main() {
     console.log('-------------------------------------');
 
     const args = parseArgs(process.argv);
+    const { transposeSongContents } = await loadMasterChordTransposer();
 
     const templatePath = path.resolve(ROOT_DIR, args.template);
     if (!fs.existsSync(templatePath)) {
@@ -203,9 +237,12 @@ async function main() {
             continue;
         }
 
+        const safeFullTitle = escapeLatexHeader(song.fullTitle);
+        const safeSongName = escapeLatexHeader(song.songName);
+
         rep += '%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%\n';
-        rep += `\\chapter{${song.fullTitle}}\n`;
-        rep += `\\index{{aux-song-index-file}}{${song.songName}}\n`;
+        rep += `\\chapter{${safeFullTitle}}\n`;
+        rep += `\\index{{aux-song-index-file}}{${safeSongName}}\n`;
         rep += '\\begin{alltt}\n';
 
         if (args.transpose !== 0) {
@@ -237,7 +274,7 @@ async function main() {
                   })
                 : song.contents.trim();
 
-        rep += effectiveBody;
+        rep += escapeLatexAlltt(effectiveBody);
         rep += '\n\\end{alltt}\n';
     }
 
@@ -252,7 +289,7 @@ async function main() {
     const outputTexPath = path.join(outputDir, `${outputBaseName}.tex`);
 
     let templateContent = fs.readFileSync(templatePath, 'utf8');
-    templateContent = templateContent.replace(/TITLE/g, outputBaseName);
+    templateContent = templateContent.replace(/TITLE/g, escapeLatexHeader(outputBaseName));
     templateContent = templateContent.replace('genSongbook', rep);
 
     fs.mkdirSync(outputDir, { recursive: true });
@@ -271,8 +308,8 @@ async function main() {
         );
         return;
     }
-    if (pass1.status !== 0) {
-        console.error(`pdflatex (pass 1 of 2) exited with code ${pass1.status}`);
+    if (pass1.status !== 0 && !fs.existsSync(outputFullPath)) {
+        console.error(`pdflatex (pass 1 of 2) failed to produce PDF (exit code ${pass1.status})`);
         process.exit(pass1.status);
     }
 
@@ -290,8 +327,8 @@ async function main() {
         ['-interaction=nonstopmode', `-output-directory=${outputDir}`, outputTexPath],
         { cwd: outputDir, stdio: 'inherit' }
     );
-    if (pass2.status !== 0) {
-        console.error(`pdflatex (pass 2 of 2) exited with code ${pass2.status}`);
+    if (pass2.status !== 0 && !fs.existsSync(outputFullPath)) {
+        console.error(`pdflatex (pass 2 of 2) failed to produce PDF (exit code ${pass2.status})`);
         process.exit(pass2.status);
     }
 

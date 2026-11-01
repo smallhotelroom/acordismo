@@ -1,5 +1,5 @@
 # File: docker-compose.yml
-# Version: 1.6.1
+# Version: 1.7.0
 services:
   android-builder:
     image: ghcr.io/smallhotelroom/acordismo-android-builder:latest
@@ -7,6 +7,7 @@ services:
     container_name: acordismo-android-builder
     volumes:
       - .:/app
+      - ../smallhotelroom.github.io:/smallhotelroom.github.io:ro
       - gradle-cache:/root/.gradle
       - npm-cache:/root/.npm
       - /etc/localtime:/etc/localtime:ro
