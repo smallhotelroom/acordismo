@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * @file scripts/build-pdf.mjs
- * @version 1.0.0
+ * @version 1.1.0
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -9,20 +9,21 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import initSqlJs from 'sql.js';
 import { transposeSongContents } from '../src/shared/chordTransposer.js';
-import { parseFrontmatterFile } from './build-db.mjs';
+import { parseFrontmatterFile } from '../src/shared/songSchema.js';
 
-export const __version__ = '1.0.0';
+export const __version__ = '1.1.0';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const ROOT_DIR = path.resolve(__dirname, '..');
+const DEFAULT_PDF_OUT_DIR = path.join(ROOT_DIR, 'dist-pdfs');
 
 function parseArgs(argv) {
     const args = {
         input: null,
         db: 'public/songs.db',
         playlist: null,
-        output: 'Songbook.pdf',
+        output: 'dist-pdfs/Songbook.pdf',
         template: 'templates/english.tex',
         manifest: '',
         transpose: 0,
@@ -51,6 +52,12 @@ function parseArgs(argv) {
             args.keepTex = true;
         }
     }
+
+    // Ensure bare filenames (e.g. `--output Espanol.pdf`) always land inside `dist-pdfs/`
+    if (!args.output.includes('/') && !args.output.includes('\\')) {
+        args.output = path.join('dist-pdfs', args.output);
+    }
+
     return args;
 }
 
@@ -241,37 +248,58 @@ async function main() {
 
     const outputFullPath = path.resolve(ROOT_DIR, args.output);
     const outputParsed = path.parse(outputFullPath);
+    const outputDir = outputParsed.dir || DEFAULT_PDF_OUT_DIR;
     const outputBaseName = outputParsed.name;
-    const outputTexPath = path.join(outputParsed.dir, `${outputBaseName}.tex`);
+    const outputTexPath = path.join(outputDir, `${outputBaseName}.tex`);
 
     let templateContent = fs.readFileSync(templatePath, 'utf8');
     templateContent = templateContent.replace(/TITLE/g, outputBaseName);
     templateContent = templateContent.replace('genSongbook', rep);
 
-    fs.mkdirSync(outputParsed.dir, { recursive: true });
+    fs.mkdirSync(outputDir, { recursive: true });
     fs.writeFileSync(outputTexPath, templateContent, 'utf8');
     console.log(`Generated LaTeX file: ${outputTexPath}`);
 
-    // Run pdflatex twice (for TOC & Index generation)
-    for (const pass of [1, 2]) {
-        console.log(`Running pdflatex (pass ${pass} of 2)...`);
-        const res = spawnSync('pdflatex', ['-interaction=nonstopmode', outputTexPath], {
-            cwd: outputParsed.dir,
-            stdio: 'inherit',
-        });
-        if (res.error) {
-            console.warn(
-                `\n⚠️  pdflatex is not installed or failed to launch (${res.error.message}). Kept ${outputTexPath} so you can compile it manually.`
-            );
-            return;
-        }
-        if (res.status !== 0) {
-            console.error(`pdflatex (pass ${pass} of 2) exited with code ${res.status}`);
-            process.exit(res.status);
-        }
+    // Pass 1 of pdflatex (generates .toc and aux-song-index-file.idx inside outputDir)
+    console.log('Running pdflatex (pass 1 of 2)...');
+    const pass1 = spawnSync(
+        'pdflatex',
+        ['-interaction=nonstopmode', `-output-directory=${outputDir}`, outputTexPath],
+        { cwd: outputDir, stdio: 'inherit' }
+    );
+    if (pass1.error) {
+        console.warn(
+            `\n⚠️  pdflatex is not installed or failed to launch (${pass1.error.message}). Kept ${outputTexPath} so you can compile it manually.`
+        );
+        return;
+    }
+    if (pass1.status !== 0) {
+        console.error(`pdflatex (pass 1 of 2) exited with code ${pass1.status}`);
+        process.exit(pass1.status);
     }
 
-    // Clean up auxiliary LaTeX files
+    // Run makeindex explicitly if aux-song-index-file.idx exists so the Index is guaranteed to be built
+    const idxFile = path.join(outputDir, 'aux-song-index-file.idx');
+    if (fs.existsSync(idxFile)) {
+        spawnSync('makeindex', ['aux-song-index-file.idx'], {
+            cwd: outputDir,
+            stdio: 'inherit',
+        });
+    }
+
+    // Pass 2 of pdflatex (embeds Table of Contents and Index into the final PDF)
+    console.log('Running pdflatex (pass 2 of 2)...');
+    const pass2 = spawnSync(
+        'pdflatex',
+        ['-interaction=nonstopmode', `-output-directory=${outputDir}`, outputTexPath],
+        { cwd: outputDir, stdio: 'inherit' }
+    );
+    if (pass2.status !== 0) {
+        console.error(`pdflatex (pass 2 of 2) exited with code ${pass2.status}`);
+        process.exit(pass2.status);
+    }
+
+    // Clean up auxiliary LaTeX files inside outputDir
     const auxFiles = [
         'aux-song-index-file.idx',
         'aux-song-index-file.ilg',
@@ -286,7 +314,7 @@ async function main() {
     }
 
     for (const f of auxFiles) {
-        const p = path.join(outputParsed.dir, f);
+        const p = path.join(outputDir, f);
         if (fs.existsSync(p)) {
             fs.unlinkSync(p);
         }

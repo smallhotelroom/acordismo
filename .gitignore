@@ -30,6 +30,12 @@ public/sql-wasm.wasm
 # Generated multi-layer databases
 dist-dbs/
 
+# Generated PDF songbooks & LaTeX build artifacts
+dist-pdfs/
+
+# Auto-synced CommonJS schema inside VS Code linter
+tools/acordismo-linter/shared/
+
 # Capacitor Generated Web Assets & Configs inside Native Folders
 android/app/src/main/assets/public/
 android/app/src/main/assets/capacitor.config.json

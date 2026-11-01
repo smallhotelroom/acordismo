@@ -1,9 +1,16 @@
 /**
  * @file src/shared/chordTransposer.js
- * @version 3.0.0
+ * @version 3.1.0
  */
+import {
+    CHORD_GROUP_DELIMITER_REGEX,
+    CHORD_GROUP_DELIMITER_SOURCE,
+    SKIP_PAREN_PREFIXES,
+} from './songSchema.js';
 
-export const __version__ = '3.0.0';
+export const __version__ = '3.1.0';
+
+export { CHORD_GROUP_DELIMITER_REGEX, CHORD_GROUP_DELIMITER_SOURCE, SKIP_PAREN_PREFIXES };
 
 export const SHARP_NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 export const FLAT_NOTES = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
@@ -32,19 +39,9 @@ const NOTE_TO_SEMITONE = {
     Cb: 11,
 };
 
-// Diatonic pitch classes for the 12 major keys and whether the key signature uses flats
-// C(0) is neutral; F(5), Bb(10), Eb(3), Ab(8), Db(1), Gb(6) are flat keys;
-// G(7), D(2), A(9), E(4), B(11), F#(6) are sharp keys.
 const MAJOR_SCALE_INTERVALS = [0, 2, 4, 5, 7, 9, 11];
 const FLAT_TONICS = new Set([5, 10, 3, 8, 1]); // F, Bb, Eb, Ab, Db
 const SHARP_TONICS = new Set([7, 2, 9, 4, 11]); // G, D, A, E, B
-
-// Delimiter regex matching both SongScreen.jsx and legacy song-directory-transpose.py
-export const CHORD_GROUP_DELIMITER_REGEX =
-    /  |_|!|\.\.\.|\.\.|: |\*|high|open|bass|riff|palm mute|notes|sus4/;
-
-// Parenthetical metadata/directives that should never be transposed as chords
-const SKIP_PAREN_PREFIXES = ['(bpm', '(tempo', '(key', '(highest', '(falsetto', '(all', '(chords for'];
 
 /**
  * Normalizes a semitone offset into [0..11].
@@ -66,7 +63,6 @@ export function parseChordToken(token) {
         return null;
     }
 
-    // Match root note, optional quality/extension, and optional slash bass note
     const match = /^([A-G][#b]?)(.*?)(?:\/([A-G][#b]?))?$/.exec(trimmed);
     if (!match) {
         return null;
@@ -78,7 +74,6 @@ export function parseChordToken(token) {
         return null;
     }
 
-    // Reject words that accidentally start with A-G (like "And", "Bridge", "Chorus", "Intro")
     if (
         rawQuality &&
         !/^(?:m|maj|min|dim|aug|sus|add|[0-9]|[#b+-]|M|\(|\))*$/i.test(rawQuality)
@@ -94,8 +89,7 @@ export function parseChordToken(token) {
         }
     }
 
-    const isMinor =
-        rawQuality.startsWith('m') && !rawQuality.startsWith('maj');
+    const isMinor = rawQuality.startsWith('m') && !rawQuality.startsWith('maj');
 
     return {
         rootStr,
@@ -107,17 +101,13 @@ export function parseChordToken(token) {
     };
 }
 
-/**
- * Evaluates how many letter collisions (e.g. having both B and Bb, or F and F#)
- * occur in a given palette (SHARP_NOTES vs FLAT_NOTES) for the song's pitch classes.
- */
 function evaluatePaletteCollisions(palette, pitchClassCounts, rootPitchClassSet) {
-    const letterToPitchClasses = new Map(); // 'A'..'G' -> Set of pitch classes
+    const letterToPitchClasses = new Map();
     const letterToTotalCount = new Map();
 
     for (const [pc, count] of pitchClassCounts.entries()) {
         const noteName = palette[pc];
-        const letter = noteName[0]; // Base letter A..G
+        const letter = noteName[0];
         if (!letterToPitchClasses.has(letter)) {
             letterToPitchClasses.set(letter, new Set());
             letterToTotalCount.set(letter, 0);
@@ -131,13 +121,12 @@ function evaluatePaletteCollisions(palette, pitchClassCounts, rootPitchClassSet)
 
     for (const [, pcSet] of letterToPitchClasses.entries()) {
         if (pcSet.size > 1) {
-            // Multiple pitch classes share the same letter name (e.g., B and Bb)
-            // Prioritize avoiding collisions between main chord roots first
             const rootHits = [...pcSet].filter((pc) => rootPitchClassSet.has(pc));
             uniqueLetterCollisions += pcSet.size - 1;
 
-            // Weight by the rarer pitch class in the colliding pair so frequent chords win
-            const counts = [...pcSet].map((pc) => pitchClassCounts.get(pc) || 1).sort((a, b) => a - b);
+            const counts = [...pcSet]
+                .map((pc) => pitchClassCounts.get(pc) || 1)
+                .sort((a, b) => a - b);
             const minorOccurrences = counts.slice(0, -1).reduce((acc, v) => acc + v, 0);
             weightedCollisionScore += minorOccurrences * (rootHits.length > 1 ? 10 : 3);
         }
@@ -152,15 +141,11 @@ function evaluatePaletteCollisions(palette, pitchClassCounts, rootPitchClassSet)
 /**
  * Deduces whether a song (after transposing by `semitones`) should be spelled
  * using the Flat palette (`true`) or Sharp palette (`false`).
- *
- * Priority 1: Avoid duplicate letter names (e.g. B vs Bb) in the song.
- * Priority 2: Never mix sharps and flats (enforced by returning a single boolean for the whole song).
- * Priority 3: Best diatonic key-signature fit (and original spelling preference when semitones === 0).
  */
 export function deduceSongUseFlats(lyrics = '', semitones = 0, songKeyHint = null) {
-    const pitchClassCounts = new Map(); // pc (0..11) -> occurrence count
+    const pitchClassCounts = new Map();
     const rootPitchClassSet = new Set();
-    const chordQualities = []; // { rootPc, isMinor }
+    const chordQualities = [];
     let originalFlatsCount = 0;
     let originalSharpsCount = 0;
 
@@ -171,7 +156,6 @@ export function deduceSongUseFlats(lyrics = '', semitones = 0, songKeyHint = nul
         }
     };
 
-    // Extract all chord tokens from (...) blocks in the song
     const parenRegex = /\(([^)]+)\)/g;
     let match;
     while ((match = parenRegex.exec(lyrics)) !== null) {
@@ -211,7 +195,6 @@ export function deduceSongUseFlats(lyrics = '', semitones = 0, songKeyHint = nul
         }
     }
 
-    // If no accidentals exist at all after transposition, either palette is identical
     const hasBlackKeys = [...pitchClassCounts.keys()].some((pc) =>
         [1, 3, 6, 8, 10].includes(pc)
     );
@@ -219,7 +202,6 @@ export function deduceSongUseFlats(lyrics = '', semitones = 0, songKeyHint = nul
         return false;
     }
 
-    // 1. Evaluate Priority #1: Letter Collisions (e.g. B + Bb vs B + A#)
     const sharpEval = evaluatePaletteCollisions(
         SHARP_NOTES,
         pitchClassCounts,
@@ -238,16 +220,13 @@ export function deduceSongUseFlats(lyrics = '', semitones = 0, songKeyHint = nul
         return flatEval.weightedCollisionScore < sharpEval.weightedCollisionScore;
     }
 
-    // 2. If semitones === 0 and collisions are tied, respect the song author's original # vs b choice
     if (mod12(semitones) === 0 && originalFlatsCount !== originalSharpsCount) {
         return originalFlatsCount > originalSharpsCount;
     }
 
-    // 3. If an explicit key hint exists in frontmatter (e.g. "F", "Dm", "Eb"), transpose it and check
     if (songKeyHint && typeof songKeyHint === 'string') {
         const parsedHint = parseChordToken(songKeyHint.trim());
         if (parsedHint) {
-            // Convert relative minor tonic to its major tonic (+3 semitones)
             const majorTonic = mod12(
                 parsedHint.rootSemitone + semitones + (parsedHint.isMinor ? 3 : 0)
             );
@@ -260,7 +239,6 @@ export function deduceSongUseFlats(lyrics = '', semitones = 0, songKeyHint = nul
         }
     }
 
-    // 4. Score against the 12 diatonic Major / Relative Minor keys
     let bestTonic = 0;
     let bestScore = -Infinity;
 
@@ -274,15 +252,14 @@ export function deduceSongUseFlats(lyrics = '', semitones = 0, songKeyHint = nul
             }
         }
 
-        // Bonus for matching tonic major (I), subdominant (IV), dominant (V), and relative minor (vi)
         for (const cq of chordQualities) {
             const rel = mod12(cq.rootPc - tonic);
-            if (rel === 0 && !cq.isMinor) score += 4; // I
-            if (rel === 5 && !cq.isMinor) score += 2; // IV
-            if (rel === 7 && !cq.isMinor) score += 3; // V
-            if (rel === 9 && cq.isMinor) score += 4; // vi (relative minor tonic)
-            if (rel === 2 && cq.isMinor) score += 2; // ii
-            if (rel === 4 && cq.isMinor) score += 2; // iii
+            if (rel === 0 && !cq.isMinor) score += 4;
+            if (rel === 5 && !cq.isMinor) score += 2;
+            if (rel === 7 && !cq.isMinor) score += 3;
+            if (rel === 9 && cq.isMinor) score += 4;
+            if (rel === 2 && cq.isMinor) score += 2;
+            if (rel === 4 && cq.isMinor) score += 2;
         }
 
         if (score > bestScore) {
@@ -298,7 +275,6 @@ export function deduceSongUseFlats(lyrics = '', semitones = 0, songKeyHint = nul
         return false;
     }
 
-    // For C/Am (0) or F#/Gb (6), prefer flats if flat keys' signature notes (Bb=10, Eb=3) dominate
     const flatSignatureWeight =
         (pitchClassCounts.get(10) || 0) + (pitchClassCounts.get(3) || 0);
     const sharpSignatureWeight =
@@ -309,7 +285,6 @@ export function deduceSongUseFlats(lyrics = '', semitones = 0, songKeyHint = nul
 
 /**
  * Transposes a single chord token (e.g., "Am", "G/B", "F#m7b5") by `semitones`.
- * When `useFlats` is provided (boolean), strictly spells roots/bass notes using that palette.
  */
 export function transposeChordToken(token, semitones = 0, useFlats = null) {
     if (!token || typeof token !== 'string') {
@@ -321,7 +296,6 @@ export function transposeChordToken(token, semitones = 0, useFlats = null) {
         return token;
     }
 
-    // Determine palette if called standalone without a song-level `useFlats` boolean
     const resolvedUseFlats =
         typeof useFlats === 'boolean'
             ? useFlats
@@ -337,17 +311,12 @@ export function transposeChordToken(token, semitones = 0, useFlats = null) {
         newBass = '/' + palette[mod12(parsed.bassSemitone + semitones)];
     }
 
-    // Preserve any leading/trailing whitespace if present
     const leadingSpace = token.match(/^\s*/)?.[0] || '';
     const trailingSpace = token.match(/\s*$/)?.[0] || '';
 
     return `${leadingSpace}${newRoot}${parsed.quality}${newBass}${trailingSpace}`;
 }
 
-/**
- * Transposes a single parenthesized chord group's inner content (without the outer parentheses),
- * preserving all delimiters and annotations ("  ", "_", "!", "riff", "palm mute", etc.).
- */
 export function transposeChordGroupInner(chordGroupInner, semitones = 0, useFlats = false) {
     const lower = chordGroupInner.toLowerCase();
     if (
@@ -379,16 +348,13 @@ export function transposeChordGroupInner(chordGroupInner, semitones = 0, useFlat
     return out;
 }
 
-/**
- * Transposes an entire song's lyrics text (used by CLI tools like build-pdf.mjs),
- * including optional inline (capo N) / (drop N) correction matching song-directory-transpose.py.
- */
 export function transposeSongContents(
     contents,
     globalSemitones = 0,
     { applyCapoDropCorrection = false, frontmatterCapo = 0, songKeyHint = null } = {}
 ) {
-    let songHalfTones = globalSemitones + (applyCapoDropCorrection ? Number(frontmatterCapo || 0) : 0);
+    let songHalfTones =
+        globalSemitones + (applyCapoDropCorrection ? Number(frontmatterCapo || 0) : 0);
     const useFlats = deduceSongUseFlats(contents, songHalfTones, songKeyHint);
 
     return contents.replace(/\(([^)]*)\)/g, (fullMatch, inner) => {
@@ -417,7 +383,8 @@ export function transposeSongContents(
             return fullMatch;
         }
 
-        const currentUseFlats = deduceSongUseFlats(contents, songHalfTones, songKeyHint) ?? useFlats;
+        const currentUseFlats =
+            deduceSongUseFlats(contents, songHalfTones, songKeyHint) ?? useFlats;
         return `(${transposeChordGroupInner(inner, songHalfTones, currentUseFlats)})`;
     });
 }
