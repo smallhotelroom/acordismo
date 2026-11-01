@@ -1,6 +1,6 @@
 /**
  * @file src/screens/SongScreen.jsx
- * @version 2.11.0
+ * @version 2.12.0
  */
 import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Pause, Play } from 'lucide-react';
@@ -13,7 +13,7 @@ import {
     transposeChordToken,
 } from '@shr-shared/chordTransposer.js';
 
-export const __version__ = '2.11.0';
+export const __version__ = '2.12.0';
 
 const SCROLL_SPEED_STORAGE_KEY = 'acordismo_scroll_speed';
 const TARGET_DURATION_SECONDS = 210; // 3 minutes 30 seconds at 1.0x
@@ -414,15 +414,14 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
                 </div>
             </header>
 
-            {/* Discreet Excel-style Frozen Top Chord Row */}
+            {/* Discreet Middle Section: Frozen Top Chord Row (matches bottom light-grey background + subtle top/bottom border) */}
             {freezeChordsEnabled && frozenChordText && (
                 <div
                     className="song-lyrics-monospace"
                     style={{
                         padding: '6px 15px',
-                        background: 'var(--bg-surface)',
+                        background: 'var(--bg-main)',
                         borderBottom: '1px solid var(--border-color)',
-                        boxShadow: '0 2px 6px rgba(0, 0, 0, 0.12)',
                         fontSize: `${fontSize}px`,
                         fontWeight: 700,
                         whiteSpace: 'pre-wrap',
