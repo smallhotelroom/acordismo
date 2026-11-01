@@ -4,6 +4,12 @@ Offline chord and lyric reader built with Vite, React, SQLite (`sql.js` WASM), a
 
 Depends on `smallhotelroom.github.io` (git clone it next to this repository).
 
+## 0. [optional] Linter install (VSCode extension)
+
+```bash
+npm run linter:install
+```
+
 ## 1. Database (`songs-official.db`)
 
 Generate the default official ("clean") SQLite database (`public/songs-official.db`) from `smallhotelroom.github.io` Markdown songs:
