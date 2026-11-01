@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * @file scripts/build-pdf.mjs
- * @version 1.1.0
+ * @version 1.2.0
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -9,9 +9,9 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import initSqlJs from 'sql.js';
 import { transposeSongContents } from '../src/shared/chordTransposer.js';
-import { parseFrontmatterFile } from '../src/shared/songSchema.js';
+import { loadMasterSongSchema } from './build-db.mjs';
 
-export const __version__ = '1.1.0';
+export const __version__ = '1.2.0';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -53,7 +53,6 @@ function parseArgs(argv) {
         }
     }
 
-    // Ensure bare filenames (e.g. `--output Espanol.pdf`) always land inside `dist-pdfs/`
     if (!args.output.includes('/') && !args.output.includes('\\')) {
         args.output = path.join('dist-pdfs', args.output);
     }
@@ -124,7 +123,8 @@ async function loadSongsFromDatabase(dbPath, playlistName) {
     return songs;
 }
 
-function loadSongsFromDirectory(inputDir) {
+async function loadSongsFromDirectory(inputDir) {
+    const schemaMod = await loadMasterSongSchema();
     const files = walkSongFilesSorted(inputDir);
     const songs = [];
 
@@ -137,7 +137,7 @@ function loadSongsFromDirectory(inputDir) {
             : fullTitle;
 
         const rawText = fs.readFileSync(fullPath, 'utf8');
-        const { data, content } = parseFrontmatterFile(rawText);
+        const { data, content } = schemaMod.parseFrontmatterFile(rawText);
 
         let capo = data.capo ? Number(data.capo) : 0;
         if (data.drop !== undefined && data.drop !== null) {
@@ -182,7 +182,7 @@ async function main() {
     if (args.input) {
         const inputDir = path.resolve(ROOT_DIR, args.input);
         console.log(`Loading songs from directory: ${inputDir}`);
-        songs = loadSongsFromDirectory(inputDir);
+        songs = await loadSongsFromDirectory(inputDir);
     } else {
         const dbPath = path.resolve(ROOT_DIR, args.db);
         console.log(
@@ -241,7 +241,6 @@ async function main() {
         rep += '\n\\end{alltt}\n';
     }
 
-    // Format chord delimiter () and choir delimiter [] matching song-directory-to-songbook.py
     rep = rep.replace(/\(/g, '\\textbf{(').replace(/\)/g, ')}');
     rep = rep.replace(/\[/g, '\\textit{[').replace(/\]/g, ']}');
     rep = rep.replace(/\{\{aux-song-index-file\}\}/g, '[aux-song-index-file]');
@@ -260,7 +259,6 @@ async function main() {
     fs.writeFileSync(outputTexPath, templateContent, 'utf8');
     console.log(`Generated LaTeX file: ${outputTexPath}`);
 
-    // Pass 1 of pdflatex (generates .toc and aux-song-index-file.idx inside outputDir)
     console.log('Running pdflatex (pass 1 of 2)...');
     const pass1 = spawnSync(
         'pdflatex',
@@ -278,7 +276,6 @@ async function main() {
         process.exit(pass1.status);
     }
 
-    // Run makeindex explicitly if aux-song-index-file.idx exists so the Index is guaranteed to be built
     const idxFile = path.join(outputDir, 'aux-song-index-file.idx');
     if (fs.existsSync(idxFile)) {
         spawnSync('makeindex', ['aux-song-index-file.idx'], {
@@ -287,7 +284,6 @@ async function main() {
         });
     }
 
-    // Pass 2 of pdflatex (embeds Table of Contents and Index into the final PDF)
     console.log('Running pdflatex (pass 2 of 2)...');
     const pass2 = spawnSync(
         'pdflatex',
@@ -299,7 +295,6 @@ async function main() {
         process.exit(pass2.status);
     }
 
-    // Clean up auxiliary LaTeX files inside outputDir
     const auxFiles = [
         'aux-song-index-file.idx',
         'aux-song-index-file.ilg',

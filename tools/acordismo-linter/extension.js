@@ -1,74 +1,64 @@
 /**
  * @file tools/acordismo-linter/extension.js
- * @version 2.1.0
+ * @version 2.2.0
+ * Zero-copy VS Code Linter: dynamically imports smallhotelroom.github.io/src/shared/songSchema.js
+ * and acordismo/src/shared/chordTransposer.js directly from their canonical paths.
  */
 const vscode = require('vscode');
 const path = require('path');
-const {
-    STRICT_PROJECT_NAMES,
-    STRICT_PROJECT_KEYS,
-    SKIP_PAREN_PREFIXES,
-    CHORD_GROUP_DELIMITER_REGEX,
-    parseFrontmatterFile,
-} = require('./shared/songSchema');
+const { pathToFileURL } = require('url');
 
-const __version__ = '2.1.0';
-
-const NOTE_TO_SEMITONE = {
-    C: 0,
-    'B#': 0,
-    'C#': 1,
-    Db: 1,
-    D: 2,
-    'D#': 3,
-    Eb: 3,
-    E: 4,
-    Fb: 4,
-    F: 5,
-    'E#': 5,
-    'F#': 6,
-    Gb: 6,
-    G: 7,
-    'G#': 8,
-    Ab: 8,
-    A: 9,
-    'A#': 10,
-    Bb: 10,
-    B: 11,
-    Cb: 11,
-};
+const __version__ = '2.2.0';
 
 const diagnosticCollection = vscode.languages.createDiagnosticCollection('acordismoLinter');
 
-function parseChordToken(token) {
-    if (!token || typeof token !== 'string') return null;
-    const trimmed = token.trim();
-    if (!trimmed) return null;
+let modulesPromise = null;
 
-    const match = /^([A-G][#b]?)(.*?)(?:\/([A-G][#b]?))?$/.exec(trimmed);
-    if (!match) return null;
+function loadSharedModules() {
+    if (!modulesPromise) {
+        const realExtDir = __dirname;
+        const acordismoRoot = path.resolve(realExtDir, '..', '..');
+        const schemaPath = path.resolve(
+            acordismoRoot,
+            '..',
+            'smallhotelroom.github.io',
+            'src',
+            'shared',
+            'songSchema.js'
+        );
+        const transposerPath = path.resolve(
+            acordismoRoot,
+            'src',
+            'shared',
+            'chordTransposer.js'
+        );
 
-    const [, rootStr, rawQuality = '', bassStr = null] = match;
-    if (NOTE_TO_SEMITONE[rootStr] === undefined) return null;
-
-    if (
-        rawQuality &&
-        !/^(?:m|maj|min|dim|aug|sus|add|[0-9]|[#b+-]|M|\(|\))*$/i.test(rawQuality)
-    ) {
-        return null;
+        modulesPromise = Promise.all([
+            import(pathToFileURL(schemaPath).href),
+            import(pathToFileURL(transposerPath).href),
+        ]).then(([schemaMod, transposerMod]) => ({
+            schemaMod,
+            transposerMod,
+        }));
     }
-
-    if (bassStr && NOTE_TO_SEMITONE[bassStr] === undefined) return null;
-
-    return { rootStr, quality: rawQuality, bassStr };
+    return modulesPromise;
 }
 
 /**
  * Validates both YAML frontmatter and song chord consistency (mixed #/b or letter collisions).
  * @param {vscode.TextDocument} document
  */
-function updateDiagnostics(document) {
+async function updateDiagnostics(document) {
     if (document.languageId !== 'markdown') {
+        return;
+    }
+
+    let schemaMod;
+    let transposerMod;
+    try {
+        ({ schemaMod, transposerMod } = await loadSharedModules());
+    } catch (err) {
+        console.error('Acordismo Linter failed to load shared modules:', err);
         return;
     }
 
@@ -81,10 +71,10 @@ function updateDiagnostics(document) {
         derivedArtist = rawFileName.split(' - ')[0].trim();
     }
 
-    const parsed = parseFrontmatterFile(text);
+    const parsed = schemaMod.parseFrontmatterFile(text);
     const effectiveArtist = parsed.data.artist || derivedArtist;
 
-    const isStrictProject = STRICT_PROJECT_NAMES.includes(effectiveArtist);
+    const isStrictProject = schemaMod.STRICT_PROJECT_NAMES.includes(effectiveArtist);
     if (!isStrictProject) {
         diagnosticCollection.set(document.uri, []);
         return;
@@ -103,10 +93,8 @@ function updateDiagnostics(document) {
         return;
     }
 
-    // 1. Check missing required keys
-    const missing = STRICT_PROJECT_KEYS.filter(
-        (reqKey) => parsed.data[reqKey] === undefined || parsed.data[reqKey] === null
-    );
+    // 1. Check missing required keys using songSchema.getMissingKeys
+    const missing = schemaMod.getMissingKeys(parsed.data, rawFileName);
     if (missing.length > 0) {
         const range = new vscode.Range(0, 0, 0, 3);
         diagnostics.push(
@@ -118,30 +106,31 @@ function updateDiagnostics(document) {
         );
     }
 
-    // 2. Check strict alphabetical order and squiggle the exact offending key line
+    // 2. Check strict alphabetical order using songSchema.validateAlphabeticalOrder
     const keys = Object.keys(parsed.data);
-    const sortedKeys = [...keys].sort();
-    for (let i = 0; i < keys.length; i++) {
-        if (keys[i] !== sortedKeys[i]) {
-            const offendingKey = keys[i];
-            const expectedKey = sortedKeys[i];
-            // keyLines stores 1-based line numbers; convert to 0-based for VS Code Range
-            const lineIdx = Math.max(0, (parsed.keyLines[offendingKey] ?? 1) - 1);
-            const lineText = document.lineAt(lineIdx).text;
-            const range = new vscode.Range(lineIdx, 0, lineIdx, lineText.length);
+    const { isValid, expected } = schemaMod.validateAlphabeticalOrder(keys);
+    if (!isValid) {
+        for (let i = 0; i < keys.length; i++) {
+            if (keys[i] !== expected[i]) {
+                const offendingKey = keys[i];
+                const expectedKey = expected[i];
+                const lineIdx = Math.max(0, (parsed.keyLines[offendingKey] ?? 1) - 1);
+                const lineText = document.lineAt(lineIdx).text;
+                const range = new vscode.Range(lineIdx, 0, lineIdx, lineText.length);
 
-            diagnostics.push(
-                new vscode.Diagnostic(
-                    range,
-                    `🚨 ACORDISMO LINT ERROR: Key '${offendingKey}' is out of alphabetical order (expected '${expectedKey}' at position ${i + 1}).\nExpected order: [${sortedKeys.join(', ')}]`,
-                    vscode.DiagnosticSeverity.Error
-                )
-            );
-            break;
+                diagnostics.push(
+                    new vscode.Diagnostic(
+                        range,
+                        `🚨 ACORDISMO LINT ERROR: Key '${offendingKey}' is out of alphabetical order (expected '${expectedKey}' at position ${i + 1}).\nExpected order: [${expected.join(', ')}]`,
+                        vscode.DiagnosticSeverity.Error
+                    )
+                );
+                break;
+            }
         }
     }
 
-    // 3. Check song chord palette consistency (no mixed #/b roots, warn on duplicate letter collisions)
+    // 3. Check song chord palette consistency using chordTransposer
     const sharpNotesFound = new Set();
     const flatNotesFound = new Set();
     const letterToNotes = new Map();
@@ -166,12 +155,12 @@ function updateDiagnostics(document) {
         let match;
         while ((match = parenRegex.exec(lineStr)) !== null) {
             const fullParen = match[0].toLowerCase();
-            if (SKIP_PAREN_PREFIXES.some((p) => fullParen.startsWith(p))) continue;
+            if (transposerMod.SKIP_PAREN_PREFIXES.some((p) => fullParen.startsWith(p))) continue;
             if (fullParen.includes('capo') || fullParen.includes('drop')) continue;
 
-            const tokens = match[1].split(CHORD_GROUP_DELIMITER_REGEX);
+            const tokens = match[1].split(transposerMod.CHORD_GROUP_DELIMITER_REGEX);
             for (const tok of tokens) {
-                const chord = parseChordToken(tok);
+                const chord = transposerMod.parseChordToken(tok);
                 if (chord) {
                     recordNote(chord.rootStr);
                     if (chord.bassStr) recordNote(chord.bassStr);
@@ -219,7 +208,7 @@ function activate(context) {
     );
 
     context.subscriptions.push(
-        vscode.workspace.onDidChangeActiveTextEditor((editor) => {
+        vscode.window.onDidChangeActiveTextEditor((editor) => {
             if (editor) {
                 updateDiagnostics(editor.document);
             }

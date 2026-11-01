@@ -1,16 +1,9 @@
 /**
  * @file src/shared/chordTransposer.js
- * @version 3.1.0
+ * @version 3.2.0
  */
-import {
-    CHORD_GROUP_DELIMITER_REGEX,
-    CHORD_GROUP_DELIMITER_SOURCE,
-    SKIP_PAREN_PREFIXES,
-} from './songSchema.js';
 
-export const __version__ = '3.1.0';
-
-export { CHORD_GROUP_DELIMITER_REGEX, CHORD_GROUP_DELIMITER_SOURCE, SKIP_PAREN_PREFIXES };
+export const __version__ = '3.2.0';
 
 export const SHARP_NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 export const FLAT_NOTES = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
@@ -43,17 +36,25 @@ const MAJOR_SCALE_INTERVALS = [0, 2, 4, 5, 7, 9, 11];
 const FLAT_TONICS = new Set([5, 10, 3, 8, 1]); // F, Bb, Eb, Ab, Db
 const SHARP_TONICS = new Set([7, 2, 9, 4, 11]); // G, D, A, E, B
 
-/**
- * Normalizes a semitone offset into [0..11].
- */
+// Delimiter regex matching both SongScreen.jsx and legacy song-directory-transpose.py
+export const CHORD_GROUP_DELIMITER_REGEX =
+    /  |_|!|\.\.\.|\.\.|: |\*|high|open|bass|riff|palm mute|notes|sus4/;
+
+// Parenthetical metadata/directives that should never be transposed as chords
+export const SKIP_PAREN_PREFIXES = [
+    '(bpm',
+    '(tempo',
+    '(key',
+    '(highest',
+    '(falsetto',
+    '(all',
+    '(chords for',
+];
+
 export function mod12(n) {
     return ((n % 12) + 12) % 12;
 }
 
-/**
- * Parses a single chord token like "F#m7b5/C#" into its root, quality, and optional bass note.
- * Returns null if the token does not begin with a valid musical note.
- */
 export function parseChordToken(token) {
     if (!token || typeof token !== 'string') {
         return null;
@@ -138,10 +139,6 @@ function evaluatePaletteCollisions(palette, pitchClassCounts, rootPitchClassSet)
     };
 }
 
-/**
- * Deduces whether a song (after transposing by `semitones`) should be spelled
- * using the Flat palette (`true`) or Sharp palette (`false`).
- */
 export function deduceSongUseFlats(lyrics = '', semitones = 0, songKeyHint = null) {
     const pitchClassCounts = new Map();
     const rootPitchClassSet = new Set();
@@ -283,9 +280,6 @@ export function deduceSongUseFlats(lyrics = '', semitones = 0, songKeyHint = nul
     return flatSignatureWeight > sharpSignatureWeight;
 }
 
-/**
- * Transposes a single chord token (e.g., "Am", "G/B", "F#m7b5") by `semitones`.
- */
 export function transposeChordToken(token, semitones = 0, useFlats = null) {
     if (!token || typeof token !== 'string') {
         return token;

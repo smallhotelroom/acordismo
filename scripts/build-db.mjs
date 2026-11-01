@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 /**
  * @file scripts/build-db.mjs
- * @version 3.4.0
+ * @version 3.5.0
  */
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import crypto from 'node:crypto';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import initSqlJs from 'sql.js';
 import {
     SCHEMA_SQL,
@@ -15,21 +15,27 @@ import {
     wildcardToRegExp,
     mergeDatabasesInPriorityOrder,
 } from '../src/shared/dbMerger.js';
-import {
-    STRICT_PROJECT_NAMES,
-    STRICT_PROJECT_KEYS,
-    TREATED_KEYS,
-    parseFrontmatterFile,
-} from '../src/shared/songSchema.js';
 
-export const __version__ = '3.4.0';
-export { parseFrontmatterFile };
+export const __version__ = '3.5.0';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const ROOT_DIR = path.resolve(__dirname, '..');
 
-const TREATED_KEYS_SET = new Set(TREATED_KEYS);
+// Dynamically loads the Single Source of Truth songSchema.js from smallhotelroom.github.io
+const EXTERNAL_SCHEMA_PATH = path.resolve(
+    ROOT_DIR,
+    '../smallhotelroom.github.io/src/shared/songSchema.js'
+);
+
+export async function loadMasterSongSchema() {
+    if (!fs.existsSync(EXTERNAL_SCHEMA_PATH)) {
+        throw new Error(
+            `Master songSchema.js not found at ${EXTERNAL_SCHEMA_PATH}. Please ensure smallhotelroom.github.io is cloned alongside acordismo.`
+        );
+    }
+    return await import(pathToFileURL(EXTERNAL_SCHEMA_PATH).href);
+}
 
 function formatClickableLocation(fullPath, line = 1, col = 1) {
     const encodedPath = fullPath.split(path.sep).map(encodeURIComponent).join('/');
@@ -41,6 +47,7 @@ function validateSongFrontmatter(
     keyLines,
     rawFileName,
     fullPath,
+    schemaMod,
     isOfficialLayer = false
 ) {
     const errors = [];
@@ -49,15 +56,8 @@ function validateSongFrontmatter(
         return errors;
     }
 
-    let derivedArtist = frontmatterData.artist;
-    if (!derivedArtist && rawFileName.includes(' - ')) {
-        derivedArtist = rawFileName.split(' - ')[0].trim();
-    }
-
-    if (isOfficialLayer && STRICT_PROJECT_NAMES.includes(derivedArtist)) {
-        const missing = STRICT_PROJECT_KEYS.filter(
-            (reqKey) => frontmatterData[reqKey] === undefined || frontmatterData[reqKey] === null
-        );
+    if (isOfficialLayer) {
+        const missing = schemaMod.getMissingKeys(frontmatterData, rawFileName);
         if (missing.length > 0) {
             errors.push(
                 `${formatClickableLocation(fullPath, 1, 1)} — Missing required keys: ${missing.join(', ')}`
@@ -65,16 +65,18 @@ function validateSongFrontmatter(
         }
     }
 
-    const sortedKeys = [...keys].sort();
-    for (let i = 0; i < keys.length; i++) {
-        if (keys[i] !== sortedKeys[i]) {
-            const offendingKey = keys[i];
-            const expectedKey = sortedKeys[i];
-            const lineNum = keyLines[expectedKey] || keyLines[offendingKey] || 1;
-            errors.push(
-                `${formatClickableLocation(fullPath, lineNum, 1)} — Frontmatter keys are not in alphabetical order: found '${offendingKey}' where '${expectedKey}' was expected.\n    Found order:    [${keys.join(', ')}]\n    Expected order: [${sortedKeys.join(', ')}]`
-            );
-            break;
+    const { isValid, expected } = schemaMod.validateAlphabeticalOrder(keys);
+    if (!isValid) {
+        for (let i = 0; i < keys.length; i++) {
+            if (keys[i] !== expected[i]) {
+                const offendingKey = keys[i];
+                const expectedKey = expected[i];
+                const lineNum = keyLines[expectedKey] || keyLines[offendingKey] || 1;
+                errors.push(
+                    `${formatClickableLocation(fullPath, lineNum, 1)} — Frontmatter keys are not in alphabetical order: found '${offendingKey}' where '${expectedKey}' was expected.\n    Found order:    [${keys.join(', ')}]\n    Expected order: [${expected.join(', ')}]`
+                );
+                break;
+            }
         }
     }
 
@@ -315,7 +317,7 @@ function queryAll(db, sql, params = []) {
     return out;
 }
 
-function buildLayerDatabase(SQL, layerConfig) {
+function buildLayerDatabase(SQL, layerConfig, schemaMod) {
     console.log(`\n========================================`);
     console.log(`Building Layer: ${layerConfig.id}`);
     console.log(`========================================`);
@@ -327,6 +329,7 @@ function buildLayerDatabase(SQL, layerConfig) {
     const playlistCache = new Map();
     let insertedSongsCount = 0;
     const isOfficialLayer = layerConfig.id === 'official';
+    const treatedKeysSet = new Set(schemaMod.TREATED_KEYS || []);
 
     const getOrCreateBand = (bandName) => {
         const clean = bandName.trim();
@@ -387,13 +390,14 @@ function buildLayerDatabase(SQL, layerConfig) {
                 const songName = baseName.slice(splitIdx + 3);
 
                 const rawText = fs.readFileSync(fullPath, 'utf8');
-                const { data: song, keyLines, content } = parseFrontmatterFile(rawText);
+                const { data: song, keyLines, content } = schemaMod.parseFrontmatterFile(rawText);
 
                 const schemaErrors = validateSongFrontmatter(
                     song,
                     keyLines,
                     baseName,
                     fullPath,
+                    schemaMod,
                     isOfficialLayer
                 );
                 if (schemaErrors.length > 0) {
@@ -476,7 +480,7 @@ function buildLayerDatabase(SQL, layerConfig) {
                 const songId = queryAll(db, 'SELECT last_insert_rowid() AS id;')[0].id;
                 insertedSongsCount++;
 
-                const untreatedKeys = Object.keys(song).filter((k) => !TREATED_KEYS_SET.has(k));
+                const untreatedKeys = Object.keys(song).filter((k) => !treatedKeysSet.has(k));
                 if (untreatedKeys.length > 0) {
                     console.log(`** untreatedKeys in ${filename}:`, untreatedKeys);
                 }
@@ -841,6 +845,7 @@ function buildLayerDatabase(SQL, layerConfig) {
 
 async function main() {
     loadDotEnv();
+    const schemaMod = await loadMasterSongSchema();
 
     const configPath = path.join(ROOT_DIR, 'db-origins.yaml');
     if (!fs.existsSync(configPath)) {
@@ -853,7 +858,7 @@ async function main() {
 
     const builtDbs = [];
     for (const layer of config.layers) {
-        const db = buildLayerDatabase(SQL, layer);
+        const db = buildLayerDatabase(SQL, layer, schemaMod);
         if (db) {
             builtDbs.push(db);
         }
