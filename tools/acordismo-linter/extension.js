@@ -1,8 +1,8 @@
 /**
  * @file tools/acordismo-linter/extension.js
  * @version 2.4.0
- * Zero-copy VS Code Linter: uses fs.realpathSync(__dirname) so Windows Junctions
- * and Linux Symlinks both resolve back to the real git repository.
+ * Zero-copy VS Code Linter: uses .acordismo-root / fs.realpathSync(__dirname)
+ * so Windows Junctions and Linux Symlinks both resolve back to the real git repository.
  */
 const vscode = require('vscode');
 const fs = require('fs');
@@ -58,7 +58,7 @@ function loadSharedModules() {
  * @param {vscode.TextDocument} document
  */
 async function updateDiagnostics(document) {
-    if (document.languageId !== 'markdown' && document.languageId !== 'plaintext') {
+    if (document.languageId !== 'markdown') {
         if (statusBarItem) statusBarItem.hide();
         return;
     }
