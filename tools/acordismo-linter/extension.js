@@ -1,8 +1,8 @@
 /**
  * @file tools/acordismo-linter/extension.js
- * @version 2.5.0
+ * @version 2.7.0
  * Zero-copy VS Code Linter & Live Chord Decorator for Acordismo.
- * Active on strict projects (Small Hotel Room, cancionesdejuan) AND all songs in ACORDISMO_CURATED_DIR.
+ * Uses Dark 2026 blue (#79c0ff) for chords and bold warm gold (#d29922) for modifiers (!, _, riff, etc.).
  */
 const vscode = require('vscode');
 const fs = require('fs');
@@ -10,30 +10,35 @@ const os = require('os');
 const path = require('path');
 const { pathToFileURL } = require('url');
 
-const __version__ = '2.5.0';
+const __version__ = '2.7.0';
 
 const diagnosticCollection = vscode.languages.createDiagnosticCollection('acordismoLinter');
 let statusBarItem = null;
 let modulesPromise = null;
 
-// Live Editor Decorations so you can immediately see the linter is alive
+// Softer Dark 2026 Editor Decorations
 const parenBlockDecoration = vscode.window.createTextEditorDecorationType({
-    backgroundColor: 'rgba(245, 158, 11, 0.08)',
+    backgroundColor: 'rgba(121, 192, 255, 0.06)',
     borderRadius: '3px',
 });
 
 const chordTokenDecoration = vscode.window.createTextEditorDecorationType({
-    color: '#f59e0b', // Amber/Gold for valid chords & parens
+    color: '#79c0ff', // Dark 2026 YAML value blue for valid chords & parens
     fontWeight: 'bold',
 });
 
+const modifierDecoration = vscode.window.createTextEditorDecorationType({
+    color: '#d29922', // Soft warm gold for delimiters/modifiers (!, _, riff, palm mute, high, etc.)
+    fontWeight: 'bold', // Bold (not italic) so '!' never looks like '/'
+});
+
 const directiveDecoration = vscode.window.createTextEditorDecorationType({
-    color: '#a78bfa', // Soft purple for (capo ...), (drop ...), (bpm ...)
+    color: '#b392f0', // Soft lavender for (capo ...), (drop ...), (bpm ...)
     fontWeight: 'bold',
 });
 
 const choirDecoration = vscode.window.createTextEditorDecorationType({
-    color: '#34d399', // Emerald italic for [choir / backing vocals]
+    color: '#7ee787', // Soft sage green italic for [choir / backing vocals]
     fontStyle: 'italic',
 });
 
@@ -49,10 +54,6 @@ function resolveAcordismoRoot() {
     return path.resolve(realExtDir, '..', '..');
 }
 
-/**
- * Reads ACORDISMO_CURATED_DIR and ACORDISMO_OFFICIAL_DIR from acordismo/.env
- * so curated songs get full chord highlighting and linting automatically.
- */
 function loadConfiguredSongDirs(acordismoRoot) {
     const dirs = [
         path.resolve(acordismoRoot, '..', 'smallhotelroom.github.io', 'src', 'contents', 'songs'),
@@ -119,7 +120,6 @@ function isFileInsideDirs(filePath, dirList) {
             return true;
         }
     }
-    // Also match any path containing /0-guitar/ or \0-guitar\ as a convenience fallback
     return /[\\/]0-guitar[\\/]/i.test(normalizedFile);
 }
 
@@ -127,23 +127,27 @@ function clearEditorDecorations(editor) {
     if (!editor) return;
     editor.setDecorations(parenBlockDecoration, []);
     editor.setDecorations(chordTokenDecoration, []);
+    editor.setDecorations(modifierDecoration, []);
     editor.setDecorations(directiveDecoration, []);
     editor.setDecorations(choirDecoration, []);
 }
 
-/**
- * Validates YAML frontmatter, checks chord consistency, and applies live editor decorations.
- * @param {vscode.TextDocument} document
- */
 async function updateDiagnostics(document) {
-    const activeEditor =
-        vscode.window.activeTextEditor?.document === document
-            ? vscode.window.activeTextEditor
-            : null;
+    if (!document) return;
+
+    // Find all visible editors showing this document so decorations always apply reliably
+    const matchingEditors = vscode.window.visibleTextEditors.filter(
+        (ed) => ed.document.uri.toString() === document.uri.toString()
+    );
 
     if (document.languageId !== 'markdown') {
-        if (statusBarItem) statusBarItem.hide();
-        clearEditorDecorations(activeEditor);
+        if (
+            statusBarItem &&
+            vscode.window.activeTextEditor?.document.uri.toString() === document.uri.toString()
+        ) {
+            statusBarItem.hide();
+        }
+        matchingEditors.forEach(clearEditorDecorations);
         return;
     }
 
@@ -169,7 +173,6 @@ async function updateDiagnostics(document) {
     const parsed = schemaMod.parseFrontmatterFile(text);
     const effectiveArtist = parsed.data.artist || derivedArtist;
 
-    // Check if strict project (Small Hotel Room / cancionesdejuan, case-insensitive)
     const isStrictProject = schemaMod.STRICT_PROJECT_NAMES.some(
         (name) => name.toLowerCase() === String(effectiveArtist || '').toLowerCase()
     );
@@ -177,7 +180,7 @@ async function updateDiagnostics(document) {
 
     if (!isStrictProject && !isCuratedSong) {
         diagnosticCollection.set(document.uri, []);
-        clearEditorDecorations(activeEditor);
+        matchingEditors.forEach(clearEditorDecorations);
         if (statusBarItem) statusBarItem.hide();
         return;
     }
@@ -193,7 +196,6 @@ async function updateDiagnostics(document) {
             )
         );
     } else if (parsed.hasFrontmatter && Object.keys(parsed.data).length > 0) {
-        // Check missing required keys for strict projects
         if (isStrictProject) {
             const normalizedForStrict = {
                 ...parsed.data,
@@ -215,7 +217,6 @@ async function updateDiagnostics(document) {
             }
         }
 
-        // Check unknown/untreated frontmatter keys
         const treatedSet = new Set(schemaMod.TREATED_KEYS || []);
         for (const k of Object.keys(parsed.data)) {
             if (!treatedSet.has(k)) {
@@ -232,7 +233,6 @@ async function updateDiagnostics(document) {
             }
         }
 
-        // Check strict alphabetical order on any song that has frontmatter
         const keys = Object.keys(parsed.data);
         const { isValid, expected } = schemaMod.validateAlphabeticalOrder(keys);
         if (!isValid) {
@@ -259,7 +259,7 @@ async function updateDiagnostics(document) {
         }
     }
 
-    // 2. Scan body for (...) chords/directives and [...] choir blocks + build live decorations
+    // 2. Scan body for (...) chords/modifiers/directives and [...] choir blocks
     const sharpNotesFound = new Set();
     const flatNotesFound = new Set();
     const letterToNotes = new Map();
@@ -267,8 +267,12 @@ async function updateDiagnostics(document) {
 
     const parenRanges = [];
     const chordRanges = [];
+    const modifierRanges = [];
     const directiveRanges = [];
     const choirRanges = [];
+
+    // Create a fresh non-global RegExp instance per pass so lastIndex is never stale
+    const delimRegex = new RegExp(schemaMod.CHORD_GROUP_DELIMITER_REGEX.source);
 
     const recordNote = (noteStr) => {
         if (!noteStr) return;
@@ -289,7 +293,6 @@ async function updateDiagnostics(document) {
     for (let lineIdx = startZeroIdx; lineIdx < allLines.length; lineIdx++) {
         const lineStr = allLines[lineIdx];
 
-        // Highlight [choir / backing vocal] blocks
         const choirRegex = /\[[^\]]+\]/g;
         let cMatch;
         while ((cMatch = choirRegex.exec(lineStr)) !== null) {
@@ -303,7 +306,6 @@ async function updateDiagnostics(document) {
             );
         }
 
-        // Scan (...) blocks
         const parenRegex = /\(([^)]+)\)/g;
         let match;
         while ((match = parenRegex.exec(lineStr)) !== null) {
@@ -312,7 +314,6 @@ async function updateDiagnostics(document) {
             const blockStartCol = match.index;
             const blockEndCol = match.index + fullParen.length;
 
-            // Check if directive like (capo 2), (drop 2), (bpm 120)
             if (
                 schemaMod.SKIP_PAREN_PREFIXES.some((p) => lowerParen.startsWith(p)) ||
                 lowerParen.includes('capo') ||
@@ -325,20 +326,18 @@ async function updateDiagnostics(document) {
             }
 
             parenRanges.push(new vscode.Range(lineIdx, blockStartCol, lineIdx, blockEndCol));
-            // Highlight opening '(' and closing ')'
             chordRanges.push(
                 new vscode.Range(lineIdx, blockStartCol, lineIdx, blockStartCol + 1),
                 new vscode.Range(lineIdx, blockEndCol - 1, lineIdx, blockEndCol)
             );
 
-            // Walk inner tokens and delimiters with exact column offsets
             const innerStr = match[1];
             const innerStartCol = blockStartCol + 1;
             let cursor = 0;
             let remaining = innerStr;
 
             while (remaining.length > 0) {
-                const delimMatch = schemaMod.CHORD_GROUP_DELIMITER_REGEX.exec(remaining);
+                const delimMatch = delimRegex.exec(remaining);
                 const tokenStr =
                     delimMatch !== null ? remaining.slice(0, delimMatch.index) : remaining;
                 const tokenStartCol = innerStartCol + cursor;
@@ -365,9 +364,16 @@ async function updateDiagnostics(document) {
                 }
 
                 if (delimMatch !== null) {
-                    const delimLen = delimMatch[0].length;
-                    cursor += delimMatch.index + delimLen;
-                    remaining = remaining.slice(delimMatch.index + delimLen);
+                    const delimStr = delimMatch[0];
+                    const delimStartCol = tokenEndCol;
+                    const delimEndCol = delimStartCol + delimStr.length;
+                    if (delimStr.trim().length > 0) {
+                        modifierRanges.push(
+                            new vscode.Range(lineIdx, delimStartCol, lineIdx, delimEndCol)
+                        );
+                    }
+                    cursor += delimMatch.index + delimStr.length;
+                    remaining = remaining.slice(delimMatch.index + delimStr.length);
                 } else {
                     break;
                 }
@@ -399,11 +405,12 @@ async function updateDiagnostics(document) {
         }
     }
 
-    if (activeEditor) {
-        activeEditor.setDecorations(parenBlockDecoration, parenRanges);
-        activeEditor.setDecorations(chordTokenDecoration, chordRanges);
-        activeEditor.setDecorations(directiveDecoration, directiveRanges);
-        activeEditor.setDecorations(choirDecoration, choirRanges);
+    for (const editor of matchingEditors) {
+        editor.setDecorations(parenBlockDecoration, parenRanges);
+        editor.setDecorations(chordTokenDecoration, chordRanges);
+        editor.setDecorations(modifierDecoration, modifierRanges);
+        editor.setDecorations(directiveDecoration, directiveRanges);
+        editor.setDecorations(choirDecoration, choirRanges);
     }
 
     if (statusBarItem) {
@@ -425,18 +432,21 @@ function activate(context) {
     }
 
     context.subscriptions.push(
+        vscode.workspace.onDidOpenTextDocument((doc) => {
+            updateDiagnostics(doc);
+        }),
         vscode.workspace.onDidChangeTextDocument((event) => {
             updateDiagnostics(event.document);
-        })
-    );
-
-    context.subscriptions.push(
+        }),
         vscode.window.onDidChangeActiveTextEditor((editor) => {
             if (editor) {
                 updateDiagnostics(editor.document);
             } else if (statusBarItem) {
                 statusBarItem.hide();
             }
+        }),
+        vscode.window.onDidChangeVisibleTextEditors((editors) => {
+            editors.forEach((ed) => updateDiagnostics(ed.document));
         })
     );
 }
