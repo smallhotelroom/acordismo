@@ -1,0 +1,17 @@
+{
+  "name": "acordismo-linter",
+  "displayName": "Acordismo Linter",
+  "description": "Draconian Markdown & Chord Linter for Acordismo / Small Hotel Room",
+  "publisher": "smallhotelroom",
+  "version": "2.0.0",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Linters"
+  ],
+  "activationEvents": [
+    "onLanguage:markdown"
+  ],
+  "main": "./extension.js"
+}
