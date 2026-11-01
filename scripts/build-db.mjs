@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * @file scripts/build-db.mjs
- * @version 3.1.0
+ * @version 3.3.0
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -16,7 +16,7 @@ import {
     mergeDatabasesInPriorityOrder,
 } from '../src/shared/dbMerger.js';
 
-export const __version__ = '3.1.0';
+export const __version__ = '3.3.0';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -43,6 +43,7 @@ const TREATED_KEYS = new Set([
     'author',
     'bpm',
     'capo',
+    'downloads',
     'drop',
     'falsetto',
     'featuring',
@@ -58,9 +59,24 @@ const TREATED_KEYS = new Set([
     'track',
     'url',
     'writer',
+    'youtube',
 ]);
 
-function validateSongFrontmatter(frontmatterData, rawFileName, isOfficialLayer = false) {
+/**
+ * Formats a file path + line/col so terminals and VS Code can Ctrl+Click it even when the filename has spaces.
+ */
+function formatClickableLocation(fullPath, line = 1, col = 1) {
+    const encodedPath = fullPath.split(path.sep).map(encodeURIComponent).join('/');
+    return `"${fullPath}:${line}:${col}" ( vscode://file${encodedPath}:${line}:${col} )`;
+}
+
+function validateSongFrontmatter(
+    frontmatterData,
+    keyLines,
+    rawFileName,
+    fullPath,
+    isOfficialLayer = false
+) {
     const errors = [];
     const keys = Object.keys(frontmatterData);
     if (keys.length === 0 && !isOfficialLayer) {
@@ -77,14 +93,23 @@ function validateSongFrontmatter(frontmatterData, rawFileName, isOfficialLayer =
             (reqKey) => frontmatterData[reqKey] === undefined || frontmatterData[reqKey] === null
         );
         if (missing.length > 0) {
-            errors.push(`Missing required keys: ${missing.join(', ')}`);
+            errors.push(
+                `${formatClickableLocation(fullPath, 1, 1)} — Missing required keys: ${missing.join(', ')}`
+            );
         }
     }
 
     const sortedKeys = [...keys].sort();
-    const isAlphabetical = keys.every((key, idx) => key === sortedKeys[idx]);
-    if (!isAlphabetical) {
-        errors.push(`Keys are not in alphabetical order (expected: ${sortedKeys.join(', ')})`);
+    for (let i = 0; i < keys.length; i++) {
+        if (keys[i] !== sortedKeys[i]) {
+            const offendingKey = keys[i];
+            const expectedKey = sortedKeys[i];
+            const lineNum = keyLines[expectedKey] || keyLines[offendingKey] || 1;
+            errors.push(
+                `${formatClickableLocation(fullPath, lineNum, 1)} — Frontmatter keys are not in alphabetical order: found '${offendingKey}' where '${expectedKey}' was expected.\n    Found order:    [${keys.join(', ')}]\n    Expected order: [${sortedKeys.join(', ')}]`
+            );
+            break;
+        }
     }
 
     return errors;
@@ -268,57 +293,104 @@ function parseDbOriginsYaml(yamlText) {
     return config;
 }
 
+/**
+ * YAML frontmatter parser that handles both indented and unindented list items (`- ...`),
+ * nested object lists (e.g. `downloads:`), and tracks exact line numbers for top-level keys.
+ */
 export function parseFrontmatterFile(rawText) {
     const normalized = rawText.replace(/\r\n/g, '\n');
     if (!normalized.startsWith('---\n')) {
-        return { data: {}, content: normalized };
+        return { data: {}, keyLines: {}, content: normalized };
     }
     const endIdx = normalized.indexOf('\n---\n', 4);
     if (endIdx === -1) {
-        return { data: {}, content: normalized };
+        return { data: {}, keyLines: {}, content: normalized };
     }
 
     const yamlBlock = normalized.slice(4, endIdx);
     const content = normalized.slice(endIdx + 5).replace(/^\n/, '');
     const data = {};
+    const keyLines = {};
 
-    let currentKey = null;
-    for (const line of yamlBlock.split('\n')) {
-        if (!line.trim() || line.trim().startsWith('#')) {
+    const parseScalar = (rawVal) => {
+        let val = rawVal.trim();
+        if (val === '') return '';
+        if (
+            (val.startsWith('"') && val.endsWith('"')) ||
+            (val.startsWith("'") && val.endsWith("'"))
+        ) {
+            return val.slice(1, -1);
+        }
+        if (/^-?\d+$/.test(val)) return parseInt(val, 10);
+        if (/^-?\d+\.\d+$/.test(val)) return parseFloat(val, 10);
+        return val;
+    };
+
+    let currentTopKey = null;
+    let currentListObj = null;
+    const lines = yamlBlock.split('\n');
+
+    for (let idx = 0; idx < lines.length; idx++) {
+        const line = lines[idx];
+        const fileLineNumber = idx + 2; // Line 1 is '---'
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('#')) {
             continue;
         }
-        if (/^\s+-\s+/.test(line) && currentKey) {
-            if (!Array.isArray(data[currentKey])) {
-                data[currentKey] = [];
+
+        const isIndented = /^\s/.test(line);
+        const isListItem = trimmed.startsWith('- ') || trimmed === '-';
+
+        // A top-level key MUST be at column 0 AND not be a YAML list item (`- ...`)
+        if (!isIndented && !isListItem) {
+            const colonIdx = line.indexOf(':');
+            if (colonIdx !== -1) {
+                const key = line.slice(0, colonIdx).trim();
+                const rawVal = line.slice(colonIdx + 1).trim();
+                currentTopKey = key;
+                currentListObj = null;
+                keyLines[key] = fileLineNumber;
+
+                if (rawVal === '') {
+                    data[key] = [];
+                } else {
+                    data[key] = parseScalar(rawVal);
+                }
             }
-            const itemVal = line.replace(/^\s+-\s+/, '').trim().replace(/^['"]|['"]$/g, '');
-            data[currentKey].push(itemVal);
-            continue;
-        }
-        const colonIdx = line.indexOf(':');
-        if (colonIdx !== -1) {
-            const key = line.slice(0, colonIdx).trim();
-            let val = line.slice(colonIdx + 1).trim();
-            currentKey = key;
-            if (val === '') {
-                data[key] = null;
-                continue;
+        } else if (currentTopKey) {
+            // Either a list item (`- ...` at any indentation) or an indented property
+            if (isListItem) {
+                if (!Array.isArray(data[currentTopKey])) {
+                    data[currentTopKey] = [];
+                }
+                const afterDash = trimmed.slice(1).trim();
+                const colonIdx = afterDash.indexOf(':');
+                if (
+                    colonIdx !== -1 &&
+                    !afterDash.startsWith('"') &&
+                    !afterDash.startsWith("'")
+                ) {
+                    const subKey = afterDash.slice(0, colonIdx).trim();
+                    const subVal = parseScalar(afterDash.slice(colonIdx + 1));
+                    currentListObj = { [subKey]: subVal };
+                    data[currentTopKey].push(currentListObj);
+                } else if (afterDash !== '') {
+                    currentListObj = null;
+                    data[currentTopKey].push(parseScalar(afterDash));
+                } else {
+                    currentListObj = {};
+                    data[currentTopKey].push(currentListObj);
+                }
+            } else if (currentListObj && trimmed.includes(':')) {
+                const colonIdx = trimmed.indexOf(':');
+                const subKey = trimmed.slice(0, colonIdx).trim();
+                const subVal = parseScalar(trimmed.slice(colonIdx + 1));
+                currentListObj[subKey] = subVal;
             }
-            if (
-                (val.startsWith('"') && val.endsWith('"')) ||
-                (val.startsWith("'") && val.endsWith("'"))
-            ) {
-                val = val.slice(1, -1);
-            } else if (/^-?\d+$/.test(val)) {
-                val = parseInt(val, 10);
-            } else if (/^-?\d+\.\d+$/.test(val)) {
-                val = parseFloat(val);
-            }
-            data[key] = val;
         }
     }
 
-    return { data, content };
+    return { data, keyLines, content };
 }
 
 function serializeField(val) {
@@ -415,7 +487,6 @@ function buildLayerDatabase(SQL, layerConfig) {
     db.run('BEGIN TRANSACTION;');
 
     for (const src of layerConfig.sources || []) {
-        // Default source type is 'markdown_dir'
         const srcType = src.type || 'markdown_dir';
         const srcPath = resolveConfigPath(src.path);
         if (!srcPath || !fs.existsSync(srcPath)) {
@@ -440,7 +511,9 @@ function buildLayerDatabase(SQL, layerConfig) {
 
                 const splitIdx = baseName.indexOf(' - ');
                 if (splitIdx === -1) {
-                    console.log(`** Skipping ${filename}: Invalid format (missing ' - ')`);
+                    console.log(
+                        `** Skipping ${formatClickableLocation(fullPath, 1, 1)} — Invalid filename format (missing ' - ')`
+                    );
                     continue;
                 }
 
@@ -448,17 +521,24 @@ function buildLayerDatabase(SQL, layerConfig) {
                 const songName = baseName.slice(splitIdx + 3);
 
                 const rawText = fs.readFileSync(fullPath, 'utf8');
-                const { data: song, content } = parseFrontmatterFile(rawText);
+                const { data: song, keyLines, content } = parseFrontmatterFile(rawText);
 
-                // Draconian schema check for official layer (and alphabetical warning for curated)
-                const schemaErrors = validateSongFrontmatter(song, baseName, isOfficialLayer);
+                const schemaErrors = validateSongFrontmatter(
+                    song,
+                    keyLines,
+                    baseName,
+                    fullPath,
+                    isOfficialLayer
+                );
                 if (schemaErrors.length > 0) {
                     if (isOfficialLayer) {
                         throw new Error(
-                            `Schema validation failed for '${filename}':\n  - ${schemaErrors.join('\n  - ')}`
+                            `\n❌ Schema validation failed:\n  ${schemaErrors.join('\n  ')}\n`
                         );
                     } else {
-                        console.log(`** [Schema Notice] ${filename}: ${schemaErrors.join('; ')}`);
+                        for (const errStr of schemaErrors) {
+                            console.log(`** [Schema Notice] ${errStr}`);
+                        }
                     }
                 }
 
@@ -532,7 +612,7 @@ function buildLayerDatabase(SQL, layerConfig) {
 
                 const untreatedKeys = Object.keys(song).filter((k) => !TREATED_KEYS.has(k));
                 if (untreatedKeys.length > 0) {
-                    console.log('** untreatedKeys:', untreatedKeys);
+                    console.log(`** untreatedKeys in ${filename}:`, untreatedKeys);
                 }
 
                 if (song.featuring) {
@@ -936,7 +1016,7 @@ async function main() {
 
 if (process.argv[1] && path.resolve(process.argv[1]) === __filename) {
     main().catch((err) => {
-        console.error(err);
+        console.error(err.message || err);
         process.exit(1);
     });
 }
