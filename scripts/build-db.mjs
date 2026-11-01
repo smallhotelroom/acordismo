@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * @file scripts/build-db.mjs
- * @version 3.3.0
+ * @version 3.4.0
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -15,56 +15,22 @@ import {
     wildcardToRegExp,
     mergeDatabasesInPriorityOrder,
 } from '../src/shared/dbMerger.js';
+import {
+    STRICT_PROJECT_NAMES,
+    STRICT_PROJECT_KEYS,
+    TREATED_KEYS,
+    parseFrontmatterFile,
+} from '../src/shared/songSchema.js';
 
-export const __version__ = '3.3.0';
+export const __version__ = '3.4.0';
+export { parseFrontmatterFile };
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const ROOT_DIR = path.resolve(__dirname, '..');
 
-// Strict schema rules from songSchema.js v1.6.0
-const STRICT_PROJECT_NAMES = ['Small Hotel Room', 'cancionesdejuan'];
-const STRICT_PROJECT_KEYS = [
-    'album',
-    'author',
-    'bpm',
-    'isrc',
-    'lang',
-    'license',
-    'musicians',
-    'spotify',
-    'track',
-    'url',
-];
+const TREATED_KEYS_SET = new Set(TREATED_KEYS);
 
-const TREATED_KEYS = new Set([
-    'album',
-    'artist',
-    'author',
-    'bpm',
-    'capo',
-    'downloads',
-    'drop',
-    'falsetto',
-    'featuring',
-    'highest',
-    'isrc',
-    'key',
-    'lang',
-    'license',
-    'musicians',
-    'spotify',
-    'time_signature',
-    'title',
-    'track',
-    'url',
-    'writer',
-    'youtube',
-]);
-
-/**
- * Formats a file path + line/col so terminals and VS Code can Ctrl+Click it even when the filename has spaces.
- */
 function formatClickableLocation(fullPath, line = 1, col = 1) {
     const encodedPath = fullPath.split(path.sep).map(encodeURIComponent).join('/');
     return `"${fullPath}:${line}:${col}" ( vscode://file${encodedPath}:${line}:${col} )`;
@@ -293,106 +259,6 @@ function parseDbOriginsYaml(yamlText) {
     return config;
 }
 
-/**
- * YAML frontmatter parser that handles both indented and unindented list items (`- ...`),
- * nested object lists (e.g. `downloads:`), and tracks exact line numbers for top-level keys.
- */
-export function parseFrontmatterFile(rawText) {
-    const normalized = rawText.replace(/\r\n/g, '\n');
-    if (!normalized.startsWith('---\n')) {
-        return { data: {}, keyLines: {}, content: normalized };
-    }
-    const endIdx = normalized.indexOf('\n---\n', 4);
-    if (endIdx === -1) {
-        return { data: {}, keyLines: {}, content: normalized };
-    }
-
-    const yamlBlock = normalized.slice(4, endIdx);
-    const content = normalized.slice(endIdx + 5).replace(/^\n/, '');
-    const data = {};
-    const keyLines = {};
-
-    const parseScalar = (rawVal) => {
-        let val = rawVal.trim();
-        if (val === '') return '';
-        if (
-            (val.startsWith('"') && val.endsWith('"')) ||
-            (val.startsWith("'") && val.endsWith("'"))
-        ) {
-            return val.slice(1, -1);
-        }
-        if (/^-?\d+$/.test(val)) return parseInt(val, 10);
-        if (/^-?\d+\.\d+$/.test(val)) return parseFloat(val, 10);
-        return val;
-    };
-
-    let currentTopKey = null;
-    let currentListObj = null;
-    const lines = yamlBlock.split('\n');
-
-    for (let idx = 0; idx < lines.length; idx++) {
-        const line = lines[idx];
-        const fileLineNumber = idx + 2; // Line 1 is '---'
-        const trimmed = line.trim();
-        if (!trimmed || trimmed.startsWith('#')) {
-            continue;
-        }
-
-        const isIndented = /^\s/.test(line);
-        const isListItem = trimmed.startsWith('- ') || trimmed === '-';
-
-        // A top-level key MUST be at column 0 AND not be a YAML list item (`- ...`)
-        if (!isIndented && !isListItem) {
-            const colonIdx = line.indexOf(':');
-            if (colonIdx !== -1) {
-                const key = line.slice(0, colonIdx).trim();
-                const rawVal = line.slice(colonIdx + 1).trim();
-                currentTopKey = key;
-                currentListObj = null;
-                keyLines[key] = fileLineNumber;
-
-                if (rawVal === '') {
-                    data[key] = [];
-                } else {
-                    data[key] = parseScalar(rawVal);
-                }
-            }
-        } else if (currentTopKey) {
-            // Either a list item (`- ...` at any indentation) or an indented property
-            if (isListItem) {
-                if (!Array.isArray(data[currentTopKey])) {
-                    data[currentTopKey] = [];
-                }
-                const afterDash = trimmed.slice(1).trim();
-                const colonIdx = afterDash.indexOf(':');
-                if (
-                    colonIdx !== -1 &&
-                    !afterDash.startsWith('"') &&
-                    !afterDash.startsWith("'")
-                ) {
-                    const subKey = afterDash.slice(0, colonIdx).trim();
-                    const subVal = parseScalar(afterDash.slice(colonIdx + 1));
-                    currentListObj = { [subKey]: subVal };
-                    data[currentTopKey].push(currentListObj);
-                } else if (afterDash !== '') {
-                    currentListObj = null;
-                    data[currentTopKey].push(parseScalar(afterDash));
-                } else {
-                    currentListObj = {};
-                    data[currentTopKey].push(currentListObj);
-                }
-            } else if (currentListObj && trimmed.includes(':')) {
-                const colonIdx = trimmed.indexOf(':');
-                const subKey = trimmed.slice(0, colonIdx).trim();
-                const subVal = parseScalar(trimmed.slice(colonIdx + 1));
-                currentListObj[subKey] = subVal;
-            }
-        }
-    }
-
-    return { data, keyLines, content };
-}
-
 function serializeField(val) {
     if (val === undefined || val === null) {
         return null;
@@ -610,7 +476,7 @@ function buildLayerDatabase(SQL, layerConfig) {
                 const songId = queryAll(db, 'SELECT last_insert_rowid() AS id;')[0].id;
                 insertedSongsCount++;
 
-                const untreatedKeys = Object.keys(song).filter((k) => !TREATED_KEYS.has(k));
+                const untreatedKeys = Object.keys(song).filter((k) => !TREATED_KEYS_SET.has(k));
                 if (untreatedKeys.length > 0) {
                     console.log(`** untreatedKeys in ${filename}:`, untreatedKeys);
                 }
