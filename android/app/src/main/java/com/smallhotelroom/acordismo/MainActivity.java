@@ -1,12 +1,17 @@
 package com.smallhotelroom.acordismo;
 
+import android.app.Activity;
 import android.content.Intent;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.Bundle;
 import android.provider.OpenableColumns;
+import android.webkit.JavascriptInterface;
 import android.webkit.WebView;
 import android.widget.Toast;
+
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 
 import com.getcapacitor.BridgeActivity;
 
@@ -18,16 +23,49 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 
 /**
- * MainActivity v1.3.0
- * Streams incoming ACTION_VIEW ("Open with...") and ACTION_SEND ("Share to...") .db files
- * directly to the app cache directory using a 64 KB buffer so 170MB+ databases never OOM.
+ * MainActivity v1.4.0
+ * Streams incoming ACTION_VIEW ("Open with..."), ACTION_SEND ("Share to..."),
+ * AND native Settings file-picker .db files via a 64 KB buffer so 170MB+ databases load effortlessly.
  */
 public class MainActivity extends BridgeActivity {
+
+    private ActivityResultLauncher<Intent> dbFilePickerLauncher;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        // Register native file picker launcher for the Settings screen button
+        dbFilePickerLauncher = registerForActivityResult(
+                new ActivityResultContracts.StartActivityForResult(),
+                result -> {
+                    if (result.getResultCode() == Activity.RESULT_OK && result.getData() != null) {
+                        Uri uri = result.getData().getData();
+                        if (uri != null) {
+                            streamUriToCacheAndDispatch(uri);
+                        }
+                    }
+                }
+        );
+
+        // Expose window.AcordismoNative.pickDatabaseFile() to the WebView
+        if (this.bridge != null && this.bridge.getWebView() != null) {
+            this.bridge.getWebView().addJavascriptInterface(new AcordismoNativeBridge(), "AcordismoNative");
+        }
+
         handleIncomingDbIntent(getIntent());
+    }
+
+    public class AcordismoNativeBridge {
+        @JavascriptInterface
+        public void pickDatabaseFile() {
+            runOnUiThread(() -> {
+                Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+                intent.addCategory(Intent.CATEGORY_OPENABLE);
+                intent.setType("*/*");
+                dbFilePickerLauncher.launch(intent);
+            });
+        }
     }
 
     @Override
@@ -54,10 +92,11 @@ public class MainActivity extends BridgeActivity {
             return;
         }
 
-        // Clear action so screen rotation does not re-import the same intent
         intent.setAction(null);
+        streamUriToCacheAndDispatch(uri);
+    }
 
-        final Uri targetUri = uri;
+    private void streamUriToCacheAndDispatch(final Uri targetUri) {
         new Thread(() -> {
             File tempFile = new File(getCacheDir(), "acordismo_shared_import.db");
             try (

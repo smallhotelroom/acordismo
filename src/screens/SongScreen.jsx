@@ -1,6 +1,6 @@
 /**
  * @file src/screens/SongScreen.jsx
- * @version 2.12.0
+ * @version 2.14.0
  */
 import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Pause, Play } from 'lucide-react';
@@ -13,14 +13,18 @@ import {
     transposeChordToken,
 } from '@shr-shared/chordTransposer.js';
 
-export const __version__ = '2.12.0';
+export const __version__ = '2.14.0';
 
 const SCROLL_SPEED_STORAGE_KEY = 'acordismo_scroll_speed';
 const TARGET_DURATION_SECONDS = 210; // 3 minutes 30 seconds at 1.0x
 
 export default function SongScreen({ routeParams, onNavigate, onBack }) {
     const { selectedSongId, originStr } = routeParams;
-    const { transposition, freezeChordsEnabled: ctxFreezeChords } = useContext(AppContext);
+    const {
+        transposition,
+        darkMode,
+        freezeChordsEnabled: ctxFreezeChords,
+    } = useContext(AppContext);
 
     const freezeChordsEnabled = useMemo(() => {
         if (ctxFreezeChords !== undefined) {
@@ -34,7 +38,8 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
     const [songData, setSongData] = useState(null);
     const [bandName, setBandName] = useState('');
     const [featuringBands, setFeaturingBands] = useState([]);
-    const [frozenChordText, setFrozenChordText] = useState('');
+    const [pinnedLineIdx, setPinnedLineIdx] = useState(-1);
+    const [sheetBgColor, setSheetBgColor] = useState('var(--bg-primary, #f3f4f6)');
 
     // Pinch-to-zoom and single-tap reset state
     const [fontSize, setFontSize] = useState(14);
@@ -59,6 +64,18 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
     const handleTogglePlay = () => {
         setAutoScrollActive((prev) => !prev);
     };
+
+    // Sample the exact computed background color of the song sheet container so sticky lines are 100% opaque
+    useEffect(() => {
+        if (scrollContainerRef.current) {
+            const bg = window.getComputedStyle(scrollContainerRef.current).backgroundColor;
+            if (bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent') {
+                setSheetBgColor(bg);
+                return;
+            }
+        }
+        setSheetBgColor(darkMode ? '#121212' : '#f3f4f6');
+    }, [darkMode, songData]);
 
     useEffect(() => {
         let isMounted = true;
@@ -86,7 +103,7 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
                 }
 
                 setSongData(tmpSong);
-                setFrozenChordText('');
+                setPinnedLineIdx(-1);
                 if (bandRes.rows.length > 0) {
                     setBandName(bandRes.rows.item(0).name);
                 }
@@ -103,38 +120,54 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
         };
     }, [selectedSongId]);
 
-    // Updates the Excel-style frozen top chord row based on current scroll position
-    const handleScrollUpdateFrozenChords = useCallback(() => {
+    // Tracks which native sticky chord line is currently resting at the top ceiling so only that line shows the subtle bottom border
+    const handleScrollUpdatePinnedLine = useCallback(() => {
         if (!freezeChordsEnabled) {
-            setFrozenChordText('');
+            setPinnedLineIdx(-1);
             return;
         }
         const container = scrollContainerRef.current;
         if (!container) {
             return;
         }
-        if (container.scrollTop <= 4) {
-            setFrozenChordText('');
+        const scrollTop = container.scrollTop;
+        if (scrollTop <= 1) {
+            setPinnedLineIdx(-1);
             return;
         }
 
-        const containerTop = container.getBoundingClientRect().top;
-        const chordElements = container.querySelectorAll('[data-chord-line]');
-        let activeChords = '';
+        const chordElements = container.querySelectorAll('[data-chord-line-idx]');
+        let currentIdx = -1;
 
         for (let i = 0; i < chordElements.length; i++) {
             const el = chordElements[i];
-            const rect = el.getBoundingClientRect();
-            // If this chord line has reached or scrolled past the top edge of the scroll container
-            if (rect.top <= containerTop + 8) {
-                activeChords = el.getAttribute('data-chord-line') || '';
-            } else {
-                break;
+            const originalTop = Number(el.getAttribute('data-orig-top') || el.offsetTop);
+            if (scrollTop >= originalTop - 2) {
+                currentIdx = Number(el.getAttribute('data-chord-line-idx'));
             }
         }
 
-        setFrozenChordText((prev) => (prev !== activeChords ? activeChords : prev));
+        setPinnedLineIdx((prev) => (prev !== currentIdx ? currentIdx : prev));
     }, [freezeChordsEnabled]);
+
+    // Record each chord line's natural un-stuck offsetTop whenever song or fontSize changes
+    useEffect(() => {
+        const container = scrollContainerRef.current;
+        if (!container) return;
+        const chordElements = container.querySelectorAll('[data-chord-line-idx]');
+        chordElements.forEach((el) => {
+            el.style.position = 'static';
+        });
+        chordElements.forEach((el) => {
+            el.setAttribute('data-orig-top', String(el.offsetTop));
+        });
+        chordElements.forEach((el) => {
+            if (freezeChordsEnabled) {
+                el.style.position = 'sticky';
+            }
+        });
+        handleScrollUpdatePinnedLine();
+    }, [songData, fontSize, transposition, freezeChordsEnabled, handleScrollUpdatePinnedLine]);
 
     // Smooth 60fps Auto-Scroll loop dynamically scaled so 1.0x = 3:30 (210s) at current zoom level
     useEffect(() => {
@@ -210,7 +243,7 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
             let array1;
             let outerLastIndex = 0;
             const lineNodes = [];
-            const lineChordGroups = [];
+            let hasChordsOnLine = false;
 
             while ((array1 = re1.exec(lineText)) !== null) {
                 //console.log("here: "+array1);// prints:"(chords),chords"
@@ -266,7 +299,7 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
                 }
                 transposedStr += ')';
                 if (!isDirectiveGroup) {
-                    lineChordGroups.push(transposedStr);
+                    hasChordsOnLine = true;
                 }
                 //console.log("+ "+transposedStr);
                 lineNodes.push(<strong key={counter + 1}>{transposedStr}</strong>);
@@ -280,14 +313,29 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
             counter += 1;
 
             const isLastLine = lineIndex === lines.length - 1;
-            if (lineChordGroups.length > 0) {
+            if (hasChordsOnLine) {
+                const isCurrentlyPinned = freezeChordsEnabled && pinnedLineIdx === lineIndex;
                 tmpSongScreenItems.push(
-                    <span
+                    <div
                         key={`line-${lineIndex}`}
-                        data-chord-line={lineChordGroups.join('  ')}>
+                        data-chord-line-idx={lineIndex}
+                        style={
+                            freezeChordsEnabled
+                                ? {
+                                      position: 'sticky',
+                                      top: 0,
+                                      zIndex: 10 + lineIndex,
+                                      backgroundColor: sheetBgColor,
+                                      margin: '0 -15px',
+                                      padding: '0 15px',
+                                      borderBottom: isCurrentlyPinned
+                                          ? '1px solid var(--border-color)'
+                                          : '1px solid transparent',
+                                  }
+                                : undefined
+                        }>
                         {lineNodes}
-                        {!isLastLine ? '\n' : ''}
-                    </span>
+                    </div>
                 );
             } else {
                 tmpSongScreenItems.push(
@@ -300,12 +348,7 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
         });
 
         return tmpSongScreenItems;
-    }, [songData, transposition]);
-
-    // Re-evaluate frozen chords when transposition changes
-    useEffect(() => {
-        handleScrollUpdateFrozenChords();
-    }, [transposition, freezeChordsEnabled, handleScrollUpdateFrozenChords]);
+    }, [songData, transposition, freezeChordsEnabled, pinnedLineIdx, sheetBgColor]);
 
     // Touch pinch-to-zoom handlers
     const handleTouchStart = (e) => {
@@ -414,27 +457,11 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
                 </div>
             </header>
 
-            {/* Discreet Middle Section: Frozen Top Chord Row (matches bottom light-grey background + subtle top/bottom border) */}
-            {freezeChordsEnabled && frozenChordText && (
-                <div
-                    className="song-lyrics-monospace"
-                    style={{
-                        padding: '6px 15px',
-                        background: 'var(--bg-main)',
-                        borderBottom: '1px solid var(--border-color)',
-                        fontSize: `${fontSize}px`,
-                        fontWeight: 700,
-                        whiteSpace: 'pre-wrap',
-                        zIndex: 5,
-                    }}>
-                    {frozenChordText}
-                </div>
-            )}
-
             <main
                 ref={scrollContainerRef}
                 className="content-scroll song-sheet-container"
-                onScroll={handleScrollUpdateFrozenChords}
+                style={{ paddingTop: 0 }}
+                onScroll={handleScrollUpdatePinnedLine}
                 onClick={() => {
                     if (speedMenuOpen) {
                         setSpeedMenuOpen(false);
@@ -444,7 +471,9 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
                 onTouchMove={handleTouchMove}
                 onTouchEnd={handleTouchEnd}
                 onDoubleClick={() => setFontSize(14)}>
-                <div className="song-lyrics-monospace" style={{ fontSize: `${fontSize}px` }}>
+                <div
+                    className="song-lyrics-monospace"
+                    style={{ fontSize: `${fontSize}px`, paddingTop: 15 }}>
                     {songScreenItems}
                 </div>
             </main>

@@ -1,6 +1,6 @@
 /**
  * @file src/screens/SettingsScreen.jsx
- * @version 3.1.0
+ * @version 3.2.0
  */
 import React, { useContext, useEffect, useRef, useState } from 'react';
 import {
@@ -24,7 +24,7 @@ import {
 } from '../shared/database';
 import { AppContext } from '../shared/AppContext';
 
-export const __version__ = '3.1.0';
+export const __version__ = '3.2.0';
 
 export const FREEZE_CHORDS_STORAGE_KEY = 'acordismo_freeze_chords';
 
@@ -40,6 +40,7 @@ export default function SettingsScreen({ onBack }) {
         setFreezeChordsEnabled: ctxSetFreezeChords,
         activeDbLabel,
         setActiveDbLabel,
+        dbRevision,
         setDbRevision,
     } = useContext(AppContext);
 
@@ -70,9 +71,22 @@ export default function SettingsScreen({ onBack }) {
         setActiveDbLabel(label);
     };
 
+    // Refresh stack both on mount and whenever Android native streaming finishes importing a file
     useEffect(() => {
         refreshStackState();
-    }, []);
+    }, [dbRevision]);
+
+    const handleAddPackClick = () => {
+        if (
+            typeof window !== 'undefined' &&
+            window.AcordismoNative &&
+            typeof window.AcordismoNative.pickDatabaseFile === 'function'
+        ) {
+            window.AcordismoNative.pickDatabaseFile();
+            return;
+        }
+        fileInputRef.current?.click();
+    };
 
     const handleFileUpload = async (e) => {
         const files = Array.from(e.target.files || []);
@@ -341,7 +355,7 @@ export default function SettingsScreen({ onBack }) {
                         <button
                             className="btn-primary"
                             style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
-                            onClick={() => fileInputRef.current?.click()}>
+                            onClick={handleAddPackClick}>
                             <Upload size={16} /> Add .db Layer Pack(s)
                         </button>
                         <button
