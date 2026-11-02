@@ -1,19 +1,20 @@
 /**
  * @file src/App.jsx
- * @version 2.4.0
+ * @version 2.5.0
  */
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useContext, useEffect, useRef, useState } from 'react';
 import { App as CapacitorApp } from '@capacitor/app';
-import { AppProvider } from './shared/AppContext';
+import { AppContext, AppProvider } from './shared/AppContext';
 import HomeScreen from './screens/HomeScreen';
 import BandScreen from './screens/BandScreen';
 import PlaylistScreen from './screens/PlaylistScreen';
 import SongScreen from './screens/SongScreen';
 import SettingsScreen from './screens/SettingsScreen';
 
-export const __version__ = '2.4.0';
+export const __version__ = '2.5.0';
 
 function MainNavigator() {
+    const { bottomSpaceEnabled, darkMode } = useContext(AppContext);
     const [history, setHistory] = useState([{ screen: 'Home', params: {} }]);
     const historyRef = useRef(history);
 
@@ -45,8 +46,18 @@ function MainNavigator() {
         };
     }, []);
 
+    const fadeColor = darkMode ? '#121212' : '#f3f4f6';
+
     return (
-        <div className="app-shell">
+        <div className="app-shell" style={{ position: 'relative' }}>
+            {bottomSpaceEnabled && (
+                <style>{`
+                    html[data-bottom-space="true"] .content-scroll {
+                        padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 56px) !important;
+                    }
+                `}</style>
+            )}
+
             {currentRoute.screen === 'Home' && <HomeScreen onNavigate={navigate} />}
             {currentRoute.screen === 'Band' && (
                 <BandScreen
@@ -70,6 +81,22 @@ function MainNavigator() {
                 />
             )}
             {currentRoute.screen === 'Settings' && <SettingsScreen onBack={goBack} />}
+
+            {/* Telegram / Gemini style bottom gradient fade over OS navigation area */}
+            {bottomSpaceEnabled && (
+                <div
+                    style={{
+                        position: 'fixed',
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        height: 'calc(env(safe-area-inset-bottom, 0px) + 48px)',
+                        background: `linear-gradient(to top, ${fadeColor} 35%, transparent 100%)`,
+                        pointerEvents: 'none',
+                        zIndex: 90,
+                    }}
+                />
+            )}
         </div>
     );
 }

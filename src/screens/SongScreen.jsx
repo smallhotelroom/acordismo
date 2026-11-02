@@ -1,6 +1,6 @@
 /**
  * @file src/screens/SongScreen.jsx
- * @version 2.16.0
+ * @version 2.17.0
  */
 import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Pause, Play } from 'lucide-react';
@@ -9,14 +9,49 @@ import { AppContext } from '../shared/AppContext';
 import { FREEZE_CHORDS_STORAGE_KEY } from './SettingsScreen';
 import {
     CHORD_GROUP_DELIMITER_REGEX,
+    SYNTAX_PALETTE,
     deduceSongUseFlats,
     transposeChordToken,
 } from '@shr-shared/chordTransposer.js';
 
-export const __version__ = '2.16.0';
+export const __version__ = '2.17.0';
 
 const SCROLL_SPEED_STORAGE_KEY = 'acordismo_scroll_speed';
 const TARGET_DURATION_SECONDS = 210; // 3 minutes 30 seconds at 1.0x
+
+/**
+ * Renders plain lyric segments while highlighting any [choir / backing vocal] blocks
+ * using the shared SYNTAX_PALETTE choir color.
+ */
+function renderLyricWithChoir(text, choirColor, baseKey) {
+    if (!text || !text.includes('[')) {
+        return <span key={baseKey}>{text}</span>;
+    }
+    const parts = [];
+    const regex = /\[[^\]]+\]/g;
+    let lastIdx = 0;
+    let match;
+    let subIdx = 0;
+    while ((match = regex.exec(text)) !== null) {
+        if (match.index > lastIdx) {
+            parts.push(
+                <span key={`${baseKey}-t-${subIdx++}`}>{text.slice(lastIdx, match.index)}</span>
+            );
+        }
+        parts.push(
+            <em
+                key={`${baseKey}-c-${subIdx++}`}
+                style={{ color: choirColor, fontStyle: 'italic' }}>
+                {match[0]}
+            </em>
+        );
+        lastIdx = match.index + match[0].length;
+    }
+    if (lastIdx < text.length) {
+        parts.push(<span key={`${baseKey}-t-${subIdx++}`}>{text.slice(lastIdx)}</span>);
+    }
+    return <span key={baseKey}>{parts}</span>;
+}
 
 export default function SongScreen({ routeParams, onNavigate, onBack }) {
     const { selectedSongId, originStr } = routeParams;
@@ -24,7 +59,10 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
         transposition,
         darkMode,
         freezeChordsEnabled: ctxFreezeChords,
+        defaultFontSize = 14,
     } = useContext(AppContext);
+
+    const palette = darkMode ? SYNTAX_PALETTE.dark : SYNTAX_PALETTE.light;
 
     const freezeChordsEnabled = useMemo(() => {
         if (ctxFreezeChords !== undefined) {
@@ -40,10 +78,14 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
     const [featuringBands, setFeaturingBands] = useState([]);
     const [sheetBgColor, setSheetBgColor] = useState('var(--bg-primary, #f3f4f6)');
 
-    // Pinch-to-zoom and single-tap reset state
-    const [fontSize, setFontSize] = useState(14);
+    // Pinch-to-zoom and double-tap reset state initialized to defaultFontSize from Settings
+    const [fontSize, setFontSize] = useState(defaultFontSize);
     const pinchStartDistRef = useRef(null);
-    const pinchStartSizeRef = useRef(14);
+    const pinchStartSizeRef = useRef(defaultFontSize);
+
+    useEffect(() => {
+        setFontSize(defaultFontSize);
+    }, [defaultFontSize]);
 
     // Auto-scroll state (calibrated: 1.0x = full song in 3:30, range 0.0x to 3.0x in 0.1 steps, default 1.0x)
     const scrollContainerRef = useRef(null);
@@ -172,13 +214,13 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
         if (songData.capo) {
             if (songData.capo < 1) {
                 tmpSongScreenItems.push(
-                    <strong key="drop">
+                    <strong key="drop" style={{ color: palette.directive }}>
                         (chords for drop {-songData.capo} semitones){'\n\n'}
                     </strong>
                 );
             } else {
                 tmpSongScreenItems.push(
-                    <strong key="capo">
+                    <strong key="capo" style={{ color: palette.directive }}>
                         (chords for capo on {songData.capo}){'\n\n'}
                     </strong>
                 );
@@ -200,16 +242,19 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
             while ((array1 = re1.exec(lineText)) !== null) {
                 //console.log("here: "+array1);// prints:"(chords),chords"
                 lineNodes.push(
-                    <span key={counter}>
-                        {lineText.slice(outerLastIndex, re1.lastIndex - array1[0].length)}
-                    </span>
+                    renderLyricWithChoir(
+                        lineText.slice(outerLastIndex, re1.lastIndex - array1[0].length),
+                        palette.choir,
+                        counter
+                    )
                 );
                 //console.log("---");
                 //console.log("- "+array1[0]);
                 let chordGroup = array1[1];
-                let transposedStr = '(';
                 let innerDone = false;
                 let isDirectiveGroup = false;
+                const innerTokens = [];
+                let tokIdx = 0;
 
                 while (innerDone === false) {
                     //console.log("** chordGroup: ["+chordGroup+"]");
@@ -219,7 +264,11 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
                         );
                     if (prefilter !== null) {
                         isDirectiveGroup = true;
-                        transposedStr += chordGroup;
+                        innerTokens.push(
+                            <span key={`dir-${tokIdx++}`} style={{ color: palette.directive }}>
+                                {chordGroup}
+                            </span>
+                        );
                         innerDone = true;
                         continue;
                     }
@@ -227,40 +276,78 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
                     if (delimiter !== null) {
                         //console.log("** At "+delimiter.index+" found delimiter ["+delimiter+"] of size: "+delimiter[0].length);
                         const treatable = chordGroup.slice(0, delimiter.index);
+                        const delimStr = delimiter[0];
                         chordGroup = chordGroup.slice(
-                            delimiter.index + delimiter[0].length,
+                            delimiter.index + delimStr.length,
                             chordGroup.length
                         );
                         if (delimiter.index === 0) {
-                            transposedStr += delimiter;
+                            innerTokens.push(
+                                <span key={`mod-${tokIdx++}`} style={{ color: palette.modifier }}>
+                                    {delimStr}
+                                </span>
+                            );
                             continue;
                         }
                         //console.log("** treatable: {"+treatable+"}");
-                        transposedStr += transposeChordToken(treatable, transposition, useFlats);
-                        transposedStr += delimiter;
+                        innerTokens.push(
+                            <span key={`ch-${tokIdx++}`} style={{ color: palette.chord }}>
+                                {transposeChordToken(treatable, transposition, useFlats)}
+                            </span>
+                        );
+                        innerTokens.push(
+                            <span key={`mod-${tokIdx++}`} style={{ color: palette.modifier }}>
+                                {delimStr}
+                            </span>
+                        );
                         continue;
                     }
                     //Transposer.transpose(chord).up(0).toString();
                     //console.log("** Pre-END!");
                     if (chordGroup.length > 0) {
                         //console.log("** treatable: {"+chordGroup+"}");
-                        transposedStr += transposeChordToken(chordGroup, transposition, useFlats);
+                        innerTokens.push(
+                            <span key={`ch-${tokIdx++}`} style={{ color: palette.chord }}>
+                                {transposeChordToken(chordGroup, transposition, useFlats)}
+                            </span>
+                        );
                     }
                     //console.log("** END!");
                     innerDone = true;
                 }
-                transposedStr += ')';
+
                 if (!isDirectiveGroup) {
                     hasChordsOnLine = true;
+                    lineNodes.push(
+                        <strong
+                            key={counter + 1}
+                            style={{
+                                backgroundColor: palette.parenBg,
+                                borderRadius: 3,
+                            }}>
+                            <span style={{ color: palette.parenSymbol }}>(</span>
+                            {innerTokens}
+                            <span style={{ color: palette.parenSymbol }}>)</span>
+                        </strong>
+                    );
+                } else {
+                    lineNodes.push(
+                        <strong key={counter + 1} style={{ color: palette.directive }}>
+                            ({innerTokens})
+                        </strong>
+                    );
                 }
-                //console.log("+ "+transposedStr);
-                lineNodes.push(<strong key={counter + 1}>{transposedStr}</strong>);
+
                 counter = counter + 2;
                 outerLastIndex = re1.lastIndex;
             }
 
             lineNodes.push(
-                <span key={counter}>{lineText.slice(outerLastIndex, lineText.length)}</span>
+                renderLyricWithChoir(
+                    lineText.slice(outerLastIndex, lineText.length),
+                    palette.choir,
+                    counter
+                )
             );
             counter += 1;
 
@@ -295,7 +382,7 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
         });
 
         return tmpSongScreenItems;
-    }, [songData, transposition, freezeChordsEnabled, sheetBgColor]);
+    }, [songData, transposition, freezeChordsEnabled, sheetBgColor, palette]);
 
     // Touch pinch-to-zoom handlers
     const handleTouchStart = (e) => {
@@ -416,7 +503,7 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
                 onTouchStart={handleTouchStart}
                 onTouchMove={handleTouchMove}
                 onTouchEnd={handleTouchEnd}
-                onDoubleClick={() => setFontSize(14)}>
+                onDoubleClick={() => setFontSize(defaultFontSize)}>
                 <div
                     className="song-lyrics-monospace"
                     style={{ fontSize: `${fontSize}px`, paddingTop: 15 }}>

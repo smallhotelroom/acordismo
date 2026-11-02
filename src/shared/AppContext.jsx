@@ -1,12 +1,12 @@
 /**
  * @file src/shared/AppContext.jsx
- * @version 2.7.0
+ * @version 2.8.0
  */
 import React, { createContext, useEffect, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { getSavedDbLabel, loadExternalDatabaseBytes } from './database';
 
-export const __version__ = '2.7.0';
+export const __version__ = '2.8.0';
 
 export const AppContext = createContext(null);
 
@@ -14,7 +14,12 @@ const TOP_SPACE_STORAGE_KEY = Capacitor.isNativePlatform()
     ? 'acordismo_top_space_native'
     : 'acordismo_top_space_web';
 
+const BOTTOM_SPACE_STORAGE_KEY = Capacitor.isNativePlatform()
+    ? 'acordismo_bottom_space_native'
+    : 'acordismo_bottom_space_web';
+
 const FREEZE_CHORDS_STORAGE_KEY = 'acordismo_freeze_chords';
+const DEFAULT_FONT_SIZE_STORAGE_KEY = 'acordismo_default_font_size';
 
 export function AppProvider({ children }) {
     const [transposition, setTransposition] = useState(0);
@@ -29,9 +34,21 @@ export function AppProvider({ children }) {
         // Default ON for native mobile apps (Android/iOS), OFF for desktop/web browsers
         return Capacitor.isNativePlatform();
     });
+    const [bottomSpaceEnabled, setBottomSpaceEnabled] = useState(() => {
+        const saved = localStorage.getItem(BOTTOM_SPACE_STORAGE_KEY);
+        if (saved !== null) {
+            return saved === 'true';
+        }
+        // Default ON for native mobile apps (Android/iOS), OFF for desktop/web browsers
+        return Capacitor.isNativePlatform();
+    });
     const [freezeChordsEnabled, setFreezeChordsEnabled] = useState(() => {
         const saved = localStorage.getItem(FREEZE_CHORDS_STORAGE_KEY);
         return saved !== null ? saved === 'true' : true;
+    });
+    const [defaultFontSize, setDefaultFontSize] = useState(() => {
+        const saved = parseInt(localStorage.getItem(DEFAULT_FONT_SIZE_STORAGE_KEY), 10);
+        return !Number.isNaN(saved) && saved >= 10 && saved <= 36 ? saved : 14;
     });
     const [currentTab, setCurrentTab] = useState('Playlists');
     const [tabOrders, setTabOrders] = useState({
@@ -60,7 +77,6 @@ export function AppProvider({ children }) {
             try {
                 let bytes = null;
                 if (payload.path) {
-                    // Stream binary directly from Capacitor's native file server (handles 170MB+ files without OOM)
                     const fileUrl = Capacitor.convertFileSrc(payload.path);
                     const response = await fetch(fileUrl);
                     if (!response.ok) {
@@ -117,8 +133,20 @@ export function AppProvider({ children }) {
     }, [topSpaceEnabled]);
 
     useEffect(() => {
+        localStorage.setItem(BOTTOM_SPACE_STORAGE_KEY, String(bottomSpaceEnabled));
+        document.documentElement.setAttribute(
+            'data-bottom-space',
+            bottomSpaceEnabled ? 'true' : 'false'
+        );
+    }, [bottomSpaceEnabled]);
+
+    useEffect(() => {
         localStorage.setItem(FREEZE_CHORDS_STORAGE_KEY, String(freezeChordsEnabled));
     }, [freezeChordsEnabled]);
+
+    useEffect(() => {
+        localStorage.setItem(DEFAULT_FONT_SIZE_STORAGE_KEY, String(defaultFontSize));
+    }, [defaultFontSize]);
 
     return (
         <AppContext.Provider
@@ -129,8 +157,12 @@ export function AppProvider({ children }) {
                 setDarkMode,
                 topSpaceEnabled,
                 setTopSpaceEnabled,
+                bottomSpaceEnabled,
+                setBottomSpaceEnabled,
                 freezeChordsEnabled,
                 setFreezeChordsEnabled,
+                defaultFontSize,
+                setDefaultFontSize,
                 currentTab,
                 setCurrentTab,
                 tabOrders,

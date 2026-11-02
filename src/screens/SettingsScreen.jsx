@@ -1,6 +1,6 @@
 /**
  * @file src/screens/SettingsScreen.jsx
- * @version 3.2.0
+ * @version 3.3.0
  */
 import React, { useContext, useEffect, useRef, useState } from 'react';
 import {
@@ -24,7 +24,7 @@ import {
 } from '../shared/database';
 import { AppContext } from '../shared/AppContext';
 
-export const __version__ = '3.2.0';
+export const __version__ = '3.3.0';
 
 export const FREEZE_CHORDS_STORAGE_KEY = 'acordismo_freeze_chords';
 
@@ -36,8 +36,12 @@ export default function SettingsScreen({ onBack }) {
         setDarkMode,
         topSpaceEnabled,
         setTopSpaceEnabled,
+        bottomSpaceEnabled,
+        setBottomSpaceEnabled,
         freezeChordsEnabled: ctxFreezeChords,
         setFreezeChordsEnabled: ctxSetFreezeChords,
+        defaultFontSize,
+        setDefaultFontSize,
         activeDbLabel,
         setActiveDbLabel,
         dbRevision,
@@ -61,6 +65,8 @@ export default function SettingsScreen({ onBack }) {
         }
     };
 
+    const clampFontSize = (val) => Math.max(10, Math.min(36, val));
+
     const fileInputRef = useRef(null);
     const [layerStack, setLayerStack] = useState([]);
 
@@ -71,7 +77,6 @@ export default function SettingsScreen({ onBack }) {
         setActiveDbLabel(label);
     };
 
-    // Refresh stack both on mount and whenever Android native streaming finishes importing a file
     useEffect(() => {
         refreshStackState();
     }, [dbRevision]);
@@ -198,6 +203,39 @@ export default function SettingsScreen({ onBack }) {
                     <div>{'\u2022'} Play song on Ukelele, but song says Capo on 2: -3</div>
                 </div>
 
+                {/* Default Song Contents Font Size */}
+                <div
+                    style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: 15,
+                        gap: 10,
+                        borderBottom: '1px solid var(--border-color)',
+                    }}>
+                    <div style={{ flex: 4 }}>
+                        <strong>Default Song Font Size:</strong> {defaultFontSize}px
+                        <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                            Double-tap inside a song resets zoom to this size
+                        </div>
+                    </div>
+                    <button
+                        className="btn-primary"
+                        onClick={() => setDefaultFontSize(clampFontSize(defaultFontSize + 1))}>
+                        UP
+                    </button>
+                    <button
+                        className="btn-primary"
+                        onClick={() => setDefaultFontSize(clampFontSize(defaultFontSize - 1))}>
+                        DOWN
+                    </button>
+                    <button
+                        className="btn-primary"
+                        onClick={() => setDefaultFontSize(14)}>
+                        RESET
+                    </button>
+                </div>
+
                 {/* Freeze Top Chord Row Option */}
                 <div
                     style={{
@@ -242,6 +280,30 @@ export default function SettingsScreen({ onBack }) {
                         className="btn-primary"
                         onClick={() => setTopSpaceEnabled(!topSpaceEnabled)}>
                         {topSpaceEnabled ? 'Disable' : 'Enable'}
+                    </button>
+                </div>
+
+                {/* Bottom Navigation Bar Space & Gradient Fade */}
+                <div
+                    style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: 15,
+                        borderBottom: '1px solid var(--border-color)',
+                    }}>
+                    <div>
+                        <strong>Bottom Navigation Bar Space & Fade</strong>
+                        <div style={{ fontSize: '0.88rem', color: 'var(--text-secondary)' }}>
+                            {bottomSpaceEnabled
+                                ? 'Enabled (gradient fade + extra clearance above OS buttons)'
+                                : 'Disabled (full-height bottom edge)'}
+                        </div>
+                    </div>
+                    <button
+                        className="btn-primary"
+                        onClick={() => setBottomSpaceEnabled(!bottomSpaceEnabled)}>
+                        {bottomSpaceEnabled ? 'Disable' : 'Enable'}
                     </button>
                 </div>
 

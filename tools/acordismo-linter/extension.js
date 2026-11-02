@@ -1,8 +1,8 @@
 /**
  * @file tools/acordismo-linter/extension.js
- * @version 2.7.0
+ * @version 2.8.0
  * Zero-copy VS Code Linter & Live Chord Decorator for Acordismo.
- * Uses Dark 2026 blue (#79c0ff) for chords and bold warm gold (#d29922) for modifiers (!, _, riff, etc.).
+ * Reads SYNTAX_PALETTE.dark directly from smallhotelroom.github.io/src/shared/songSchema.js.
  */
 const vscode = require('vscode');
 const fs = require('fs');
@@ -10,37 +10,54 @@ const os = require('os');
 const path = require('path');
 const { pathToFileURL } = require('url');
 
-const __version__ = '2.7.0';
+const __version__ = '2.8.0';
 
 const diagnosticCollection = vscode.languages.createDiagnosticCollection('acordismoLinter');
 let statusBarItem = null;
 let modulesPromise = null;
 
-// Softer Dark 2026 Editor Decorations
-const parenBlockDecoration = vscode.window.createTextEditorDecorationType({
-    backgroundColor: 'rgba(121, 192, 255, 0.06)',
-    borderRadius: '3px',
-});
+// Lazily initialized from songSchema.SYNTAX_PALETTE.dark
+let decorations = null;
 
-const chordTokenDecoration = vscode.window.createTextEditorDecorationType({
-    color: '#79c0ff', // Dark 2026 YAML value blue for valid chords & parens
-    fontWeight: 'bold',
-});
+function ensureDecorations(palette) {
+    if (decorations) return decorations;
+    const p = palette?.dark || {
+        parenBg: 'rgba(121, 192, 255, 0.06)',
+        parenSymbol: '#d29922',
+        chord: '#79c0ff',
+        modifier: '#d29922',
+        directive: '#b392f0',
+        choir: '#7ee787',
+    };
 
-const modifierDecoration = vscode.window.createTextEditorDecorationType({
-    color: '#d29922', // Soft warm gold for delimiters/modifiers (!, _, riff, palm mute, high, etc.)
-    fontWeight: 'bold', // Bold (not italic) so '!' never looks like '/'
-});
-
-const directiveDecoration = vscode.window.createTextEditorDecorationType({
-    color: '#b392f0', // Soft lavender for (capo ...), (drop ...), (bpm ...)
-    fontWeight: 'bold',
-});
-
-const choirDecoration = vscode.window.createTextEditorDecorationType({
-    color: '#7ee787', // Soft sage green italic for [choir / backing vocals]
-    fontStyle: 'italic',
-});
+    decorations = {
+        parenBlock: vscode.window.createTextEditorDecorationType({
+            backgroundColor: p.parenBg,
+            borderRadius: '3px',
+        }),
+        parenSymbol: vscode.window.createTextEditorDecorationType({
+            color: p.parenSymbol,
+            fontWeight: 'bold',
+        }),
+        chordToken: vscode.window.createTextEditorDecorationType({
+            color: p.chord,
+            fontWeight: 'bold',
+        }),
+        modifier: vscode.window.createTextEditorDecorationType({
+            color: p.modifier,
+            fontWeight: 'bold',
+        }),
+        directive: vscode.window.createTextEditorDecorationType({
+            color: p.directive,
+            fontWeight: 'bold',
+        }),
+        choir: vscode.window.createTextEditorDecorationType({
+            color: p.choir,
+            fontStyle: 'italic',
+        }),
+    };
+    return decorations;
+}
 
 function resolveAcordismoRoot() {
     const pointerFile = path.join(__dirname, '.acordismo-root');
@@ -124,18 +141,18 @@ function isFileInsideDirs(filePath, dirList) {
 }
 
 function clearEditorDecorations(editor) {
-    if (!editor) return;
-    editor.setDecorations(parenBlockDecoration, []);
-    editor.setDecorations(chordTokenDecoration, []);
-    editor.setDecorations(modifierDecoration, []);
-    editor.setDecorations(directiveDecoration, []);
-    editor.setDecorations(choirDecoration, []);
+    if (!editor || !decorations) return;
+    editor.setDecorations(decorations.parenBlock, []);
+    editor.setDecorations(decorations.parenSymbol, []);
+    editor.setDecorations(decorations.chordToken, []);
+    editor.setDecorations(decorations.modifier, []);
+    editor.setDecorations(decorations.directive, []);
+    editor.setDecorations(decorations.choir, []);
 }
 
 async function updateDiagnostics(document) {
     if (!document) return;
 
-    // Find all visible editors showing this document so decorations always apply reliably
     const matchingEditors = vscode.window.visibleTextEditors.filter(
         (ed) => ed.document.uri.toString() === document.uri.toString()
     );
@@ -161,6 +178,7 @@ async function updateDiagnostics(document) {
         return;
     }
 
+    const dec = ensureDecorations(schemaMod.SYNTAX_PALETTE);
     const diagnostics = [];
     const text = document.getText();
     const rawFileName = path.basename(document.fileName, path.extname(document.fileName));
@@ -266,12 +284,12 @@ async function updateDiagnostics(document) {
     let totalChordCount = 0;
 
     const parenRanges = [];
+    const parenSymbolRanges = [];
     const chordRanges = [];
     const modifierRanges = [];
     const directiveRanges = [];
     const choirRanges = [];
 
-    // Create a fresh non-global RegExp instance per pass so lastIndex is never stale
     const delimRegex = new RegExp(schemaMod.CHORD_GROUP_DELIMITER_REGEX.source);
 
     const recordNote = (noteStr) => {
@@ -326,7 +344,8 @@ async function updateDiagnostics(document) {
             }
 
             parenRanges.push(new vscode.Range(lineIdx, blockStartCol, lineIdx, blockEndCol));
-            chordRanges.push(
+            // Gold '(' and ')' parenthesis symbols
+            parenSymbolRanges.push(
                 new vscode.Range(lineIdx, blockStartCol, lineIdx, blockStartCol + 1),
                 new vscode.Range(lineIdx, blockEndCol - 1, lineIdx, blockEndCol)
             );
@@ -406,11 +425,12 @@ async function updateDiagnostics(document) {
     }
 
     for (const editor of matchingEditors) {
-        editor.setDecorations(parenBlockDecoration, parenRanges);
-        editor.setDecorations(chordTokenDecoration, chordRanges);
-        editor.setDecorations(modifierDecoration, modifierRanges);
-        editor.setDecorations(directiveDecoration, directiveRanges);
-        editor.setDecorations(choirDecoration, choirRanges);
+        editor.setDecorations(dec.parenBlock, parenRanges);
+        editor.setDecorations(dec.parenSymbol, parenSymbolRanges);
+        editor.setDecorations(dec.chordToken, chordRanges);
+        editor.setDecorations(dec.modifier, modifierRanges);
+        editor.setDecorations(dec.directive, directiveRanges);
+        editor.setDecorations(dec.choir, choirRanges);
     }
 
     if (statusBarItem) {
