@@ -1,6 +1,6 @@
 /**
  * @file src/screens/SettingsScreen.jsx
- * @version 3.3.0
+ * @version 3.4.0
  */
 import React, { useContext, useEffect, useRef, useState } from 'react';
 import {
@@ -24,7 +24,7 @@ import {
 } from '../shared/database';
 import { AppContext } from '../shared/AppContext';
 
-export const __version__ = '3.3.0';
+export const __version__ = '3.4.0';
 
 export const FREEZE_CHORDS_STORAGE_KEY = 'acordismo_freeze_chords';
 
@@ -36,8 +36,6 @@ export default function SettingsScreen({ onBack }) {
         setDarkMode,
         topSpaceEnabled,
         setTopSpaceEnabled,
-        bottomSpaceEnabled,
-        setBottomSpaceEnabled,
         freezeChordsEnabled: ctxFreezeChords,
         setFreezeChordsEnabled: ctxSetFreezeChords,
         defaultFontSize,
@@ -260,6 +258,7 @@ export default function SettingsScreen({ onBack }) {
                     </button>
                 </div>
 
+                {/* Merged Top & Bottom System Bars Space + Song Gradient Toggle */}
                 <div
                     style={{
                         display: 'flex',
@@ -269,41 +268,17 @@ export default function SettingsScreen({ onBack }) {
                         borderBottom: '1px solid var(--border-color)',
                     }}>
                     <div>
-                        <strong>Top Status Bar Space</strong>
+                        <strong>Top & Bottom System Bars Space</strong>
                         <div style={{ fontSize: '0.88rem', color: 'var(--text-secondary)' }}>
                             {topSpaceEnabled
-                                ? 'Enabled (avoids camera cutout / status bar)'
-                                : 'Disabled (full-height header)'}
+                                ? 'Enabled (top/bottom bars + song bottom fade)'
+                                : 'Disabled (full-height screen edges)'}
                         </div>
                     </div>
                     <button
                         className="btn-primary"
                         onClick={() => setTopSpaceEnabled(!topSpaceEnabled)}>
                         {topSpaceEnabled ? 'Disable' : 'Enable'}
-                    </button>
-                </div>
-
-                {/* Bottom Navigation Bar Space & Gradient Fade */}
-                <div
-                    style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        padding: 15,
-                        borderBottom: '1px solid var(--border-color)',
-                    }}>
-                    <div>
-                        <strong>Bottom Navigation Bar Space & Fade</strong>
-                        <div style={{ fontSize: '0.88rem', color: 'var(--text-secondary)' }}>
-                            {bottomSpaceEnabled
-                                ? 'Enabled (gradient fade + extra clearance above OS buttons)'
-                                : 'Disabled (full-height bottom edge)'}
-                        </div>
-                    </div>
-                    <button
-                        className="btn-primary"
-                        onClick={() => setBottomSpaceEnabled(!bottomSpaceEnabled)}>
-                        {bottomSpaceEnabled ? 'Disable' : 'Enable'}
                     </button>
                 </div>
 

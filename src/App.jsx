@@ -1,6 +1,6 @@
 /**
  * @file src/App.jsx
- * @version 2.6.0
+ * @version 2.7.0
  */
 import React, { useContext, useEffect, useRef, useState } from 'react';
 import { App as CapacitorApp } from '@capacitor/app';
@@ -11,10 +11,10 @@ import PlaylistScreen from './screens/PlaylistScreen';
 import SongScreen from './screens/SongScreen';
 import SettingsScreen from './screens/SettingsScreen';
 
-export const __version__ = '2.6.0';
+export const __version__ = '2.7.0';
 
 function MainNavigator() {
-    const { bottomSpaceEnabled, darkMode } = useContext(AppContext);
+    const { topSpaceEnabled, darkMode } = useContext(AppContext);
     const [history, setHistory] = useState([{ screen: 'Home', params: {} }]);
     const historyRef = useRef(history);
 
@@ -75,29 +75,28 @@ function MainNavigator() {
             )}
             {currentRoute.screen === 'Settings' && <SettingsScreen onBack={goBack} />}
 
-            {/* 1. Clickable Screens (Home, Band, Playlist, Settings): Solid Bottom Bar, NO Gradient */}
-            {bottomSpaceEnabled && !isSongScreen && (
+            {/* 1. Clickable Screens (Home, Band, Playlist, Settings): Compact 24px Dark Grey Bar matching Top Status Bar */}
+            {topSpaceEnabled && !isSongScreen && (
                 <div
                     style={{
                         flexShrink: 0,
-                        height: 'calc(env(safe-area-inset-bottom, 0px) + 48px)',
-                        background: 'var(--bg-surface)',
-                        borderTop: '1px solid var(--border-color)',
+                        height: '24px',
+                        backgroundColor: '#5f666d',
                         zIndex: 90,
                     }}
                 />
             )}
 
-            {/* 2. SongScreen: Soft Gradient Fade into Song Sheet Background, NO Solid Bar */}
-            {bottomSpaceEnabled && isSongScreen && (
+            {/* 2. SongScreen: Low-profile 28px Gradient Fade right at the bottom edge */}
+            {topSpaceEnabled && isSongScreen && (
                 <div
                     style={{
                         position: 'fixed',
                         left: 0,
                         right: 0,
                         bottom: 0,
-                        height: 'calc(env(safe-area-inset-bottom, 0px) + 52px)',
-                        background: `linear-gradient(to top, ${songSheetBg} 30%, transparent 100%)`,
+                        height: '28px',
+                        background: `linear-gradient(to top, ${songSheetBg} 15%, transparent 100%)`,
                         pointerEvents: 'none',
                         zIndex: 90,
                     }}

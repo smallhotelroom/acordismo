@@ -1,6 +1,6 @@
 /**
  * @file src/screens/SongScreen.jsx
- * @version 2.18.0
+ * @version 2.19.0
  */
 import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Pause, Play } from 'lucide-react';
@@ -14,7 +14,7 @@ import {
     transposeChordToken,
 } from '@shr-shared/chordTransposer.js';
 
-export const __version__ = '2.18.0';
+export const __version__ = '2.19.0';
 
 const SCROLL_SPEED_STORAGE_KEY = 'acordismo_scroll_speed';
 const TARGET_DURATION_SECONDS = 210; // 3 minutes 30 seconds at 1.0x
@@ -58,7 +58,7 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
     const {
         transposition,
         darkMode,
-        bottomSpaceEnabled,
+        topSpaceEnabled,
         freezeChordsEnabled: ctxFreezeChords,
         defaultFontSize = 14,
     } = useContext(AppContext);
@@ -210,17 +210,19 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
             return [];
         }
 
-        const tmpSongScreenItems = [];
+        const preChordItems = [];
+        const sections = [];
+        let currentSection = null;
 
         if (songData.capo) {
             if (songData.capo < 1) {
-                tmpSongScreenItems.push(
+                preChordItems.push(
                     <strong key="drop" style={{ color: palette.directive }}>
                         (chords for drop {-songData.capo} semitones){'\n\n'}
                     </strong>
                 );
             } else {
-                tmpSongScreenItems.push(
+                preChordItems.push(
                     <strong key="capo" style={{ color: palette.directive }}>
                         (chords for capo on {songData.capo}){'\n\n'}
                     </strong>
@@ -349,7 +351,7 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
 
             const isLastLine = lineIndex === lines.length - 1;
             if (hasChordsOnLine) {
-                tmpSongScreenItems.push(
+                const chordLineEl = (
                     <div
                         key={`line-${lineIndex}`}
                         style={
@@ -367,17 +369,32 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
                         {lineNodes}
                     </div>
                 );
+                currentSection = {
+                    key: `sec-${lineIndex}`,
+                    items: [chordLineEl],
+                };
+                sections.push(currentSection);
             } else {
-                tmpSongScreenItems.push(
+                const lyricLineEl = (
                     <span key={`line-${lineIndex}`}>
                         {lineNodes}
                         {!isLastLine ? '\n' : ''}
                     </span>
                 );
+                if (currentSection) {
+                    currentSection.items.push(lyricLineEl);
+                } else {
+                    preChordItems.push(lyricLineEl);
+                }
             }
         });
 
-        return tmpSongScreenItems;
+        // Wrapping each chord section in its own block means an incoming 1-row chord section
+        // naturally pushes a previous 2-row sticky chord header up under the 15px ceiling mask!
+        return [
+            ...preChordItems,
+            ...sections.map((sec) => <div key={sec.key}>{sec.items}</div>),
+        ];
     }, [songData, transposition, freezeChordsEnabled, sheetBgColor, palette]);
 
     // Touch pinch-to-zoom handlers
@@ -505,11 +522,9 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
                     style={{
                         fontSize: `${fontSize}px`,
                         paddingTop: 15,
-                        paddingBottom: bottomSpaceEnabled
-                            ? 'calc(env(safe-area-inset-bottom, 0px) + 64px)'
-                            : 15,
+                        paddingBottom: topSpaceEnabled ? 36 : 15,
                     }}>
-                    {/* Single 15px ceiling mask so scrolling lyrics never peek above `top: 15px` */}
+                    {/* Single 15px ceiling mask so scrolling lyrics and outgoing sticky headers never peek above `top: 15px` */}
                     {freezeChordsEnabled && (
                         <div
                             style={{

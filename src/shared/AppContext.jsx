@@ -1,22 +1,18 @@
 /**
  * @file src/shared/AppContext.jsx
- * @version 2.8.0
+ * @version 2.9.0
  */
 import React, { createContext, useEffect, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { getSavedDbLabel, loadExternalDatabaseBytes } from './database';
 
-export const __version__ = '2.8.0';
+export const __version__ = '2.9.0';
 
 export const AppContext = createContext(null);
 
 const TOP_SPACE_STORAGE_KEY = Capacitor.isNativePlatform()
     ? 'acordismo_top_space_native'
     : 'acordismo_top_space_web';
-
-const BOTTOM_SPACE_STORAGE_KEY = Capacitor.isNativePlatform()
-    ? 'acordismo_bottom_space_native'
-    : 'acordismo_bottom_space_web';
 
 const FREEZE_CHORDS_STORAGE_KEY = 'acordismo_freeze_chords';
 const DEFAULT_FONT_SIZE_STORAGE_KEY = 'acordismo_default_font_size';
@@ -28,14 +24,6 @@ export function AppProvider({ children }) {
     });
     const [topSpaceEnabled, setTopSpaceEnabled] = useState(() => {
         const saved = localStorage.getItem(TOP_SPACE_STORAGE_KEY);
-        if (saved !== null) {
-            return saved === 'true';
-        }
-        // Default ON for native mobile apps (Android/iOS), OFF for desktop/web browsers
-        return Capacitor.isNativePlatform();
-    });
-    const [bottomSpaceEnabled, setBottomSpaceEnabled] = useState(() => {
-        const saved = localStorage.getItem(BOTTOM_SPACE_STORAGE_KEY);
         if (saved !== null) {
             return saved === 'true';
         }
@@ -130,15 +118,11 @@ export function AppProvider({ children }) {
             'data-top-space',
             topSpaceEnabled ? 'true' : 'false'
         );
-    }, [topSpaceEnabled]);
-
-    useEffect(() => {
-        localStorage.setItem(BOTTOM_SPACE_STORAGE_KEY, String(bottomSpaceEnabled));
         document.documentElement.setAttribute(
             'data-bottom-space',
-            bottomSpaceEnabled ? 'true' : 'false'
+            topSpaceEnabled ? 'true' : 'false'
         );
-    }, [bottomSpaceEnabled]);
+    }, [topSpaceEnabled]);
 
     useEffect(() => {
         localStorage.setItem(FREEZE_CHORDS_STORAGE_KEY, String(freezeChordsEnabled));
@@ -157,8 +141,8 @@ export function AppProvider({ children }) {
                 setDarkMode,
                 topSpaceEnabled,
                 setTopSpaceEnabled,
-                bottomSpaceEnabled,
-                setBottomSpaceEnabled,
+                bottomSpaceEnabled: topSpaceEnabled,
+                setBottomSpaceEnabled: setTopSpaceEnabled,
                 freezeChordsEnabled,
                 setFreezeChordsEnabled,
                 defaultFontSize,
