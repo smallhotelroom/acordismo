@@ -25,7 +25,7 @@ const CANDIDATE_LOGO_PATHS = [
 ];
 
 // Standard Android launcher densities
-constMIPMAP_TARGETS = [
+const MIPMAP_TARGETS = [
     { folder: 'mipmap-mdpi', legacySize: 48, adaptiveSize: 108 },
     { folder: 'mipmap-hdpi', legacySize: 72, adaptiveSize: 162 },
     { folder: 'mipmap-xhdpi', legacySize: 96, adaptiveSize: 216 },
