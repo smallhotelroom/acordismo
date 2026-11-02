@@ -1,6 +1,6 @@
 /**
  * @file src/screens/SongScreen.jsx
- * @version 2.22.0
+ * @version 2.23.0
  */
 import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Pause, Play } from 'lucide-react';
@@ -14,7 +14,7 @@ import {
     transposeChordToken,
 } from '@shr-shared/chordTransposer.js';
 
-export const __version__ = '2.22.0';
+export const __version__ = '2.23.0';
 
 const SCROLL_SPEED_STORAGE_KEY = 'acordismo_scroll_speed';
 const TARGET_DURATION_SECONDS = 210; // 3 minutes 30 seconds at 1.0x
@@ -422,6 +422,10 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
     const songName = songData ? songData.name : '';
     const headerTitle = songName === '' ? '' : `${songName} [${originStr}]`;
 
+    // 76px bottom gradient scoped directly to SongScreen
+    const rgb = darkMode ? '18, 18, 18' : '243, 244, 246';
+    const bottomNavGradient = `linear-gradient(to top, rgba(${rgb}, 0.92) 0%, rgba(${rgb}, 0.78) 45%, rgba(${rgb}, 0.35) 78%, rgba(${rgb}, 0) 100%)`;
+
     return (
         <>
             {/* Elevated zIndex (20000) ensures the header and its vertical speed popover always render above sticky chords */}
@@ -543,6 +547,22 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
                     {songScreenItems}
                 </div>
             </main>
+
+            {/* SongScreen Bottom Gradient Fade over OS navigation area */}
+            {topSpaceEnabled && (
+                <div
+                    style={{
+                        position: 'fixed',
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        height: '76px',
+                        background: bottomNavGradient,
+                        pointerEvents: 'none',
+                        zIndex: 90,
+                    }}
+                />
+            )}
 
             {songModalVisible && songData && (
                 <div className="modal-backdrop" onClick={() => setSongModalVisible(false)}>

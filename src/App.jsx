@@ -1,6 +1,6 @@
 /**
  * @file src/App.jsx
- * @version 2.10.0
+ * @version 2.11.0
  */
 import React, { useContext, useEffect, useRef, useState } from 'react';
 import { App as CapacitorApp } from '@capacitor/app';
@@ -11,10 +11,10 @@ import PlaylistScreen from './screens/PlaylistScreen';
 import SongScreen from './screens/SongScreen';
 import SettingsScreen from './screens/SettingsScreen';
 
-export const __version__ = '2.10.0';
+export const __version__ = '2.11.0';
 
 function MainNavigator() {
-    const { topSpaceEnabled, darkMode } = useContext(AppContext);
+    const { topSpaceEnabled } = useContext(AppContext);
     const [history, setHistory] = useState([{ screen: 'Home', params: {} }]);
     const historyRef = useRef(history);
 
@@ -47,11 +47,6 @@ function MainNavigator() {
         };
     }, []);
 
-    // RGB tuple matching --bg-primary (#f3f4f6 in light mode, #121212 in dark mode)
-    // Dialed-in 76px curve: covers the 48px OS nav bar + 28px soft feather above it
-    const rgb = darkMode ? '18, 18, 18' : '243, 244, 246';
-    const bottomNavGradient = `linear-gradient(to top, rgba(${rgb}, 0.92) 0%, rgba(${rgb}, 0.78) 45%, rgba(${rgb}, 0.35) 78%, rgba(${rgb}, 0) 100%)`;
-
     return (
         <div className="app-shell" style={{ position: 'relative' }}>
             {currentRoute.screen === 'Home' && <HomeScreen onNavigate={navigate} />}
@@ -78,7 +73,7 @@ function MainNavigator() {
             )}
             {currentRoute.screen === 'Settings' && <SettingsScreen onBack={goBack} />}
 
-            {/* 1. Clickable Screens (Home, Band, Playlist, Settings): 48px Opaque Surface Bar for high-contrast OS nav icons */}
+            {/* Clickable Screens (Home, Band, Playlist, Settings): 48px Opaque Surface Bar for OS nav icons */}
             {topSpaceEnabled && !isSongScreen && (
                 <div
                     style={{
@@ -86,22 +81,6 @@ function MainNavigator() {
                         height: '48px',
                         backgroundColor: 'var(--bg-surface)',
                         borderTop: '1px solid var(--border-color)',
-                        zIndex: 90,
-                    }}
-                />
-            )}
-
-            {/* 2. SongScreen: 76px multi-stop translucent gradient over the 48px OS nav bar zone */}
-            {topSpaceEnabled && isSongScreen && (
-                <div
-                    style={{
-                        position: 'fixed',
-                        left: 0,
-                        right: 0,
-                        bottom: 0,
-                        height: '76px',
-                        background: bottomNavGradient,
-                        pointerEvents: 'none',
                         zIndex: 90,
                     }}
                 />
