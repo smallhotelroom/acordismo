@@ -1,6 +1,6 @@
 /**
  * @file src/App.jsx
- * @version 2.7.0
+ * @version 2.8.0
  */
 import React, { useContext, useEffect, useRef, useState } from 'react';
 import { App as CapacitorApp } from '@capacitor/app';
@@ -11,7 +11,7 @@ import PlaylistScreen from './screens/PlaylistScreen';
 import SongScreen from './screens/SongScreen';
 import SettingsScreen from './screens/SettingsScreen';
 
-export const __version__ = '2.7.0';
+export const __version__ = '2.8.0';
 
 function MainNavigator() {
     const { topSpaceEnabled, darkMode } = useContext(AppContext);
@@ -75,19 +75,20 @@ function MainNavigator() {
             )}
             {currentRoute.screen === 'Settings' && <SettingsScreen onBack={goBack} />}
 
-            {/* 1. Clickable Screens (Home, Band, Playlist, Settings): Compact 24px Dark Grey Bar matching Top Status Bar */}
+            {/* 1. Clickable Screens (Home, Band, Playlist, Settings): 48px Opaque Surface Bar for high-contrast OS nav icons */}
             {topSpaceEnabled && !isSongScreen && (
                 <div
                     style={{
                         flexShrink: 0,
-                        height: '24px',
-                        backgroundColor: '#5f666d',
+                        height: '48px',
+                        backgroundColor: 'var(--bg-surface)',
+                        borderTop: '1px solid var(--border-color)',
                         zIndex: 90,
                     }}
                 />
             )}
 
-            {/* 2. SongScreen: Low-profile 28px Gradient Fade right at the bottom edge */}
+            {/* 2. SongScreen: Taller 96px Gradient Fade so lyrics softly fade above the 48px OS navigation icons */}
             {topSpaceEnabled && isSongScreen && (
                 <div
                     style={{
@@ -95,8 +96,8 @@ function MainNavigator() {
                         left: 0,
                         right: 0,
                         bottom: 0,
-                        height: '28px',
-                        background: `linear-gradient(to top, ${songSheetBg} 15%, transparent 100%)`,
+                        height: '96px',
+                        background: `linear-gradient(to top, ${songSheetBg} 35%, transparent 100%)`,
                         pointerEvents: 'none',
                         zIndex: 90,
                     }}

@@ -1,6 +1,6 @@
 /**
  * @file src/screens/SongScreen.jsx
- * @version 2.19.0
+ * @version 2.20.0
  */
 import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Pause, Play } from 'lucide-react';
@@ -14,7 +14,7 @@ import {
     transposeChordToken,
 } from '@shr-shared/chordTransposer.js';
 
-export const __version__ = '2.19.0';
+export const __version__ = '2.20.0';
 
 const SCROLL_SPEED_STORAGE_KEY = 'acordismo_scroll_speed';
 const TARGET_DURATION_SECONDS = 210; // 3 minutes 30 seconds at 1.0x
@@ -389,8 +389,6 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
             }
         });
 
-        // Wrapping each chord section in its own block means an incoming 1-row chord section
-        // naturally pushes a previous 2-row sticky chord header up under the 15px ceiling mask!
         return [
             ...preChordItems,
             ...sections.map((sec) => <div key={sec.key}>{sec.items}</div>),
@@ -426,7 +424,8 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
 
     return (
         <>
-            <header className="app-header">
+            {/* Elevated zIndex (20000) ensures the header and its vertical speed popover always render above sticky chords */}
+            <header className="app-header" style={{ position: 'relative', zIndex: 20000 }}>
                 <div className="header-left">
                     <button className="icon-btn" onClick={onBack}>
                         <ArrowLeft size={22} />
@@ -453,6 +452,7 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
                         {speedMenuOpen && (
                             <div
                                 className="autoscroll-vertical-popover"
+                                style={{ zIndex: 20001 }}
                                 onClick={(e) => e.stopPropagation()}>
                                 <button
                                     className="autoscroll-step-btn"
@@ -522,7 +522,7 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
                     style={{
                         fontSize: `${fontSize}px`,
                         paddingTop: 15,
-                        paddingBottom: topSpaceEnabled ? 36 : 15,
+                        paddingBottom: topSpaceEnabled ? 96 : 15,
                     }}>
                     {/* Single 15px ceiling mask so scrolling lyrics and outgoing sticky headers never peek above `top: 15px` */}
                     {freezeChordsEnabled && (
