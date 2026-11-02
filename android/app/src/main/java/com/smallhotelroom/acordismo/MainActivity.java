@@ -5,7 +5,6 @@ import android.database.Cursor;
 import android.net.Uri;
 import android.os.Bundle;
 import android.provider.OpenableColumns;
-import android.util.Base64;
 import android.webkit.WebView;
 import android.widget.Toast;
 
@@ -13,14 +12,15 @@ import com.getcapacitor.BridgeActivity;
 
 import org.json.JSONObject;
 
-import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 
 /**
- * MainActivity v1.2.0
- * Handles Android ACTION_VIEW ("Open with...") and ACTION_SEND ("Share to...") intents
- * for SQLite .db songbook packs sent via WhatsApp, Telegram, Google Drive, or Files.
+ * MainActivity v1.3.0
+ * Streams incoming ACTION_VIEW ("Open with...") and ACTION_SEND ("Share to...") .db files
+ * directly to the app cache directory using a 64 KB buffer so 170MB+ databases never OOM.
  */
 public class MainActivity extends BridgeActivity {
 
@@ -59,38 +59,49 @@ public class MainActivity extends BridgeActivity {
 
         final Uri targetUri = uri;
         new Thread(() -> {
-            try (InputStream is = getContentResolver().openInputStream(targetUri)) {
+            File tempFile = new File(getCacheDir(), "acordismo_shared_import.db");
+            try (
+                InputStream is = getContentResolver().openInputStream(targetUri);
+                FileOutputStream fos = new FileOutputStream(tempFile)
+            ) {
                 if (is == null) {
                     return;
                 }
-                ByteArrayOutputStream buffer = new ByteArrayOutputStream();
-                byte[] chunk = new byte[16384];
-                int nRead;
-                while ((nRead = is.read(chunk, 0, chunk.length)) != -1) {
-                    buffer.write(chunk, 0, nRead);
-                }
-                byte[] bytes = buffer.toByteArray();
 
-                // Verify SQLite 3 magic header ("SQLite format 3\0")
-                if (bytes.length < 16) {
-                    showToastOnUi("Ignored file: too small to be an Acordismo database.");
-                    return;
+                byte[] chunk = new byte[65536]; // 64 KB streaming buffer
+                int nRead;
+                long totalBytes = 0;
+                boolean headerChecked = false;
+
+                while ((nRead = is.read(chunk, 0, chunk.length)) != -1) {
+                    if (!headerChecked) {
+                        if (nRead < 16) {
+                            showToastOnUi("Ignored file: too small to be an Acordismo database.");
+                            return;
+                        }
+                        String magic = new String(chunk, 0, 15, StandardCharsets.US_ASCII);
+                        if (!"SQLite format 3".equals(magic)) {
+                            showToastOnUi("Ignored file: not a valid SQLite .db pack.");
+                            return;
+                        }
+                        headerChecked = true;
+                    }
+                    fos.write(chunk, 0, nRead);
+                    totalBytes += nRead;
                 }
-                String magic = new String(bytes, 0, 15, StandardCharsets.US_ASCII);
-                if (!"SQLite format 3".equals(magic)) {
-                    showToastOnUi("Ignored file: not a valid SQLite .db pack.");
+                fos.flush();
+
+                if (totalBytes < 16) {
+                    showToastOnUi("Ignored empty file.");
                     return;
                 }
 
                 String fileName = resolveFileName(targetUri);
-                String base64Data = Base64.encodeToString(bytes, Base64.NO_WRAP);
-
                 JSONObject detailObj = new JSONObject();
                 detailObj.put("name", fileName);
-                detailObj.put("base64", base64Data);
+                detailObj.put("path", tempFile.getAbsolutePath());
                 final String jsPayload = detailObj.toString();
 
-                // Dispatch into WebView once bridge is ready
                 runOnUiThread(() -> dispatchDbToWebView(jsPayload, fileName, 0));
             } catch (Exception e) {
                 showToastOnUi("Failed to open database: " + e.getMessage());
@@ -104,7 +115,7 @@ public class MainActivity extends BridgeActivity {
             String script = "window.__acordismoPendingDb = " + jsPayload + ";" +
                     "window.dispatchEvent(new CustomEvent('acordismo-open-db', { detail: " + jsPayload + " }));";
             webView.evaluateJavascript(script, null);
-            Toast.makeText(this, "Loaded database pack: " + fileName, Toast.LENGTH_LONG).show();
+            Toast.makeText(this, "Importing database pack: " + fileName + "...", Toast.LENGTH_LONG).show();
         } else if (attempt < 20) {
             getWindow().getDecorView().postDelayed(
                     () -> dispatchDbToWebView(jsPayload, fileName, attempt + 1),

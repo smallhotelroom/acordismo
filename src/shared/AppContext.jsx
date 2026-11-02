@@ -1,12 +1,12 @@
 /**
  * @file src/shared/AppContext.jsx
- * @version 2.6.0
+ * @version 2.7.0
  */
 import React, { createContext, useEffect, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { getSavedDbLabel, loadExternalDatabaseBytes } from './database';
 
-export const __version__ = '2.6.0';
+export const __version__ = '2.7.0';
 
 export const AppContext = createContext(null);
 
@@ -53,21 +53,36 @@ export function AppProvider({ children }) {
 
     // Handle external .db files opened via Android "Open with Acordismo" or "Share to Acordismo"
     useEffect(() => {
-        const importBase64Payload = async (payload) => {
-            if (!payload || !payload.base64) {
+        const importIncomingDbPayload = async (payload) => {
+            if (!payload) {
                 return;
             }
             try {
-                const binaryString = window.atob(payload.base64);
-                const len = binaryString.length;
-                const bytes = new Uint8Array(len);
-                for (let i = 0; i < len; i++) {
-                    bytes[i] = binaryString.charCodeAt(i);
+                let bytes = null;
+                if (payload.path) {
+                    // Stream binary directly from Capacitor's native file server (handles 170MB+ files without OOM)
+                    const fileUrl = Capacitor.convertFileSrc(payload.path);
+                    const response = await fetch(fileUrl);
+                    if (!response.ok) {
+                        throw new Error(`Failed to fetch streamed DB: ${response.statusText}`);
+                    }
+                    const buffer = await response.arrayBuffer();
+                    bytes = new Uint8Array(buffer);
+                } else if (payload.base64) {
+                    const binaryString = window.atob(payload.base64);
+                    const len = binaryString.length;
+                    bytes = new Uint8Array(len);
+                    for (let i = 0; i < len; i++) {
+                        bytes[i] = binaryString.charCodeAt(i);
+                    }
                 }
-                await loadExternalDatabaseBytes(bytes, payload.name || 'shared-pack.db');
-                const nextLabel = await getSavedDbLabel();
-                setActiveDbLabel(nextLabel);
-                setDbRevision((r) => r + 1);
+
+                if (bytes) {
+                    await loadExternalDatabaseBytes(bytes, payload.name || 'shared-pack.db');
+                    const nextLabel = await getSavedDbLabel();
+                    setActiveDbLabel(nextLabel);
+                    setDbRevision((r) => r + 1);
+                }
             } catch (err) {
                 console.error('Failed to import shared database:', err);
             }
@@ -76,12 +91,12 @@ export function AppProvider({ children }) {
         if (window.__acordismoPendingDb) {
             const pending = window.__acordismoPendingDb;
             window.__acordismoPendingDb = null;
-            importBase64Payload(pending);
+            importIncomingDbPayload(pending);
         }
 
         const handleOpenDbEvent = (e) => {
             window.__acordismoPendingDb = null;
-            importBase64Payload(e.detail);
+            importIncomingDbPayload(e.detail);
         };
 
         window.addEventListener('acordismo-open-db', handleOpenDbEvent);
