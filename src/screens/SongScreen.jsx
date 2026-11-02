@@ -1,6 +1,6 @@
 /**
  * @file src/screens/SongScreen.jsx
- * @version 2.20.0
+ * @version 2.21.0
  */
 import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Pause, Play } from 'lucide-react';
@@ -14,7 +14,7 @@ import {
     transposeChordToken,
 } from '@shr-shared/chordTransposer.js';
 
-export const __version__ = '2.20.0';
+export const __version__ = '2.21.0';
 
 const SCROLL_SPEED_STORAGE_KEY = 'acordismo_scroll_speed';
 const TARGET_DURATION_SECONDS = 210; // 3 minutes 30 seconds at 1.0x
@@ -522,7 +522,7 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
                     style={{
                         fontSize: `${fontSize}px`,
                         paddingTop: 15,
-                        paddingBottom: topSpaceEnabled ? 96 : 15,
+                        paddingBottom: topSpaceEnabled ? 150 : 15,
                     }}>
                     {/* Single 15px ceiling mask so scrolling lyrics and outgoing sticky headers never peek above `top: 15px` */}
                     {freezeChordsEnabled && (

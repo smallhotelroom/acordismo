@@ -1,6 +1,6 @@
 /**
  * @file src/App.jsx
- * @version 2.8.0
+ * @version 2.9.0
  */
 import React, { useContext, useEffect, useRef, useState } from 'react';
 import { App as CapacitorApp } from '@capacitor/app';
@@ -11,7 +11,7 @@ import PlaylistScreen from './screens/PlaylistScreen';
 import SongScreen from './screens/SongScreen';
 import SettingsScreen from './screens/SettingsScreen';
 
-export const __version__ = '2.8.0';
+export const __version__ = '2.9.0';
 
 function MainNavigator() {
     const { topSpaceEnabled, darkMode } = useContext(AppContext);
@@ -47,7 +47,10 @@ function MainNavigator() {
         };
     }, []);
 
-    const songSheetBg = darkMode ? '#121212' : '#f3f4f6';
+    // RGB tuple matching --bg-primary (#f3f4f6 in light mode, #121212 in dark mode)
+    // Multi-stop translucent curve mimics Gemini & Telegram's long bottom mist
+    const rgb = darkMode ? '18, 18, 18' : '243, 244, 246';
+    const longBottomGradient = `linear-gradient(to top, rgba(${rgb}, 0.90) 0%, rgba(${rgb}, 0.76) 28%, rgba(${rgb}, 0.42) 62%, rgba(${rgb}, 0.12) 85%, rgba(${rgb}, 0) 100%)`;
 
     return (
         <div className="app-shell" style={{ position: 'relative' }}>
@@ -88,7 +91,7 @@ function MainNavigator() {
                 />
             )}
 
-            {/* 2. SongScreen: Taller 96px Gradient Fade so lyrics softly fade above the 48px OS navigation icons */}
+            {/* 2. SongScreen: Long 150px Gemini/Telegram-style multi-stop translucent gradient from fullscreen bottom */}
             {topSpaceEnabled && isSongScreen && (
                 <div
                     style={{
@@ -96,8 +99,8 @@ function MainNavigator() {
                         left: 0,
                         right: 0,
                         bottom: 0,
-                        height: '96px',
-                        background: `linear-gradient(to top, ${songSheetBg} 35%, transparent 100%)`,
+                        height: '150px',
+                        background: longBottomGradient,
                         pointerEvents: 'none',
                         zIndex: 90,
                     }}
