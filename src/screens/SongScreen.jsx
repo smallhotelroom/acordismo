@@ -1,6 +1,6 @@
 /**
  * @file src/screens/SongScreen.jsx
- * @version 2.15.0
+ * @version 2.16.0
  */
 import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Pause, Play } from 'lucide-react';
@@ -13,7 +13,7 @@ import {
     transposeChordToken,
 } from '@shr-shared/chordTransposer.js';
 
-export const __version__ = '2.15.0';
+export const __version__ = '2.16.0';
 
 const SCROLL_SPEED_STORAGE_KEY = 'acordismo_scroll_speed';
 const TARGET_DURATION_SECONDS = 210; // 3 minutes 30 seconds at 1.0x
@@ -107,6 +107,9 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
                 }
 
                 setFeaturingBands(ftRes.rows._array);
+                if (scrollContainerRef.current) {
+                    scrollContainerRef.current.scrollTop = 0;
+                }
             } catch (err) {
                 console.error(err);
             }
@@ -270,13 +273,11 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
                             freezeChordsEnabled
                                 ? {
                                       position: 'sticky',
-                                      top: 0,
+                                      top: 15,
                                       zIndex: 10 + lineIndex,
                                       backgroundColor: sheetBgColor,
-                                      // Negative vertical margins cancel out the padding in normal flow,
-                                      // while preserving a 15px top margin and 4px bottom cushion when frozen at top: 0!
-                                      margin: '-15px -15px -4px -15px',
-                                      padding: '15px 15px 4px 15px',
+                                      margin: '0 -15px',
+                                      padding: '0 15px',
                                   }
                                 : undefined
                         }>
@@ -419,6 +420,22 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
                 <div
                     className="song-lyrics-monospace"
                     style={{ fontSize: `${fontSize}px`, paddingTop: 15 }}>
+                    {/* Single 15px ceiling mask so scrolling lyrics never peek above `top: 15px` */}
+                    {freezeChordsEnabled && (
+                        <div
+                            style={{
+                                position: 'sticky',
+                                top: 0,
+                                height: 15,
+                                marginTop: -15,
+                                marginLeft: -15,
+                                marginRight: -15,
+                                backgroundColor: sheetBgColor,
+                                zIndex: 10000,
+                                pointerEvents: 'none',
+                            }}
+                        />
+                    )}
                     {songScreenItems}
                 </div>
             </main>
