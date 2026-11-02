@@ -1,1 +1,498 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="48" height="46" fill="none" viewBox="0 0 48 46"><path fill="#863bff" d="M25.946 44.938c-.664.845-2.021.375-2.021-.698V33.937a2.26 2.26 0 0 0-2.262-2.262H10.287c-.92 0-1.456-1.04-.92-1.788l7.48-10.471c1.07-1.497 0-3.578-1.842-3.578H1.237c-.92 0-1.456-1.04-.92-1.788L10.013.474c.214-.297.556-.474.92-.474h28.894c.92 0 1.456 1.04.92 1.788l-7.48 10.471c-1.07 1.498 0 3.579 1.842 3.579h11.377c.943 0 1.473 1.088.89 1.83L25.947 44.94z" style="fill:#863bff;fill:color(display-p3 .5252 .23 1);fill-opacity:1"/><mask id="a" width="48" height="46" x="0" y="0" maskUnits="userSpaceOnUse" style="mask-type:alpha"><path fill="#000" d="M25.842 44.938c-.664.844-2.021.375-2.021-.698V33.937a2.26 2.26 0 0 0-2.262-2.262H10.183c-.92 0-1.456-1.04-.92-1.788l7.48-10.471c1.07-1.498 0-3.579-1.842-3.579H1.133c-.92 0-1.456-1.04-.92-1.787L9.91.473c.214-.297.556-.474.92-.474h28.894c.92 0 1.456 1.04.92 1.788l-7.48 10.471c-1.07 1.498 0 3.578 1.842 3.578h11.377c.943 0 1.473 1.088.89 1.832L25.843 44.94z" style="fill:#000;fill-opacity:1"/></mask><g mask="url(#a)"><g filter="url(#b)"><ellipse cx="5.508" cy="14.704" fill="#ede6ff" rx="5.508" ry="14.704" style="fill:#ede6ff;fill:color(display-p3 .9275 .9033 1);fill-opacity:1" transform="matrix(.00324 1 1 -.00324 -4.47 31.516)"/></g><g filter="url(#c)"><ellipse cx="10.399" cy="29.851" fill="#ede6ff" rx="10.399" ry="29.851" style="fill:#ede6ff;fill:color(display-p3 .9275 .9033 1);fill-opacity:1" transform="matrix(.00324 1 1 -.00324 -39.328 7.883)"/></g><g filter="url(#d)"><ellipse cx="5.508" cy="30.487" fill="#7e14ff" rx="5.508" ry="30.487" style="fill:#7e14ff;fill:color(display-p3 .4922 .0767 1);fill-opacity:1" transform="rotate(89.814 -25.913 -14.639)scale(1 -1)"/></g><g filter="url(#e)"><ellipse cx="5.508" cy="30.599" fill="#7e14ff" rx="5.508" ry="30.599" style="fill:#7e14ff;fill:color(display-p3 .4922 .0767 1);fill-opacity:1" transform="rotate(89.814 -32.644 -3.334)scale(1 -1)"/></g><g filter="url(#f)"><ellipse cx="5.508" cy="30.599" fill="#7e14ff" rx="5.508" ry="30.599" style="fill:#7e14ff;fill:color(display-p3 .4922 .0767 1);fill-opacity:1" transform="matrix(.00324 1 1 -.00324 -34.34 30.47)"/></g><g filter="url(#g)"><ellipse cx="14.072" cy="22.078" fill="#ede6ff" rx="14.072" ry="22.078" style="fill:#ede6ff;fill:color(display-p3 .9275 .9033 1);fill-opacity:1" transform="rotate(93.35 24.506 48.493)scale(-1 1)"/></g><g filter="url(#h)"><ellipse cx="3.47" cy="21.501" fill="#7e14ff" rx="3.47" ry="21.501" style="fill:#7e14ff;fill:color(display-p3 .4922 .0767 1);fill-opacity:1" transform="rotate(89.009 28.708 47.59)scale(-1 1)"/></g><g filter="url(#i)"><ellipse cx="3.47" cy="21.501" fill="#7e14ff" rx="3.47" ry="21.501" style="fill:#7e14ff;fill:color(display-p3 .4922 .0767 1);fill-opacity:1" transform="rotate(89.009 28.708 47.59)scale(-1 1)"/></g><g filter="url(#j)"><ellipse cx=".387" cy="8.972" fill="#7e14ff" rx="4.407" ry="29.108" style="fill:#7e14ff;fill:color(display-p3 .4922 .0767 1);fill-opacity:1" transform="rotate(39.51 .387 8.972)"/></g><g filter="url(#k)"><ellipse cx="47.523" cy="-6.092" fill="#7e14ff" rx="4.407" ry="29.108" style="fill:#7e14ff;fill:color(display-p3 .4922 .0767 1);fill-opacity:1" transform="rotate(37.892 47.523 -6.092)"/></g><g filter="url(#l)"><ellipse cx="41.412" cy="6.333" fill="#47bfff" rx="5.971" ry="9.665" style="fill:#47bfff;fill:color(display-p3 .2799 .748 1);fill-opacity:1" transform="rotate(37.892 41.412 6.333)"/></g><g filter="url(#m)"><ellipse cx="-1.879" cy="38.332" fill="#7e14ff" rx="4.407" ry="29.108" style="fill:#7e14ff;fill:color(display-p3 .4922 .0767 1);fill-opacity:1" transform="rotate(37.892 -1.88 38.332)"/></g><g filter="url(#n)"><ellipse cx="-1.879" cy="38.332" fill="#7e14ff" rx="4.407" ry="29.108" style="fill:#7e14ff;fill:color(display-p3 .4922 .0767 1);fill-opacity:1" transform="rotate(37.892 -1.88 38.332)"/></g><g filter="url(#o)"><ellipse cx="35.651" cy="29.907" fill="#7e14ff" rx="4.407" ry="29.108" style="fill:#7e14ff;fill:color(display-p3 .4922 .0767 1);fill-opacity:1" transform="rotate(37.892 35.651 29.907)"/></g><g filter="url(#p)"><ellipse cx="38.418" cy="32.4" fill="#47bfff" rx="5.971" ry="15.297" style="fill:#47bfff;fill:color(display-p3 .2799 .748 1);fill-opacity:1" transform="rotate(37.892 38.418 32.4)"/></g></g><defs><filter id="b" width="60.045" height="41.654" x="-19.77" y="16.149" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="7.659"/></filter><filter id="c" width="90.34" height="51.437" x="-54.613" y="-7.533" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="7.659"/></filter><filter id="d" width="79.355" height="29.4" x="-49.64" y="2.03" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter><filter id="e" width="79.579" height="29.4" x="-45.045" y="20.029" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter><filter id="f" width="79.579" height="29.4" x="-43.513" y="21.178" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter><filter id="g" width="74.749" height="58.852" x="15.756" y="-17.901" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="7.659"/></filter><filter id="h" width="61.377" height="25.362" x="23.548" y="2.284" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter><filter id="i" width="61.377" height="25.362" x="23.548" y="2.284" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter><filter id="j" width="56.045" height="63.649" x="-27.636" y="-22.853" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter><filter id="k" width="54.814" height="64.646" x="20.116" y="-38.415" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter><filter id="l" width="33.541" height="35.313" x="24.641" y="-11.323" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter><filter id="m" width="54.814" height="64.646" x="-29.286" y="6.009" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter><filter id="n" width="54.814" height="64.646" x="-29.286" y="6.009" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter><filter id="o" width="54.814" height="64.646" x="8.244" y="-2.416" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter><filter id="p" width="39.409" height="43.623" x="18.713" y="10.588" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter></defs></svg>
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 300 300" width="300" height="300">
+  
+  <g>
+    <rect x="0" y="0" width="300" height="300" fill="#000000" />
+    <g transform="translate(12.000, 12.000) scale(0.92)" fill="#ffffff">
+      
+  
+  
+  <defs
+     id="defs6">
+    <filter
+       id="filter3808-2-4-5-7"
+       x="0"
+       y="0"
+       width="1"
+       height="1"
+       color-interpolation-filters="sRGB">
+      <feColorMatrix
+         id="feColorMatrix3810-7-8-1-9"
+         type="saturate"
+         values="1"
+         result="fbSourceGraphic" />
+      <feColorMatrix
+         id="feColorMatrix3812-6-1-2-60"
+         in="fbSourceGraphic"
+         values="-1 0 0 0 1 0 -1 0 0 1 0 0 -1 0 1 0 0 0 1 0 " />
+    </filter>
+    <filter
+       color-interpolation-filters="sRGB"
+       height="1"
+       width="1"
+       y="0"
+       x="0"
+       id="filter3808-4-4">
+      <feColorMatrix
+         result="fbSourceGraphic"
+         values="1"
+         type="saturate"
+         id="feColorMatrix3810-8-1" />
+      <feColorMatrix
+         values="-1 0 0 0 1 0 -1 0 0 1 0 0 -1 0 1 0 0 0 1 0 "
+         in="fbSourceGraphic"
+         id="feColorMatrix3812-2-0" />
+    </filter>
+    <filter
+       color-interpolation-filters="sRGB"
+       height="1"
+       width="1"
+       y="0"
+       x="0"
+       id="filter3374">
+      <feColorMatrix
+         result="fbSourceGraphic"
+         values="1"
+         type="saturate"
+         id="feColorMatrix3376" />
+      <feColorMatrix
+         values="-1 0 0 0 1 0 -1 0 0 1 0 0 -1 0 1 0 0 0 1 0 "
+         in="fbSourceGraphic"
+         id="feColorMatrix3378" />
+    </filter>
+    <filter
+       color-interpolation-filters="sRGB"
+       height="1"
+       width="1"
+       y="0"
+       x="0"
+       id="filter3380">
+      <feColorMatrix
+         result="fbSourceGraphic"
+         values="1"
+         type="saturate"
+         id="feColorMatrix3382" />
+      <feColorMatrix
+         values="-1 0 0 0 1 0 -1 0 0 1 0 0 -1 0 1 0 0 0 1 0 "
+         in="fbSourceGraphic"
+         id="feColorMatrix3384" />
+    </filter>
+    <filter
+       color-interpolation-filters="sRGB"
+       height="1"
+       width="1"
+       y="0"
+       x="0"
+       id="filter3386">
+      <feColorMatrix
+         result="fbSourceGraphic"
+         values="1"
+         type="saturate"
+         id="feColorMatrix3388" />
+      <feColorMatrix
+         values="-1 0 0 0 1 0 -1 0 0 1 0 0 -1 0 1 0 0 0 1 0 "
+         in="fbSourceGraphic"
+         id="feColorMatrix3390" />
+    </filter>
+    <filter
+       color-interpolation-filters="sRGB"
+       height="1"
+       width="1"
+       y="0"
+       x="0"
+       id="filter3392">
+      <feColorMatrix
+         result="fbSourceGraphic"
+         values="1"
+         type="saturate"
+         id="feColorMatrix3394" />
+      <feColorMatrix
+         values="-1 0 0 0 1 0 -1 0 0 1 0 0 -1 0 1 0 0 0 1 0 "
+         in="fbSourceGraphic"
+         id="feColorMatrix3396" />
+    </filter>
+    <filter
+       color-interpolation-filters="sRGB"
+       height="1"
+       width="1"
+       y="0"
+       x="0"
+       id="filter3398">
+      <feColorMatrix
+         result="fbSourceGraphic"
+         values="1"
+         type="saturate"
+         id="feColorMatrix3400" />
+      <feColorMatrix
+         values="-1 0 0 0 1 0 -1 0 0 1 0 0 -1 0 1 0 0 0 1 0 "
+         in="fbSourceGraphic"
+         id="feColorMatrix3402" />
+    </filter>
+    <filter
+       color-interpolation-filters="sRGB"
+       height="1"
+       width="1"
+       y="0"
+       x="0"
+       id="filter3404">
+      <feColorMatrix
+         result="fbSourceGraphic"
+         values="1"
+         type="saturate"
+         id="feColorMatrix3406" />
+      <feColorMatrix
+         values="-1 0 0 0 1 0 -1 0 0 1 0 0 -1 0 1 0 0 0 1 0 "
+         in="fbSourceGraphic"
+         id="feColorMatrix3408" />
+    </filter>
+    <filter
+       color-interpolation-filters="sRGB"
+       height="1"
+       width="1"
+       y="0"
+       x="0"
+       id="filter3410">
+      <feColorMatrix
+         result="fbSourceGraphic"
+         values="1"
+         type="saturate"
+         id="feColorMatrix3412" />
+      <feColorMatrix
+         values="-1 0 0 0 1 0 -1 0 0 1 0 0 -1 0 1 0 0 0 1 0 "
+         in="fbSourceGraphic"
+         id="feColorMatrix3414" />
+    </filter>
+    <filter
+       color-interpolation-filters="sRGB"
+       height="1"
+       width="1"
+       y="0"
+       x="0"
+       id="filter3416">
+      <feColorMatrix
+         result="fbSourceGraphic"
+         values="1"
+         type="saturate"
+         id="feColorMatrix3418" />
+      <feColorMatrix
+         values="-1 0 0 0 1 0 -1 0 0 1 0 0 -1 0 1 0 0 0 1 0 "
+         in="fbSourceGraphic"
+         id="feColorMatrix3420" />
+    </filter>
+    <filter
+       color-interpolation-filters="sRGB"
+       height="1"
+       width="1"
+       y="0"
+       x="0"
+       id="filter3422">
+      <feColorMatrix
+         result="fbSourceGraphic"
+         values="1"
+         type="saturate"
+         id="feColorMatrix3424" />
+      <feColorMatrix
+         values="-1 0 0 0 1 0 -1 0 0 1 0 0 -1 0 1 0 0 0 1 0 "
+         in="fbSourceGraphic"
+         id="feColorMatrix3426" />
+    </filter>
+    <filter
+       color-interpolation-filters="sRGB"
+       height="1"
+       width="1"
+       y="0"
+       x="0"
+       id="filter3428">
+      <feColorMatrix
+         result="fbSourceGraphic"
+         values="1"
+         type="saturate"
+         id="feColorMatrix3430" />
+      <feColorMatrix
+         values="-1 0 0 0 1 0 -1 0 0 1 0 0 -1 0 1 0 0 0 1 0 "
+         in="fbSourceGraphic"
+         id="feColorMatrix3432" />
+    </filter>
+    <filter
+       color-interpolation-filters="sRGB"
+       height="1"
+       width="1"
+       y="0"
+       x="0"
+       id="filter3434">
+      <feColorMatrix
+         result="fbSourceGraphic"
+         values="1"
+         type="saturate"
+         id="feColorMatrix3436" />
+      <feColorMatrix
+         values="-1 0 0 0 1 0 -1 0 0 1 0 0 -1 0 1 0 0 0 1 0 "
+         in="fbSourceGraphic"
+         id="feColorMatrix3438" />
+    </filter>
+    <filter
+       color-interpolation-filters="sRGB"
+       height="1"
+       width="1"
+       y="0"
+       x="0"
+       id="filter3440">
+      <feColorMatrix
+         result="fbSourceGraphic"
+         values="1"
+         type="saturate"
+         id="feColorMatrix3442" />
+      <feColorMatrix
+         values="-1 0 0 0 1 0 -1 0 0 1 0 0 -1 0 1 0 0 0 1 0 "
+         in="fbSourceGraphic"
+         id="feColorMatrix3444" />
+    </filter>
+    <filter
+       color-interpolation-filters="sRGB"
+       height="1"
+       width="1"
+       y="0"
+       x="0"
+       id="filter3446">
+      <feColorMatrix
+         result="fbSourceGraphic"
+         values="1"
+         type="saturate"
+         id="feColorMatrix3448" />
+      <feColorMatrix
+         values="-1 0 0 0 1 0 -1 0 0 1 0 0 -1 0 1 0 0 0 1 0 "
+         in="fbSourceGraphic"
+         id="feColorMatrix3450" />
+    </filter>
+    <filter
+       color-interpolation-filters="sRGB"
+       height="1"
+       width="1"
+       y="0"
+       x="0"
+       id="filter3452">
+      <feColorMatrix
+         result="fbSourceGraphic"
+         values="1"
+         type="saturate"
+         id="feColorMatrix3454" />
+      <feColorMatrix
+         values="-1 0 0 0 1 0 -1 0 0 1 0 0 -1 0 1 0 0 0 1 0 "
+         in="fbSourceGraphic"
+         id="feColorMatrix3456" />
+    </filter>
+    <filter
+       color-interpolation-filters="sRGB"
+       height="1"
+       width="1"
+       y="0"
+       x="0"
+       id="filter3458">
+      <feColorMatrix
+         result="fbSourceGraphic"
+         values="1"
+         type="saturate"
+         id="feColorMatrix3460" />
+      <feColorMatrix
+         values="-1 0 0 0 1 0 -1 0 0 1 0 0 -1 0 1 0 0 0 1 0 "
+         in="fbSourceGraphic"
+         id="feColorMatrix3462" />
+    </filter>
+    <filter
+       color-interpolation-filters="sRGB"
+       height="1"
+       width="1"
+       y="0"
+       x="0"
+       id="filter3464">
+      <feColorMatrix
+         result="fbSourceGraphic"
+         values="1"
+         type="saturate"
+         id="feColorMatrix3466" />
+      <feColorMatrix
+         values="-1 0 0 0 1 0 -1 0 0 1 0 0 -1 0 1 0 0 0 1 0 "
+         in="fbSourceGraphic"
+         id="feColorMatrix3468" />
+    </filter>
+    <filter
+       color-interpolation-filters="sRGB"
+       height="1"
+       width="1"
+       y="0"
+       x="0"
+       id="filter3470">
+      <feColorMatrix
+         result="fbSourceGraphic"
+         values="1"
+         type="saturate"
+         id="feColorMatrix3472" />
+      <feColorMatrix
+         values="-1 0 0 0 1 0 -1 0 0 1 0 0 -1 0 1 0 0 0 1 0 "
+         in="fbSourceGraphic"
+         id="feColorMatrix3474" />
+    </filter>
+    <filter
+       color-interpolation-filters="sRGB"
+       height="1"
+       width="1"
+       y="0"
+       x="0"
+       id="filter3476">
+      <feColorMatrix
+         result="fbSourceGraphic"
+         values="1"
+         type="saturate"
+         id="feColorMatrix3478" />
+      <feColorMatrix
+         values="-1 0 0 0 1 0 -1 0 0 1 0 0 -1 0 1 0 0 0 1 0 "
+         in="fbSourceGraphic"
+         id="feColorMatrix3480" />
+    </filter>
+    <filter
+       color-interpolation-filters="sRGB"
+       height="1"
+       width="1"
+       y="0"
+       x="0"
+       id="filter3482">
+      <feColorMatrix
+         result="fbSourceGraphic"
+         values="1"
+         type="saturate"
+         id="feColorMatrix3484" />
+      <feColorMatrix
+         values="-1 0 0 0 1 0 -1 0 0 1 0 0 -1 0 1 0 0 0 1 0 "
+         in="fbSourceGraphic"
+         id="feColorMatrix3486" />
+    </filter>
+    <filter
+       color-interpolation-filters="sRGB"
+       height="1"
+       width="1"
+       y="0"
+       x="0"
+       id="filter3488">
+      <feColorMatrix
+         result="fbSourceGraphic"
+         values="1"
+         type="saturate"
+         id="feColorMatrix3490" />
+      <feColorMatrix
+         values="-1 0 0 0 1 0 -1 0 0 1 0 0 -1 0 1 0 0 0 1 0 "
+         in="fbSourceGraphic"
+         id="feColorMatrix3492" />
+    </filter>
+    <filter
+       color-interpolation-filters="sRGB"
+       height="1"
+       width="1"
+       y="0"
+       x="0"
+       id="filter3494">
+      <feColorMatrix
+         result="fbSourceGraphic"
+         values="1"
+         type="saturate"
+         id="feColorMatrix3496" />
+      <feColorMatrix
+         values="-1 0 0 0 1 0 -1 0 0 1 0 0 -1 0 1 0 0 0 1 0 "
+         in="fbSourceGraphic"
+         id="feColorMatrix3498" />
+    </filter>
+    <filter
+       color-interpolation-filters="sRGB"
+       height="1"
+       width="1"
+       y="0"
+       x="0"
+       id="filter3500">
+      <feColorMatrix
+         result="fbSourceGraphic"
+         values="1"
+         type="saturate"
+         id="feColorMatrix3502" />
+      <feColorMatrix
+         values="-1 0 0 0 1 0 -1 0 0 1 0 0 -1 0 1 0 0 0 1 0 "
+         in="fbSourceGraphic"
+         id="feColorMatrix3504" />
+    </filter>
+    <filter
+       color-interpolation-filters="sRGB"
+       height="1"
+       width="1"
+       y="0"
+       x="0"
+       id="filter3506">
+      <feColorMatrix
+         result="fbSourceGraphic"
+         values="1"
+         type="saturate"
+         id="feColorMatrix3508" />
+      <feColorMatrix
+         values="-1 0 0 0 1 0 -1 0 0 1 0 0 -1 0 1 0 0 0 1 0 "
+         in="fbSourceGraphic"
+         id="feColorMatrix3510" />
+    </filter>
+    <filter
+       color-interpolation-filters="sRGB"
+       height="1"
+       width="1"
+       y="0"
+       x="0"
+       id="filter3512">
+      <feColorMatrix
+         result="fbSourceGraphic"
+         values="1"
+         type="saturate"
+         id="feColorMatrix3514" />
+      <feColorMatrix
+         values="-1 0 0 0 1 0 -1 0 0 1 0 0 -1 0 1 0 0 0 1 0 "
+         in="fbSourceGraphic"
+         id="feColorMatrix3516" />
+    </filter>
+    <filter
+       color-interpolation-filters="sRGB"
+       height="1"
+       width="1"
+       y="0"
+       x="0"
+       id="filter3518">
+      <feColorMatrix
+         result="fbSourceGraphic"
+         values="1"
+         type="saturate"
+         id="feColorMatrix3520" />
+      <feColorMatrix
+         values="-1 0 0 0 1 0 -1 0 0 1 0 0 -1 0 1 0 0 0 1 0 "
+         in="fbSourceGraphic"
+         id="feColorMatrix3522" />
+    </filter>
+  </defs>
+  <rect
+     y="0"
+     x="0"
+     height="300"
+     width="300"
+     id="rect3875"
+     style="fill:#000000;fill-opacity:1;stroke:none" />
+  <flowRoot
+     xml:space="preserve"
+     id="flowRoot3047"
+     style="font-size:40px;font-style:normal;font-weight:bold;line-height:125%;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;font-family:Sans;-inkscape-font-specification:Sans Bold"
+     transform="translate(22.796261,-46.844841)"><flowRegion
+       id="flowRegion3049"><rect
+         id="rect3051"
+         width="111.86441"
+         height="108.05085"
+         x="10.805085"
+         y="254.23729" /></flowRegion><flowPara
+       id="flowPara3053" /></flowRoot>  <path
+     style="font-size:167.20172119000000066px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;line-height:125%;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;filter:url(#filter3808-2-4-5-7);font-family:SoulMission;-inkscape-font-specification:SoulMission"
+     d="m 75.110687,161.73936 -1.0624,1.25 0,1.1562 0.2812,0.3126 -0.5,0 0,0.5937 0.5,0 0.25,-0.2813 0,0.2813 0.5312,0 0,0.6563 -0.5312,0.5937 -0.25,0 0,-0.9375 -0.2812,0.3438 -0.2188,0 -0.2812,-0.3438 -0.5313,0 -0.2187,0.3438 0,-0.3438 -0.5313,0 0,-0.3125 0.5313,0 0,-0.9063 -0.8438,0.3126 -1.5,-0.3126 -1.875,0 c -6.0568,0.3582 -9.0625,0.975 -9.0625,1.8438 l 0,0.3125 -1.25,-0.3125 0,0.625 0.2187,0.3125 -0.2187,0.25 c 0.6896,0.7668 1.0313,1.4154 1.0313,1.875 0,0.4091 0.7137,1.3903 2.0937,3 l 1.5,0 0,0.2813 -1.5,1.5624 0,-0.3124 -0.5625,0 c -0.7668,1.4054 -1.6172,2.0937 -2.5625,2.0937 l 0,0.625 c 0.5107,0 0.75,0.2931 0.75,0.9063 l -0.75,0 c 0,-0.6132 -0.1733,-0.9063 -0.5313,-0.9063 l 0,-0.3125 0.2813,-0.3125 c -0.8689,0 -1.5172,0.8276 -1.875,2.4375 -0.8433,0 -1.25,0.2156 -1.25,0.625 l -0.5313,0 -0.25,-0.3438 -0.25,0.3438 0.25,0.875 -1.0624,0.625 -0.2813,0 -0.2187,-0.2812 c -0.7924,1e-4 -2.0923,1.4133 -3.9063,4.25 l 0.7813,0 0.25,-0.3126 0,1.1876 0.8124,0 0.7813,-0.5626 0.25,0 0,0.5626 c 0,0.3066 -0.3412,0.631 -1.0313,0.9374 l -0.8124,-0.9374 -0.7813,1.2187 -0.25,-0.2813 -1.2813,1.5 0,0.3126 c 0.4855,1e-4 1.2392,-0.5858 2.3126,-1.8126 l 0.25,0 0,1.5 2.625,-2.7187 0,0.2813 c 0,0.741 -1.1264,2.3705 -3.375,4.875 l -0.8126,-0.3126 0,-0.625 1.3126,-0.5937 -0.25,-1.1875 c -0.3832,0 -0.9691,0.9043 -1.8126,2.7188 l 0,0.625 0.2813,0 0.25,-0.3438 0.5,0 0,0.3438 -0.2813,1.4687 1.3126,-0.875 0,-0.3125 -0.25,-0.2812 0,-0.3438 0.25,0.3438 c 0.089,0 0.1826,-0.023 0.25,-0.063 -0.142,0.054 -0.1988,0.2339 -0.1563,0.4063 0.018,0.073 -0.05,0.1641 -0.094,0.25 -0.079,0.1478 -0.213,0.3045 -0.4688,0.4687 -0.5856,0.3744 -0.8438,0.9937 -0.8438,1.875 0,0.1513 0.085,0.1882 0.1876,0.125 0.102,-0.063 0.1562,-0.2707 0.1562,-0.4687 0,-0.2751 0.1461,-0.3437 0.5625,-0.3437 0.3002,0 0.5641,0.09 0.625,0.1874 0.061,0.098 0.2473,0.1216 0.4063,0.063 0.2911,-0.1115 0.3121,-0.5151 0,-1.75 l 0.4374,0.7187 0,0.9375 -0.8124,0.3125 -0.25,-0.3125 -0.7813,0 c 0,0.6133 -0.1739,0.9062 -0.5313,0.9062 l -0.2187,-0.9062 0.2187,-0.3125 0,-0.625 -0.2187,0 c -0.4086,1.4311 -0.75,2.1563 -1.0313,2.1563 l 0.25,1.1562 0,0.3438 -0.25,0.3124 0,0.2813 c 1.2524,-1.814 2.3069,-2.7186 3.125,-2.7187 l 0,0.625 -0.8124,0 0,0.5937 0.5,0 0,1.2187 -0.5,0.9063 0,0.5937 0.5,0 -0.25,0.9376 0,0.875 0.5624,0 1.5,-1.4688 0.2813,0 0,0.8438 -0.2813,0.3437 0.2813,0.2813 c -0.5107,1e-4 -0.75,0.6486 -0.75,1.875 l 0.4687,0.5937 0,0.5625 c -0.5105,0 -0.75,0.2926 -0.75,0.9062 l -1.3124,0 -0.25,-0.2812 0,0.2812 -1.2813,-0.2812 -0.25,0 -0.2813,0.2812 -1.0624,-0.5937 c 0,-0.7921 -0.1684,-1.1869 -0.5,-1.1875 -0.4861,2e-4 -0.73,0.5033 -0.7813,1.5 l -0.2813,0 -0.4687,-1.5 -0.5313,0 c 0,0.5879 -0.1681,0.875 -0.5,0.875 -0.2559,0 -0.5565,-0.3636 -0.8124,-1.1562 l 0,-0.3438 0.25,-0.2812 c 0.2299,-2.2234 0.6736,-3.3438 1.3124,-3.3438 l 1.5626,-3.9375 0,-0.3125 -0.2813,0 -0.25,0.3125 0,-0.3125 0.7813,-1.2188 c 0.1527,-1.4565 0.6224,-2.5765 1.3124,-3.3437 l -0.8124,0 c -0.3319,2e-4 -0.5,0.3237 -0.5,0.9375 l -0.5313,0 c 0.1533,-0.8945 1.208,-2.5181 3.125,-4.8438 l 0,-0.3124 -0.2813,0 -2.8437,2.0937 0,-0.9063 c 0.46,4e-4 1.4126,-0.8274 2.8437,-2.4374 l 0,-0.2813 -0.4687,0 -0.2813,0.2813 0,-0.2813 c 0.5368,-0.9453 1.4238,-1.7726 2.625,-2.4375 0,-0.6131 0.1684,-0.9062 0.5,-0.9062 l -0.25,-1.5313 0.25,-1.1875 0.25,0 c 0,0.5878 0.5802,0.9069 1.7813,0.9062 0,-1.7885 0.3783,-2.8325 1.0937,-3.0624 l 0.7813,0.625 0.25,0 0.2187,-0.3126 -0.2187,-0.875 0,-0.3124 0.2187,0 0.8126,0.5937 0.2187,0 0.2813,-1.1875 -0.5,-0.6562 0,-0.2813 0.2187,-0.3125 0,-0.625 -0.2187,-0.2812 c -0.6902,0 -1.0313,-0.1794 -1.0313,-0.5626 l 0,-0.3437 0.75,0.3437 0.2813,0 -0.2813,-2.1562 -0.5313,0 c -0.2559,0 -0.4944,0.4013 -0.75,1.2188 l -0.25,0 -0.25,-0.2813 -0.25,0 -0.3124,0.2813 -0.25,-0.2813 -0.2813,0 0.5313,0.875 -0.25,0 -1.0313,-0.2813 c -7.6148,6.2355 -11.4063,15.5062 -11.4063,27.875 l 0.7813,0.3438 0,0.5938 -0.7813,0.875 0,0.3124 0.25,0.3126 0,0.9062 c 0,2.5811 0.2386,5.0065 0.75,7.2812 l -1.7812,1.5313 0,0.2813 0.5312,0.5937 0.25,0 0.7813,-0.5937 0.2187,0 c 0.3577,1e-4 0.6335,0.6174 0.8126,1.8437 4.2674,13.3399 13.1747,20 26.7187,20 l 2.0625,0 c 12.0872,0 20.4854,-6.0496 25.1875,-18.1875 l 0,-0.3438 -0.2813,-0.2812 c 1.5589,-2.9132 2.375,-7.3638 2.375,-13.3438 l 0,-3.625 c 0,-8.356 -2.0129,-15.4487 -6,-21.25 -4.9317,-5.8516 -8.9931,-8.7811 -12.1874,-8.7812 l -1.2813,0.3125 c -0.4343,-1.022 -1.2195,-1.531 -2.3437,-1.5313 l 0.5312,-1.2187 c -2e-4,-0.6132 -0.4437,-1.1934 -1.3125,-1.7813 l -0.75,0 -0.031,-0.031 z m -27.5,28.8438 -0.5,0 -0.5624,1.1562 0,0.3125 1.0624,-1.1875 0,-0.2812 z m 47.5,-27.0313 -0.5312,0.5937 0.5312,0.625 0.4688,-0.625 -0.4688,-0.5937 z m -13.25,0.5937 -0.25,0.3126 0.4688,0.5937 0,-0.9063 -0.2188,0 z m -11.4062,0.3126 c 1.8909,1.2012 2.8438,2.0343 2.8438,2.4687 l -0.2813,0.8437 -0.2187,0 c 0,-0.792 -0.5461,-1.1556 -1.5938,-1.1562 l 0,-0.3125 0.2812,-0.3125 0,-0.2812 c -0.8688,0 -1.3131,-0.324 -1.3124,-0.9376 l 0.2812,-0.3124 z m 13.7188,0.3124 0,0.9376 0.5312,0 0.2812,-0.3438 -0.5312,-0.5938 -0.2812,0 z m -19.7188,0.2813 1.5938,1.25 -1.0313,1.1875 -0.5625,0 -0.75,-0.875 0,-0.9062 c 0.5107,0 0.75,-0.2474 0.75,-0.6563 z m 9.0938,1.875 c 0.5625,0.5878 1.0772,0.844 1.5624,0.8437 l 0,1.2813 -0.25,0 c -0.6388,-0.3827 -1.0821,-1.0312 -1.3124,-1.875 l 0,-0.25 z m 3.125,0.5625 1.0312,0.2812 0,1.5626 -0.7812,0.3124 c -0.5118,3e-4 -0.75,-0.1842 -0.75,-0.5937 l 0,-0.6563 0.5,-0.9062 z m -13.7813,0.2812 0.2813,0 0.5312,0.625 0,0.9376 -0.8125,0 -0.5,-0.625 0,-0.3126 0.5,-0.625 z m 6.25,0.3438 c 0.6899,0.3066 1.0306,0.6311 1.0313,0.9375 l 0,0.5937 -0.7188,0.8438 c 0.3301,-0.1233 0.6894,-0.2188 1.0625,-0.2188 0.9916,0 1.8533,0.4825 2.4063,1.2188 0.125,-0.1099 0.2451,-0.2335 0.375,-0.375 l 1.0312,0.625 0,0.5938 c -0.2208,0.4159 -0.3738,0.7582 -0.5312,1.0937 0.042,-0.2162 0.1183,-0.4081 0.1562,-0.6563 0.1102,-0.2057 0.142,-0.4193 0.094,-0.4687 -0.041,-0.041 -0.3273,0.027 -0.6563,0.125 0.083,0.2763 0.1563,0.5716 0.1563,0.875 0,1.6737 -1.3576,3.0313 -3.0313,3.0313 -1.6737,0 -3.0313,-1.3576 -3.0313,-3.0313 0,-1.2553 0.7561,-2.3211 1.8438,-2.7813 l -0.4375,0 c -0.3071,3e-4 -0.5456,-0.4715 -0.75,-1.4687 l 0.25,0 0.75,-0.9375 z m 1.8125,0.2812 1.5625,0 0,0.3126 -1.3125,0.3437 0,-0.3437 -0.25,-0.3126 z m 2.0625,0.3126 c 1.1243,0.6133 1.7415,1.2248 1.8437,1.8124 l -0.2812,0 0,0.5938 -0.25,0 -1.3125,-2.0625 0,-0.3437 z m -12.4375,0.625 0.25,0 0,0.5937 -0.25,0 0,-0.5937 z m 19.1875,0 0.2813,0 0,0.5937 -0.2813,0.3437 -0.2187,0 -0.2813,-0.3437 0.5,-0.5937 z m -26.1875,0.3124 0.5312,0 -0.5312,0.625 0,-0.625 z m 29.0312,0.2813 0.8126,0.5937 0,0.3126 -0.2813,0.2812 -2.0625,-0.2812 0,-0.5626 0.25,0 0.2812,0.25 0.4688,0 0.5312,-0.5937 z m 14,0 0,0.9063 0.2813,0 0.2813,-0.3126 -0.5626,-0.5937 z m -44.875,0.3437 0.8126,0 -0.5313,0.5626 -0.2813,0 0,-0.5626 z m 20.0313,0 0.5,0 0,0.25 -0.5,0 0,-0.25 z m -17.9063,0.25 0.25,0 0,0.5938 -0.25,0 0,-0.5938 z m -14.3124,0.3126 -0.7813,0.9062 0,0.5938 0.7813,0.9374 0.2812,0 0.7812,-0.9374 0,-0.5938 c 0,-0.3066 -0.3726,-0.6001 -1.0624,-0.9062 z m 13.75,0.625 0.5624,0 0,0.2812 -0.5624,0 0,-0.2812 z m 32.6874,0 0.3126,1.2187 -0.3126,0 -0.5312,-0.625 0.5312,-0.5937 z m -31.875,0.5937 0.25,0.9375 -0.25,0 -0.25,0.2812 -0.2812,-0.9374 0.2812,0 0.25,-0.2813 z m 0.7813,0 0.5,0.625 -0.5,0.5937 -0.25,0 0.25,-1.2187 z m 46.968703,0.9375 0,0.2812 0.2188,0.3126 0.5312,-0.5938 -0.75,0 z m -45.187403,0.2812 0,0.625 0.2812,0 0,-0.625 -0.2812,0 z m 38.9062,1.5 0,0.625 0.2812,0 0,-0.625 -0.2812,0 z m -42.2812,0.3126 0,0.3124 0.5624,0 0,-0.3124 -0.5624,0 z m 52.156203,0 -0.2188,0.3124 0,0.2813 0.2188,0.3125 0.25,0 0.2812,-0.3125 0,-0.2813 -0.2812,-0.3124 -0.25,0 z m -49.812503,0.5937 -0.5313,0.625 0.5313,0.625 0.5,0 0,-0.625 -0.5,-0.625 z m 26.9687,0.625 0.5313,0 0.2813,0.3125 -0.5,0.5938 -0.3126,0 0,-0.9063 z m -4.125,0.3125 0.7813,0.9062 -0.5625,0.5938 -0.2188,0 -0.5312,-0.5938 0,-0.3124 0.5312,-0.5938 z m 24.125003,0.3125 -0.2812,0.2813 0.8125,0.9062 0.5,-0.5938 -0.5,-0.5937 -0.5313,0 z m -43.593703,0.5937 0,0.2813 -0.5313,0.5937 0,-0.2812 0.5313,-0.5938 z m -3.9063,0.875 0.5313,0 0,0.3438 -0.5313,0 0,-0.3438 z m 50.343803,0.3438 -0.2188,0.2812 0,0.3126 0.2188,0.2812 0.25,0 0.2812,-0.2812 0,-0.3126 -0.2812,-0.2812 -0.25,0 z m -49.031203,0.5938 0.7812,0 0,0.625 -0.7812,0 0,-0.625 z m 23.125,1.2187 0.5,0.5937 -0.5,0.5938 -0.5626,0 0,-0.5938 0.5626,-0.5937 z m -26.5,0.3437 0.5312,0 0,0.25 -0.5312,0.5938 -0.5,0 0,-0.2812 0.5,-0.5626 z m 0.8124,0 0.25,0 0,0.5626 -0.25,0 0,-0.5626 z m 32.625,0 0.5626,0 0,0.5626 -0.5626,0 0,-0.5626 z m -0.75,0.25 0.75,0.9063 -0.5,0.625 -0.25,0 -0.5,-0.625 0,-0.3125 0.5,-0.5938 z m -15.125,0.2813 c 5.0023,0 9.0313,4.0289 9.0313,9.0313 0,0.6374 -0.062,1.2745 -0.1875,1.875 l 0.1875,0 -0.2813,0.4687 c -0.6295,2.3691 -2.1993,4.3703 -4.2812,5.5625 l 1.4375,2.5 5.9687,10.3125 -11.875,0 -11.9062,0 5.9375,-10.3125 1.4687,-2.5312 c -2.7285,-1.5686 -4.5937,-4.5114 -4.5937,-7.875 0,-5.0024 4.0913,-9.0313 9.0937,-9.0313 z m -19.3437,0.625 0.4687,0 0,0.625 -0.4687,0 0,-0.625 z m 2.3125,0.3125 0.5312,0 0,0.5938 -0.5312,0 0,-0.5938 z m -2.8438,0.3125 0.25,0 0,0.5937 -0.25,0 0,-0.5937 z m 26.125,0.094 c 0.219,0.017 0.343,0.055 0.375,0.094 l -0.8124,0.5 c -0.054,-0.023 -0.1035,-0.073 -0.1563,-0.094 0.2798,-0.2045 0.5138,-0.399 0.5937,-0.5 z m -26.9374,0.1876 0.5624,0 0,0.625 -0.5624,0 0,-0.625 z m 2.625,0 0.5,0 0,0.3124 -0.5,0 0,-0.3124 z m 32.9062,0.3124 0.8438,0.625 -0.3126,1.7813 -0.25,0 -0.5,-1.1563 0,-0.9374 0.2188,-0.3126 z m 8.3438,0 0.2812,0 0.2188,0.3126 -0.5,0.625 -0.25,0 0,-0.625 0.25,-0.3126 z m -39.4376,0.3126 0.5313,0 0,0.625 -0.7813,0.3124 -0.25,0 0,-0.3124 0.5,-0.625 z m -2.625,0.3124 0.2813,0 0,0.625 -0.2813,0 0,-0.625 z m -7.2187,0.3126 0.4687,0 0,0.5937 -0.4687,0 0,-0.5937 z m 8.25,0.3124 0.5313,0 0,0.2813 -0.5313,0 0,-0.2813 z m 26.1563,0.125 c 0.365,0.3413 0.6733,0.6135 0.9062,0.7188 0.078,0.036 0.1578,0.031 0.2188,0.031 l -0.1876,0.5 c 0.1104,-0.3621 0.1192,-0.4461 -0.031,-0.5312 -0.032,-0.018 -0.077,-0.01 -0.125,-0.031 -0.131,-0.063 -0.3706,-0.2428 -0.5312,-0.375 -0.066,-0.053 -0.1469,-0.1687 -0.25,-0.3126 z m -34.1563,0.75 0.2187,0 0,0.2813 -0.75,0.9375 -0.25,0 c 0.2814,-0.8178 0.5252,-1.2184 0.7813,-1.2188 z m 43.3125,0 0.2812,0 0.25,2.4376 -0.7812,0 c -2e-4,-1.0221 -0.1677,-1.5313 -0.5,-1.5313 l 0.75,-0.9063 z m -35.0312,0.9063 0,0.5625 c -0.027,-0.012 -0.063,-0.01 -0.063,-0.031 0,-0.1276 -0.2299,0.089 -0.5,0.4687 -0.2699,0.3794 -0.7306,0.8081 -1.0312,0.9375 -0.066,0.028 -0.1062,0.037 -0.1562,0.062 -0.3359,0.1682 -0.3519,0.3188 -0.2813,0.9687 0.048,0.4433 0.045,0.6197 -0.031,0.6876 -0.047,0.041 -0.1186,0.03 -0.25,0 -0.025,-0.012 -0.066,0.011 -0.094,0 -0.3244,-0.082 -0.4687,-0.023 -0.4687,0.1874 0,0.024 -0.027,0.039 -0.031,0.063 -0.015,0.077 -0.041,0.1299 -0.094,0.1874 0.039,-0.052 0.067,-0.1142 0.094,-0.1874 0.053,-0.1465 0.094,-0.3326 0.094,-0.5626 l 0.25,0 0.25,0.3126 0.25,0 -0.25,-1.5313 c 0.1855,1e-4 0.3749,-0.036 0.5626,-0.125 0.563,-0.2682 1.1366,-0.9459 1.75,-2 z m 27.25,0 0.5,0 0,0.3125 -0.5,0 0,-0.3125 z m -35.3126,0.3125 0.8126,0 0,0.2812 -0.8126,0.9376 -0.2187,0 0.2187,-1.2188 z m 36.0938,0 0.5312,0 0,0.625 -0.5312,0 0,-0.625 z m 12.1562,0 0.3126,0 0.25,0.2812 0,0.3438 -0.25,0.2812 -0.3126,0 -0.2187,-0.2812 0,-0.3438 0.2187,-0.2812 z m -49.75,0.2812 0.5,0 0,0.3438 -0.5,0 0,-0.3438 z m 42.8126,0 0.1874,0 0.3126,0.9376 0,0.25 -0.5,0 0,-1.1876 z m -4.6876,0.625 0.25,0 0,0.9063 -0.25,0 0,-0.9063 z m -1.375,0.4063 c 0.1012,0.098 0.2097,0.1115 0.3438,0.1563 l -0.2188,0.2187 c 0.091,-0.1298 0.1083,-0.1525 -0.125,-0.375 z m -27.8124,0.094 c 0.03,-0.011 0.056,0 0.094,0 0.075,0 0.1428,0.01 0.1875,0.063 l -0.375,0 c 0.023,-0.03 0.064,-0.053 0.094,-0.063 z m -0.1563,0.3126 0,0.4374 c -0.012,-0.07 -0.031,-0.1258 -0.031,-0.2187 0,-0.093 0.02,-0.1495 0.031,-0.2187 z m 0.5,0 c 0.012,0.069 0.031,0.1261 0.031,0.2187 0,0.093 -0.02,0.149 -0.031,0.2187 l 0,-0.4374 z m 33.5313,0.094 0.5,0 0,0.3125 -0.5,0 0,-0.3125 z m -33.9688,0.5937 0.375,0 c -0.045,0.065 -0.1103,0.125 -0.1875,0.125 -0.077,0 -0.1424,-0.06 -0.1875,-0.125 z m -0.8438,0.2813 c 0.012,0 0.019,0.064 0.031,0.062 0.094,0 0.1884,0.062 0.3437,0.25 0.098,0.1176 0.1542,0.2131 0.1563,0.3125 l -0.5,-0.5625 -0.25,1.2188 c -0.345,1e-4 -0.6073,0.024 -0.7813,0.125 0.065,-0.043 0.088,-0.078 0.1876,-0.125 0.3574,-0.1706 0.5535,-0.4369 0.5937,-0.7813 0.033,-0.2885 0.1207,-0.4649 0.2187,-0.5 z m 0.5,0.6563 c -0.011,0.088 0.02,0.1536 -0.062,0.2812 -0.1023,0.1628 -0.171,0.2956 -0.094,0.4688 -0.1033,-0.158 -0.2062,-0.2758 -0.3125,-0.4688 l 0.2187,0 0.25,-0.2812 z m 35.8438,0 0.5312,0.625 0,0.5937 -0.5312,0 -0.5,-0.5937 0.5,-0.625 z m 7.75,0 0.5312,0 0,0.9062 -0.7812,0 -0.2188,-0.2812 0.4688,-0.625 z m -4.6562,0.625 1.0624,0 0,0.875 -0.7812,0.2812 0,-0.2812 -0.2812,-0.2813 0,-0.5937 z m 1.8124,0 1.0626,0 0,1.1562 -0.5626,0 -0.5,-0.5625 0,-0.5937 z m -40.25,0.875 c 1.6144,0.2761 1.1181,1.1585 0,0 z m 34.3126,0 1.0312,0 0,0.9062 -0.5,0.625 -0.5312,-0.625 0,-0.9062 z m 7,0.5937 0.5,0.625 0,0.625 -0.75,0 0,-0.9375 0.25,-0.3125 z m 1.0312,0.3125 0.5,0 0,0.625 -0.5,0 0,-0.625 z m 1.5625,0.9375 0.5,0 0,0.5937 -0.5,0 0,-0.5937 z m -13.4687,0.2813 0.5,0 0,0.3124 -0.5,0.625 0,-0.9374 z m 8,0.3124 0.5312,0 0,0.9063 -0.5312,0 0,-0.9063 z m -1.8126,0.3126 0,0.875 -0.2812,0 -0.2188,-0.2813 0.5,-0.5937 z m -2.8124,0.3124 0.75,0 0,0.2813 -0.25,0.2813 -0.5,-0.5626 z m -39.4376,0.5626 0,0.625 0.25,0 0,-0.625 -0.25,0 z m 34.3438,0.1874 0.125,0.094 -0.062,0.062 c 0,-0.034 -0.012,-0.1 -0.062,-0.1563 z m 2.2188,0.094 0.5312,0 0,0.3438 -0.5312,0 0,-0.3438 z m 13.75,0.3438 0.5,0.5937 0,0.3437 -0.7813,0 0,-0.625 0.2813,-0.3124 z m -46.4376,0.5937 0.5313,0 -0.5313,0.625 0,-0.625 z m -2.5937,0.3437 0,0.5938 0.2187,0.2812 0.5313,-0.5937 0,-0.2813 -0.75,0 z m -2.0937,0.2813 0,0.5937 0.25,0 0.5624,-0.5937 -0.8124,0 z m 4.4374,0.3125 0.25,0 0.25,0.2812 0,0.3438 -0.25,0.2812 -0.25,0 -0.25,-0.2812 0,-0.3438 0.25,-0.2812 z m 31.7813,0.5312 c 0.1949,0.051 0.4197,0.094 0.6563,0.094 l 0,0.031 c -0.2236,0.015 -0.4421,-0.089 -0.6563,-0.125 z m -0.875,0.063 c 0.022,-0.012 0.059,0 0.094,0 0.035,0 0.041,0.021 0.063,0.031 l -0.1876,0 c 0.012,-0.012 0.021,-0.026 0.031,-0.031 z m -28.3437,0.031 0,0.8438 -0.7813,0 0,-0.5626 0.7813,-0.2812 z m 28.5937,0.125 c 0.049,0.077 0.089,0.1663 0.125,0.25 0.063,0.234 0.1032,0.4369 0.125,0.4375 0.022,0 0.2696,-0.033 0.5313,-0.094 l 0.5,-0.1563 0,0.031 -0.5,0.125 -0.5626,0.125 -0.2187,-0.7188 z m -33.5,0.1562 0,0.9063 0.2187,0 0.2813,-0.3437 -0.5,-0.5626 z m 33.1875,0.9063 0.9375,0.8437 c -0.07,-0.038 -0.2004,-0.1369 -0.4375,-0.3437 l -0.5,-0.4687 0,-0.031 z m 6.5,0 0.7812,0.9063 -0.25,1.5312 c -0.8177,-0.2806 -1.261,-0.6822 -1.3124,-1.2188 l 0.2812,0 0.2188,-0.9374 0.2812,-0.2813 z m -35.5625,0.2813 0.5,0 0,0.3124 -0.5,0 0,-0.3124 z m 30.3437,0 0.25,0.3437 0.2813,0.2813 0,0.3124 -0.5313,0 0,-0.062 0.25,0 c 0.1952,0 0.2188,0 0.2188,-0.125 0,-0.082 -0.096,-0.2637 -0.2188,-0.4063 -0.2172,-0.2549 -0.2147,-0.2419 -0.3437,-0.125 -0.073,0.065 -0.1449,0.1938 -0.1563,0.2813 l 0,-0.1876 0.25,-0.3124 z m -30.3437,0.9374 0.5,0.5938 0,0.9375 -0.2187,0 -0.2813,-0.9375 0,-0.5938 z m -10.875,0.5938 1.0313,0 -0.2813,1.1875 -0.25,0 -0.5,-1.1875 z m -2.0937,0.9375 -0.5313,0.5625 0,0.625 0.5313,0.5938 0.5312,0 0.7812,-0.9063 -0.7812,-0.875 -0.5312,0 z m 52.9062,0 0.5312,0 0,0.25 -0.5312,0 0,-0.25 z m -39.9375,0.875 0.7813,0 0,0.3125 -0.5,0.5938 -0.2813,0 0,-0.9063 z m 1.8437,0.5937 0.25,0 0,0.6563 -0.25,0 0,-0.6563 z m -3.875,0.6563 0.25,0 0.5,0.5937 0,0.2813 -0.75,-0.2813 0,-0.5937 z m -1.5937,0.2813 0.5313,0 0,0.5937 -0.5313,-0.5937 z m 32.6875,0.25 0.2812,0.3124 0.2813,0.3438 -0.031,0.031 -0.094,0.1876 c -0.047,0.066 -0.097,0.063 -0.1563,0.094 -0.041,0.022 -0.083,0.062 -0.125,0.062 -0.078,0 -0.1053,0 -0.125,-0.062 l 0.25,0 0.25,-0.2813 -0.5312,-0.625 0,-0.062 z m -33.1875,0.3437 0.5,0 0,0.3437 -0.5,0 0,-0.3437 z m -3.1563,0.3437 0.5313,0 -0.5313,0.5626 0,-0.5626 z m 0.8126,0.2813 0.5,0.5625 -0.5,0 0,-0.5625 z m 40.5,0 0.5,0 0,0.2813 1.0312,1.5 c 0.5232,0.4984 0.7685,1.0326 0.7812,1.5312 -0.011,-0.015 -0.027,-0.045 -0.031,-0.062 -0.025,-0.082 -0.4612,-0.5257 -0.9375,-1 -0.4764,-0.4744 -1.0353,-1.0838 -1.2813,-1.375 l -0.4687,-0.5625 -0.1875,0.1562 c -0.091,0.065 -0.1696,0.088 -0.25,0.094 l 0.8438,-0.5625 z m -33.5313,1.7813 0.2813,0 0,0.6562 -0.2813,0 0,-0.6562 z m 33.7187,0.3124 0.4376,0 0.4374,0 -0.031,0.031 -0.2188,0.2813 c -0.1428,0.1703 -0.2744,0.2969 -0.3124,0.3124 l 0.5312,-0.5937 -0.8438,0 0,-0.031 z m -31.5937,0.031 0.5,0.5937 -0.5,0 0,-0.5937 z m 2.3125,0 0.25,0 0,0.5937 -0.25,0 0,-0.5937 z m -1.5625,0.3125 0.5,0 0.2813,0.2812 c 0,0.7921 0.2446,1.1876 0.7812,1.1876 l 0,0.625 -0.25,0 -1.3125,-0.9063 0,-0.2813 0.2813,-0.2812 0,-0.3438 -0.2813,-0.2812 z m 34.0313,0.625 0.75,0.8438 -0.4376,0.4374 c -0.011,-0.029 -0.021,-0.093 -0.062,-0.125 -0.059,-0.045 -0.3431,-0.2302 -0.5938,-0.4374 -0.2502,-0.2077 -0.4874,-0.375 -0.5625,-0.375 -0.059,0 -0.1206,-0.019 -0.1563,-0.063 l 0.75,0 0.3126,-0.2812 z m -36.375,0.2812 0.2812,0 0,0.5626 -0.2812,0 0,-0.5626 z m -1.5626,1.5 0.5313,0 0.2813,0.2813 0,0.3125 -0.8126,-0.3125 0,-0.2813 z m 1.3126,0.5938 0.5312,0 0,0.625 -0.5312,0 0,-0.625 z m 34.5312,0.5938 c 0.1033,0 0.1749,0 0.25,0.031 l -0.4688,0 c 0.067,-0.026 0.1484,-0.031 0.2188,-0.031 z m -39.2188,1.2187 0.5313,0 0,0.9375 -0.5313,0 0,-0.9375 z m 3.375,0 0.5313,0 -0.5313,0.5937 0,-0.5937 z m -2.5624,0.3125 0.5,0 0,0.2812 -0.5,0 0,-0.2812 z m 12.5624,0 c 0.4267,0.5649 0.8969,0.8662 2.2188,1.6562 0.8712,0.4365 2.5738,-0.4575 3.1562,0.2813 0.5131,0.6506 -2.938,-0.052 -2.7187,0.875 0.1091,0.463 0.6189,1.1218 1.2813,1.7813 -0.053,-0.019 -0.092,-0.031 -0.1563,-0.031 l -1.5625,0 -0.25,0.2813 0,-0.2813 -0.8125,0.9063 c -0.5111,-0.1534 -0.8528,-0.5544 -1.0313,-1.2188 l 0.5313,-0.9062 0,-0.5626 -0.25,-0.3437 0.75,-0.2813 0,-0.3124 -0.2187,-0.3438 c -0.3793,-0.4662 -0.6797,-0.9763 -0.9376,-1.5 z m 28.3126,0.375 c 0.018,-0.013 0.041,0.012 0.062,0 l -0.1874,0.2188 c 0.031,-0.081 0.056,-0.1691 0.125,-0.2188 z m 0.4374,0 c 0.098,0.055 0.1848,0.1363 0.2188,0.25 l -0.2188,-0.25 z m 0.2188,0.5312 c -0.021,0.092 -0.082,0.1796 -0.1562,0.25 -0.047,0.044 -0.08,0.045 -0.125,0.063 -0.09,0.034 -0.1661,0.04 -0.25,0 -0.056,-0.027 -0.1369,-0.028 -0.1876,-0.094 -0.041,-0.053 -0.041,-0.13 -0.062,-0.1875 l 0.25,0.2813 0.25,0 0.2812,-0.3126 z m -9.4375,2.7188 c -0.6574,0.6435 -1.6125,1.2654 -2.9687,1.8125 0.1467,-0.1487 0.4786,-0.4084 0.875,-0.5937 0.5283,-0.2468 1.1622,-0.5894 1.4062,-0.7813 l 0.4375,-0.3125 -0.031,-0.031 c 0.1023,-0.027 0.2688,-0.088 0.2813,-0.094 z m 0.094,0.031 c 0.044,0.022 0.099,0.064 0.1563,0.125 0.094,0.1012 0.4118,0.2981 0.7187,0.4376 l 0.5626,0.25 0.4062,-0.125 c 0.1225,-0.039 0.1978,-0.018 0.2812,-0.031 l -0.875,0.25 -0.5312,0 -0.7188,-0.9063 z m -20.2812,0.5938 0.5625,0 -0.5625,0.5938 0,-0.5938 z m 9.5312,0.5312 c 0.9255,0 1.7567,0.4399 2.3126,1.0938 0.031,-0.026 0.061,-0.048 0.094,-0.062 l 0,0.1563 c 0.1662,0.2138 0.2703,0.4334 0.375,0.6874 l 0.6563,-0.25 0,0.2813 0.2812,0.2813 0,0.3124 -0.8125,-0.25 c 0.069,0.2538 0.125,0.5057 0.125,0.7813 0,1.6737 -1.3575,3.0313 -3.0313,3.0313 -0.4848,0 -0.9373,-0.1101 -1.3437,-0.3126 -0.2346,0.2605 -0.7252,0.375 -1.4375,0.375 l 0,0.625 1.3125,0 0,0.9376 -0.25,-0.3438 -1.5625,0.625 0,-0.2812 -0.25,-0.3438 -0.5312,0.625 0,0.3125 0.7812,0.3437 0.25,-0.3437 1.3125,0 0,0.3437 c -1.3803,0.1277 -2.0937,0.3837 -2.0937,0.8438 l -1.2813,-1.1875 -0.2813,0 0.5313,0.9063 0,0.2812 -0.75,-0.2812 c -0.2813,0.4085 -0.8274,0.5937 -1.5937,0.5937 l 0.7812,0.9063 c 0,0.4089 -0.9215,0.8097 -2.8125,1.2187 l -0.3125,-0.2813 -0.5,0 -0.25,0.2813 -0.5312,-0.5937 -0.5,0 -0.2813,0.3124 -1,-0.625 0.4687,-0.9062 0,-0.3125 -0.2187,0.3125 -2.625,-0.625 -0.25,0 -0.2813,0.3125 -0.75,-0.5937 -0.25,0.2812 -0.25,0 0,-1.1875 1.0313,0 0,-0.5937 -1.0313,0 c -1.7376,-1.2264 -2.9353,-1.8438 -3.625,-1.8438 l 0,-0.5625 1.2813,0 0,-0.3437 c -0.486,-1.0221 -1.1993,-1.5313 -2.0937,-1.5313 l 0.5,-0.5937 0.5624,0 c 0,0.6137 0.4073,0.9062 1.25,0.9062 0,0.6132 0.1735,0.9062 0.5313,0.9062 l 0.5,0 0,-0.5937 -0.2187,-0.3125 0.75,0 1.8124,1.2188 0.5313,0 0,-0.3126 c 0,-0.4855 -0.5802,-0.9632 -1.7813,-1.5 l 0,-0.625 0.5,0 0,-0.3124 -0.25,0 -0.8124,0.3124 -0.25,0 0,-0.3124 1.3124,-0.875 0,0.3124 c 0.869,0 1.2813,0.2879 1.2813,0.875 l 1.3125,-0.875 0,-0.3124 0.7812,0.3124 c 0.358,0 0.5313,-0.3242 0.5313,-0.9374 l 0.5,0 0,0.9374 0.25,0 c 0,-0.6898 0.5148,-1.2298 1.5625,-1.5624 0.6899,0.4089 1.0625,0.9492 1.0625,1.5624 l 2.5625,-0.3124 0.25,0 c 0.3578,0 0.5619,0.2871 0.5625,0.875 l 0.5,0 0.25,-0.2813 0.5,0.5937 0.5313,0 0,-0.5937 -0.5313,0 0,-0.5937 0.5313,0 0.2812,0.3124 0,-0.5937 c 0.2544,0.2104 0.4835,0.4128 0.7188,0.5937 l -0.4688,0 -0.25,0.875 0.5625,0 c 0.2583,-1.4116 1.4825,-2.5 2.9687,-2.5 z m -4.6874,0.031 c 0.2503,0.2385 0.546,0.4894 0.8124,0.7187 l -0.1874,0.25 -0.2813,0 -0.2187,-0.3124 c 0,-0.2837 -0.048,-0.5091 -0.125,-0.6563 z m -10,0.031 0.5,0.625 -0.5,0 0,-0.625 z m 8.8437,0.3437 0.4687,0 0,0.2813 -0.4687,0 0,-0.2813 z m 11.8437,0.25 c 0.1092,0 0.2167,0.021 0.2813,0.031 l -0.4375,0 c 0.051,-0.012 0.1093,-0.031 0.1562,-0.031 z m 0.3126,0.031 c 0.1525,0.039 0.1397,0.1388 0.062,0.375 -0.1066,0.3364 -0.072,0.3695 0.2188,0.25 0.1902,-0.078 0.5089,-0.1981 0.6875,-0.25 0.1786,-0.052 0.3125,-0.1887 0.3125,-0.3126 0,-0.019 0.012,-0.038 0.031,-0.062 l 0.25,0.3124 -0.5312,1.1876 -0.25,0 0,-0.2813 0.5312,-0.9063 -1.3124,0.625 -0.25,0 0,-0.3124 0.25,-0.3126 0,-0.3124 z m -0.875,0.094 -0.4063,0.5313 -2.4063,-0.3126 c 0.2106,-0.011 0.5261,0 1,0.063 1.02,0.1366 1.2673,0.1137 1.5313,-0.125 0.064,-0.059 0.1769,-0.1104 0.2813,-0.1563 z m 0.125,0.8437 0,0.875 -1.3126,0.3126 -0.2812,0 0,-0.3126 1.5938,-0.875 z m -24.6563,0.5626 0.2187,0 0.8126,0.9374 0,0.2813 -1.0313,0 0,-1.2187 z m 3.375,0.3124 0,0.625 0.5,0 -0.5,-0.625 z m 1.0313,0 0.5,1.2188 1.3124,0 0,-0.5938 -1.3124,-0.625 -0.5,0 z m 6.2187,0 0,0.3126 1.0313,0.5937 0.25,0 0,-0.9063 -1.2813,0 z m 3.9063,0.625 0,0.5938 0.2187,0 0,-0.5938 -0.2187,0 z m 1.5312,0 0,0.5938 0.094,0 c -0.043,-0.1894 -0.088,-0.3927 -0.094,-0.5938 z m 11.6875,0.9063 0.2813,0 0,0.5937 -0.2813,0 0,-0.5937 z m 1.5313,0 0.8124,0 0,0.9063 -0.2812,0 -0.5312,-0.5938 0,-0.3125 z m -14,0.5937 0.2812,0.9063 1.3125,-0.25 0.1875,0 c -0.2038,-0.1867 -0.3846,-0.4204 -0.5312,-0.6563 l -1.25,0 z m -13.2188,0.6563 0,0.25 -0.2812,0.3125 1.3437,0.2812 0,-0.5937 -1.0625,-0.25 z m 19.2188,0 0.5,0 0,0.25 -0.5,0 0,-0.25 z m -8.5938,3 0,0.5937 0.5625,0 0,-0.5937 -0.5625,0 z"
+     id="path2934-4-9"
+     transform="matrix(3.5682426,0,0,3.5682426,-101.96361,-552.12527)" />
+
+    </g>
+  </g>
+</svg>
