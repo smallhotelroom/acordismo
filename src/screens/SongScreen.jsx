@@ -1,8 +1,8 @@
 /**
  * @file src/screens/SongScreen.jsx
- * @version 2.14.0
+ * @version 2.15.0
  */
-import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Pause, Play } from 'lucide-react';
 import executeQuery from '../shared/database';
 import { AppContext } from '../shared/AppContext';
@@ -13,7 +13,7 @@ import {
     transposeChordToken,
 } from '@shr-shared/chordTransposer.js';
 
-export const __version__ = '2.14.0';
+export const __version__ = '2.15.0';
 
 const SCROLL_SPEED_STORAGE_KEY = 'acordismo_scroll_speed';
 const TARGET_DURATION_SECONDS = 210; // 3 minutes 30 seconds at 1.0x
@@ -38,7 +38,6 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
     const [songData, setSongData] = useState(null);
     const [bandName, setBandName] = useState('');
     const [featuringBands, setFeaturingBands] = useState([]);
-    const [pinnedLineIdx, setPinnedLineIdx] = useState(-1);
     const [sheetBgColor, setSheetBgColor] = useState('var(--bg-primary, #f3f4f6)');
 
     // Pinch-to-zoom and single-tap reset state
@@ -103,7 +102,6 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
                 }
 
                 setSongData(tmpSong);
-                setPinnedLineIdx(-1);
                 if (bandRes.rows.length > 0) {
                     setBandName(bandRes.rows.item(0).name);
                 }
@@ -119,55 +117,6 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
             isMounted = false;
         };
     }, [selectedSongId]);
-
-    // Tracks which native sticky chord line is currently resting at the top ceiling so only that line shows the subtle bottom border
-    const handleScrollUpdatePinnedLine = useCallback(() => {
-        if (!freezeChordsEnabled) {
-            setPinnedLineIdx(-1);
-            return;
-        }
-        const container = scrollContainerRef.current;
-        if (!container) {
-            return;
-        }
-        const scrollTop = container.scrollTop;
-        if (scrollTop <= 1) {
-            setPinnedLineIdx(-1);
-            return;
-        }
-
-        const chordElements = container.querySelectorAll('[data-chord-line-idx]');
-        let currentIdx = -1;
-
-        for (let i = 0; i < chordElements.length; i++) {
-            const el = chordElements[i];
-            const originalTop = Number(el.getAttribute('data-orig-top') || el.offsetTop);
-            if (scrollTop >= originalTop - 2) {
-                currentIdx = Number(el.getAttribute('data-chord-line-idx'));
-            }
-        }
-
-        setPinnedLineIdx((prev) => (prev !== currentIdx ? currentIdx : prev));
-    }, [freezeChordsEnabled]);
-
-    // Record each chord line's natural un-stuck offsetTop whenever song or fontSize changes
-    useEffect(() => {
-        const container = scrollContainerRef.current;
-        if (!container) return;
-        const chordElements = container.querySelectorAll('[data-chord-line-idx]');
-        chordElements.forEach((el) => {
-            el.style.position = 'static';
-        });
-        chordElements.forEach((el) => {
-            el.setAttribute('data-orig-top', String(el.offsetTop));
-        });
-        chordElements.forEach((el) => {
-            if (freezeChordsEnabled) {
-                el.style.position = 'sticky';
-            }
-        });
-        handleScrollUpdatePinnedLine();
-    }, [songData, fontSize, transposition, freezeChordsEnabled, handleScrollUpdatePinnedLine]);
 
     // Smooth 60fps Auto-Scroll loop dynamically scaled so 1.0x = 3:30 (210s) at current zoom level
     useEffect(() => {
@@ -314,11 +263,9 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
 
             const isLastLine = lineIndex === lines.length - 1;
             if (hasChordsOnLine) {
-                const isCurrentlyPinned = freezeChordsEnabled && pinnedLineIdx === lineIndex;
                 tmpSongScreenItems.push(
                     <div
                         key={`line-${lineIndex}`}
-                        data-chord-line-idx={lineIndex}
                         style={
                             freezeChordsEnabled
                                 ? {
@@ -326,11 +273,10 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
                                       top: 0,
                                       zIndex: 10 + lineIndex,
                                       backgroundColor: sheetBgColor,
-                                      margin: '0 -15px',
-                                      padding: '0 15px',
-                                      borderBottom: isCurrentlyPinned
-                                          ? '1px solid var(--border-color)'
-                                          : '1px solid transparent',
+                                      // Negative vertical margins cancel out the padding in normal flow,
+                                      // while preserving a 15px top margin and 4px bottom cushion when frozen at top: 0!
+                                      margin: '-15px -15px -4px -15px',
+                                      padding: '15px 15px 4px 15px',
                                   }
                                 : undefined
                         }>
@@ -348,7 +294,7 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
         });
 
         return tmpSongScreenItems;
-    }, [songData, transposition, freezeChordsEnabled, pinnedLineIdx, sheetBgColor]);
+    }, [songData, transposition, freezeChordsEnabled, sheetBgColor]);
 
     // Touch pinch-to-zoom handlers
     const handleTouchStart = (e) => {
@@ -461,7 +407,6 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
                 ref={scrollContainerRef}
                 className="content-scroll song-sheet-container"
                 style={{ paddingTop: 0 }}
-                onScroll={handleScrollUpdatePinnedLine}
                 onClick={() => {
                     if (speedMenuOpen) {
                         setSpeedMenuOpen(false);
