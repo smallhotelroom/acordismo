@@ -1,6 +1,6 @@
 /**
  * @file src/screens/SongScreen.jsx
- * @version 2.23.0
+ * @version 2.24.0
  */
 import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Pause, Play } from 'lucide-react';
@@ -14,7 +14,7 @@ import {
     transposeChordToken,
 } from '@shr-shared/chordTransposer.js';
 
-export const __version__ = '2.23.0';
+export const __version__ = '2.24.0';
 
 const SCROLL_SPEED_STORAGE_KEY = 'acordismo_scroll_speed';
 const TARGET_DURATION_SECONDS = 210; // 3 minutes 30 seconds at 1.0x
@@ -422,7 +422,7 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
     const songName = songData ? songData.name : '';
     const headerTitle = songName === '' ? '' : `${songName} [${originStr}]`;
 
-    // 76px bottom gradient scoped directly to SongScreen
+    // 76px bottom gradient scoped directly to SongScreen (only visible in portrait mode)
     const rgb = darkMode ? '18, 18, 18' : '243, 244, 246';
     const bottomNavGradient = `linear-gradient(to top, rgba(${rgb}, 0.92) 0%, rgba(${rgb}, 0.78) 45%, rgba(${rgb}, 0.35) 78%, rgba(${rgb}, 0) 100%)`;
 
@@ -522,11 +522,11 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
                 onTouchEnd={handleTouchEnd}
                 onDoubleClick={() => setFontSize(defaultFontSize)}>
                 <div
-                    className="song-lyrics-monospace"
+                    className={`song-lyrics-monospace ${topSpaceEnabled ? 'song-lyrics-portrait-pad' : ''}`}
                     style={{
                         fontSize: `${fontSize}px`,
                         paddingTop: 15,
-                        paddingBottom: topSpaceEnabled ? 76 : 15,
+                        paddingBottom: 15,
                     }}>
                     {/* Single 15px ceiling mask so scrolling lyrics and outgoing sticky headers never peek above `top: 15px` */}
                     {freezeChordsEnabled && (
@@ -548,9 +548,10 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
                 </div>
             </main>
 
-            {/* SongScreen Bottom Gradient Fade over OS navigation area */}
+            {/* SongScreen Bottom Gradient Fade over OS navigation area (Portrait mode only) */}
             {topSpaceEnabled && (
                 <div
+                    className="portrait-only-bottom-bar"
                     style={{
                         position: 'fixed',
                         left: 0,

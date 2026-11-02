@@ -1,6 +1,6 @@
 /**
  * @file src/App.jsx
- * @version 2.11.0
+ * @version 2.12.0
  */
 import React, { useContext, useEffect, useRef, useState } from 'react';
 import { App as CapacitorApp } from '@capacitor/app';
@@ -11,7 +11,7 @@ import PlaylistScreen from './screens/PlaylistScreen';
 import SongScreen from './screens/SongScreen';
 import SettingsScreen from './screens/SettingsScreen';
 
-export const __version__ = '2.11.0';
+export const __version__ = '2.12.0';
 
 function MainNavigator() {
     const { topSpaceEnabled } = useContext(AppContext);
@@ -49,6 +49,20 @@ function MainNavigator() {
 
     return (
         <div className="app-shell" style={{ position: 'relative' }}>
+            <style>{`
+                .portrait-only-bottom-bar {
+                    display: none;
+                }
+                @media (orientation: portrait) {
+                    .portrait-only-bottom-bar {
+                        display: block;
+                    }
+                    .song-lyrics-portrait-pad {
+                        padding-bottom: 76px !important;
+                    }
+                }
+            `}</style>
+
             {currentRoute.screen === 'Home' && <HomeScreen onNavigate={navigate} />}
             {currentRoute.screen === 'Band' && (
                 <BandScreen
@@ -73,9 +87,10 @@ function MainNavigator() {
             )}
             {currentRoute.screen === 'Settings' && <SettingsScreen onBack={goBack} />}
 
-            {/* Clickable Screens (Home, Band, Playlist, Settings): 48px Opaque Surface Bar for OS nav icons */}
+            {/* Clickable Screens (Home, Band, Playlist, Settings): 48px Opaque Surface Bar in Portrait Mode Only */}
             {topSpaceEnabled && !isSongScreen && (
                 <div
+                    className="portrait-only-bottom-bar"
                     style={{
                         flexShrink: 0,
                         height: '48px',
