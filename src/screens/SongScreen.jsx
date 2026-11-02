@@ -1,6 +1,6 @@
 /**
  * @file src/screens/SongScreen.jsx
- * @version 2.17.0
+ * @version 2.18.0
  */
 import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Pause, Play } from 'lucide-react';
@@ -14,7 +14,7 @@ import {
     transposeChordToken,
 } from '@shr-shared/chordTransposer.js';
 
-export const __version__ = '2.17.0';
+export const __version__ = '2.18.0';
 
 const SCROLL_SPEED_STORAGE_KEY = 'acordismo_scroll_speed';
 const TARGET_DURATION_SECONDS = 210; // 3 minutes 30 seconds at 1.0x
@@ -58,6 +58,7 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
     const {
         transposition,
         darkMode,
+        bottomSpaceEnabled,
         freezeChordsEnabled: ctxFreezeChords,
         defaultFontSize = 14,
     } = useContext(AppContext);
@@ -319,12 +320,7 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
                 if (!isDirectiveGroup) {
                     hasChordsOnLine = true;
                     lineNodes.push(
-                        <strong
-                            key={counter + 1}
-                            style={{
-                                backgroundColor: palette.parenBg,
-                                borderRadius: 3,
-                            }}>
+                        <strong key={counter + 1}>
                             <span style={{ color: palette.parenSymbol }}>(</span>
                             {innerTokens}
                             <span style={{ color: palette.parenSymbol }}>)</span>
@@ -506,7 +502,13 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
                 onDoubleClick={() => setFontSize(defaultFontSize)}>
                 <div
                     className="song-lyrics-monospace"
-                    style={{ fontSize: `${fontSize}px`, paddingTop: 15 }}>
+                    style={{
+                        fontSize: `${fontSize}px`,
+                        paddingTop: 15,
+                        paddingBottom: bottomSpaceEnabled
+                            ? 'calc(env(safe-area-inset-bottom, 0px) + 64px)'
+                            : 15,
+                    }}>
                     {/* Single 15px ceiling mask so scrolling lyrics never peek above `top: 15px` */}
                     {freezeChordsEnabled && (
                         <div

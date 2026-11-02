@@ -1,6 +1,6 @@
 /**
  * @file src/App.jsx
- * @version 2.5.0
+ * @version 2.6.0
  */
 import React, { useContext, useEffect, useRef, useState } from 'react';
 import { App as CapacitorApp } from '@capacitor/app';
@@ -11,7 +11,7 @@ import PlaylistScreen from './screens/PlaylistScreen';
 import SongScreen from './screens/SongScreen';
 import SettingsScreen from './screens/SettingsScreen';
 
-export const __version__ = '2.5.0';
+export const __version__ = '2.6.0';
 
 function MainNavigator() {
     const { bottomSpaceEnabled, darkMode } = useContext(AppContext);
@@ -23,6 +23,7 @@ function MainNavigator() {
     }, [history]);
 
     const currentRoute = history[history.length - 1];
+    const isSongScreen = currentRoute.screen === 'Song';
 
     const navigate = (nextRoute) => {
         setHistory((prev) => [...prev, nextRoute]);
@@ -46,18 +47,10 @@ function MainNavigator() {
         };
     }, []);
 
-    const fadeColor = darkMode ? '#121212' : '#f3f4f6';
+    const songSheetBg = darkMode ? '#121212' : '#f3f4f6';
 
     return (
         <div className="app-shell" style={{ position: 'relative' }}>
-            {bottomSpaceEnabled && (
-                <style>{`
-                    html[data-bottom-space="true"] .content-scroll {
-                        padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 56px) !important;
-                    }
-                `}</style>
-            )}
-
             {currentRoute.screen === 'Home' && <HomeScreen onNavigate={navigate} />}
             {currentRoute.screen === 'Band' && (
                 <BandScreen
@@ -82,16 +75,29 @@ function MainNavigator() {
             )}
             {currentRoute.screen === 'Settings' && <SettingsScreen onBack={goBack} />}
 
-            {/* Telegram / Gemini style bottom gradient fade over OS navigation area */}
-            {bottomSpaceEnabled && (
+            {/* 1. Clickable Screens (Home, Band, Playlist, Settings): Solid Bottom Bar, NO Gradient */}
+            {bottomSpaceEnabled && !isSongScreen && (
+                <div
+                    style={{
+                        flexShrink: 0,
+                        height: 'calc(env(safe-area-inset-bottom, 0px) + 48px)',
+                        background: 'var(--bg-surface)',
+                        borderTop: '1px solid var(--border-color)',
+                        zIndex: 90,
+                    }}
+                />
+            )}
+
+            {/* 2. SongScreen: Soft Gradient Fade into Song Sheet Background, NO Solid Bar */}
+            {bottomSpaceEnabled && isSongScreen && (
                 <div
                     style={{
                         position: 'fixed',
                         left: 0,
                         right: 0,
                         bottom: 0,
-                        height: 'calc(env(safe-area-inset-bottom, 0px) + 48px)',
-                        background: `linear-gradient(to top, ${fadeColor} 35%, transparent 100%)`,
+                        height: 'calc(env(safe-area-inset-bottom, 0px) + 52px)',
+                        background: `linear-gradient(to top, ${songSheetBg} 30%, transparent 100%)`,
                         pointerEvents: 'none',
                         zIndex: 90,
                     }}
