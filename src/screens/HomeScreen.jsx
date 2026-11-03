@@ -1,15 +1,17 @@
 /**
  * @file src/screens/HomeScreen.jsx
- * @version 2.5.1
+ * @version 2.6.0
  */
 import React, { useContext, useEffect, useState } from 'react';
 import { ArrowRight, Menu, MoreVertical, Moon, Search, Sun } from 'lucide-react';
 import VirtualList from '../components/VirtualList';
 import SongItem from '../components/SongItem';
+import SearchBar from '../components/SearchBar';
 import executeQuery from '../shared/database';
+import { buildMultiTokenSearchClause } from '../shared/dbMerger';
 import { AppContext } from '../shared/AppContext';
 
-export const __version__ = '2.5.1';
+export const __version__ = '2.6.0';
 
 export default function HomeScreen({ onNavigate }) {
     const {
@@ -31,21 +33,24 @@ export default function HomeScreen({ onNavigate }) {
     const [playlists, setPlaylists] = useState([]);
     const [bands, setBands] = useState([]);
     const [songs, setSongs] = useState([]);
+    const [searchInLyrics, setSearchInLyrics] = useState(false);
 
     const currentOrder = tabOrders[currentTab];
 
     useEffect(() => {
-        const searchLike = `%${homeSearchStr}%`;
-
         if (currentTab === 'Playlists') {
-            const whereClause = homeSearchStr === '' ? '' : ' WHERE playlists.name LIKE ?';
+            const { sqlCondition, params } = buildMultiTokenSearchClause(
+                homeSearchStr,
+                'COALESCE(playlists.search_norm, LOWER(playlists.name))',
+                false
+            );
+            const whereClause = sqlCondition ? ` WHERE ${sqlCondition}` : '';
             const orderClause =
                 currentOrder === 'ASC'
                     ? ' ORDER BY name ASC'
                     : currentOrder === 'DESC'
                       ? ' ORDER BY name DESC'
                       : '';
-            const params = homeSearchStr === '' ? [] : [searchLike];
 
             executeQuery(`SELECT * FROM playlists${whereClause}${orderClause};`, params)
                 .then((data) => {
@@ -53,14 +58,18 @@ export default function HomeScreen({ onNavigate }) {
                 })
                 .catch((err) => console.error(err));
         } else if (currentTab === 'Bands') {
-            const whereClause = homeSearchStr === '' ? '' : ' WHERE bands.name LIKE ?';
+            const { sqlCondition, params } = buildMultiTokenSearchClause(
+                homeSearchStr,
+                'COALESCE(bands.search_norm, LOWER(bands.name))',
+                false
+            );
+            const whereClause = sqlCondition ? ` WHERE ${sqlCondition}` : '';
             const orderClause =
                 currentOrder === 'ASC'
                     ? ' ORDER BY name ASC'
                     : currentOrder === 'DESC'
                       ? ' ORDER BY name DESC'
                       : '';
-            const params = homeSearchStr === '' ? [] : [searchLike];
 
             executeQuery(`SELECT * FROM bands${whereClause}${orderClause};`, params)
                 .then((data) => {
@@ -68,14 +77,18 @@ export default function HomeScreen({ onNavigate }) {
                 })
                 .catch((err) => console.error(err));
         } else if (currentTab === 'Songs') {
-            const whereClause = homeSearchStr === '' ? '' : ' WHERE songs.name LIKE ?';
+            const { sqlCondition, params } = buildMultiTokenSearchClause(
+                homeSearchStr,
+                "COALESCE(songs.search_norm, LOWER(bands.name || ' ' || songs.name))",
+                searchInLyrics
+            );
+            const whereClause = sqlCondition ? ` WHERE ${sqlCondition}` : '';
             const orderClause =
                 currentOrder === 'ASC'
                     ? ' ORDER BY songs.name ASC'
                     : currentOrder === 'DESC'
                       ? ' ORDER BY songs.name DESC'
                       : '';
-            const params = homeSearchStr === '' ? [] : [searchLike];
 
             executeQuery(
                 `SELECT songs.id, songs.name, bands.name AS band_name FROM songs INNER JOIN bands ON songs.band_id = bands.id${whereClause}${orderClause};`,
@@ -86,7 +99,7 @@ export default function HomeScreen({ onNavigate }) {
                 })
                 .catch((err) => console.error(err));
         }
-    }, [currentTab, currentOrder, homeSearchStr, dbRevision]);
+    }, [currentTab, currentOrder, homeSearchStr, searchInLyrics, dbRevision]);
 
     const handleTabSelect = (tabName) => {
         setCurrentTab(tabName);
@@ -134,18 +147,21 @@ export default function HomeScreen({ onNavigate }) {
             </header>
 
             {homeSearchVisible && (
-                <div className="search-bar">
-                    <input
-                        className="search-input"
-                        autoFocus
-                        placeholder={`Search ${currentTab.toLowerCase()}...`}
-                        value={homeSearchStr}
-                        onChange={(e) => setHomeSearchStr(e.target.value)}
-                    />
-                    <button className="icon-btn" onClick={() => setHomeSearchStr('')}>
-                        x
-                    </button>
-                </div>
+                <SearchBar
+                    placeholder={
+                        currentTab === 'Songs'
+                            ? searchInLyrics
+                                ? 'Search band, song, or lyrics...'
+                                : 'Search band or song (e.g. queen rhapsody)...'
+                            : `Search ${currentTab.toLowerCase()}...`
+                    }
+                    value={homeSearchStr}
+                    onChange={setHomeSearchStr}
+                    onClear={() => setHomeSearchStr('')}
+                    showLyricsToggle={currentTab === 'Songs'}
+                    searchInLyrics={searchInLyrics}
+                    onToggleLyrics={() => setSearchInLyrics((prev) => !prev)}
+                />
             )}
 
             <nav className="tabs-bar">
@@ -238,7 +254,9 @@ export default function HomeScreen({ onNavigate }) {
                             {currentTab} Descending: Z <ArrowRight size={14} /> A
                         </button>
                         <div style={{ display: 'flex', justifyContent: 'center', marginTop: 22 }}>
-                            <button className="btn-primary" onClick={() => setHomeModalVisible(false)}>
+                            <button
+                                className="btn-primary"
+                                onClick={() => setHomeModalVisible(false)}>
                                 Close
                             </button>
                         </div>

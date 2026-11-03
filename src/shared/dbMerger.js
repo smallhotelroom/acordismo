@@ -1,9 +1,9 @@
 /**
  * @file src/shared/dbMerger.js
- * @version 1.3.0
+ * @version 1.4.0
  */
 
-export const __version__ = '1.3.0';
+export const __version__ = '1.4.0';
 
 /**
  * Strips diacritics/accents (e.g. "Leãozinho" -> "leaozinho", "Español" -> "espanol")
@@ -25,6 +25,51 @@ export function normalizeSearchText(str) {
 export function tokenizeSearchQuery(queryStr) {
     const norm = normalizeSearchText(queryStr);
     return norm ? norm.split(' ').filter(Boolean) : [];
+}
+
+/**
+ * Builds a parameterized SQL condition and params array for multi-token accent-free search.
+ * When `includeLyrics` is true, each token can match either `normColumn` OR `LOWER(songs.contents)`.
+ * Also includes raw lowercase token fallback when `includeLyrics` is true so accented lyrics match too.
+ */
+export function buildMultiTokenSearchClause(
+    rawQuery,
+    normColumn = 'songs.search_norm',
+    includeLyrics = false
+) {
+    const normTokens = tokenizeSearchQuery(rawQuery);
+    if (normTokens.length === 0) {
+        return { sqlCondition: '', params: [] };
+    }
+
+    const rawTokens = String(rawQuery || '')
+        .toLowerCase()
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean);
+
+    const clauses = [];
+    const params = [];
+
+    for (let i = 0; i < normTokens.length; i++) {
+        const normLike = `%${normTokens[i]}%`;
+        const rawLike = `%${rawTokens[i] || normTokens[i]}%`;
+
+        if (includeLyrics) {
+            clauses.push(
+                `(${normColumn} LIKE ? OR LOWER(songs.contents) LIKE ? OR LOWER(songs.contents) LIKE ?)`
+            );
+            params.push(normLike, normLike, rawLike);
+        } else {
+            clauses.push(`(${normColumn} LIKE ?)`);
+            params.push(normLike);
+        }
+    }
+
+    return {
+        sqlCondition: clauses.join(' AND '),
+        params,
+    };
 }
 
 export const SCHEMA_SQL = `
@@ -146,10 +191,6 @@ export function inspectDatabase(db, fallbackName = 'custom') {
     return { layerId, songCount, bandCount };
 }
 
-/**
- * Merges an ordered array of SQL.Database instances (Priority #1 first, lowest priority last)
- * into a brand new SQL.Database instance, populating search_norm automatically.
- */
 export function mergeDatabasesInPriorityOrder(SQL, sourceDbs, mergedId = 'merged') {
     const outDb = new SQL.Database();
     outDb.run(SCHEMA_SQL);

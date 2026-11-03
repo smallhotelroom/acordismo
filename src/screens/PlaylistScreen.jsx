@@ -1,14 +1,16 @@
 /**
  * @file src/screens/PlaylistScreen.jsx
- * @version 2.4.0
+ * @version 2.5.0
  */
 import React, { useEffect, useState } from 'react';
 import { ArrowLeft, ArrowRight, MoreVertical, Search } from 'lucide-react';
 import VirtualList from '../components/VirtualList';
 import SongItem from '../components/SongItem';
+import SearchBar from '../components/SearchBar';
 import executeQuery from '../shared/database';
+import { buildMultiTokenSearchClause } from '../shared/dbMerger';
 
-export const __version__ = '2.4.0';
+export const __version__ = '2.5.0';
 
 export default function PlaylistScreen({ routeParams, onNavigate, onBack }) {
     const { selectedPlaylistId } = routeParams;
@@ -20,6 +22,7 @@ export default function PlaylistScreen({ routeParams, onNavigate, onBack }) {
     const [playlistSearchVisible, setPlaylistSearchVisible] = useState(false);
     const [playlistOrderStr, setPlaylistOrderStr] = useState('');
     const [playlistSearchStr, setPlaylistSearchStr] = useState('');
+    const [searchInLyrics, setSearchInLyrics] = useState(false);
 
     useEffect(() => {
         executeQuery('SELECT name FROM playlists WHERE id = ?;', [selectedPlaylistId])
@@ -30,11 +33,13 @@ export default function PlaylistScreen({ routeParams, onNavigate, onBack }) {
             })
             .catch((err) => console.error(err));
 
-        const hasSearch = playlistSearchStr !== '';
-        const searchClause = hasSearch ? ' AND (songs.name LIKE ?)' : '';
-        const params = hasSearch
-            ? [selectedPlaylistId, `%${playlistSearchStr}%`]
-            : [selectedPlaylistId];
+        const { sqlCondition, params: searchParams } = buildMultiTokenSearchClause(
+            playlistSearchStr,
+            "COALESCE(songs.search_norm, LOWER(bands.name || ' ' || songs.name))",
+            searchInLyrics
+        );
+        const searchClause = sqlCondition ? ` AND (${sqlCondition})` : '';
+        const params = [selectedPlaylistId, ...searchParams];
 
         const queryStr =
             'SELECT songs.id, songs.name, bands.name AS band_name FROM songs INNER JOIN bands ON songs.band_id = bands.id WHERE songs.id IN (SELECT song_id FROM playlists_songs WHERE playlist_id = ?)';
@@ -43,7 +48,7 @@ export default function PlaylistScreen({ routeParams, onNavigate, onBack }) {
                 setPlaylistSongs(data.rows._array);
             })
             .catch((err) => console.error(err));
-    }, [selectedPlaylistId, playlistOrderStr, playlistSearchStr]);
+    }, [selectedPlaylistId, playlistOrderStr, playlistSearchStr, searchInLyrics]);
 
     return (
         <>
@@ -67,18 +72,19 @@ export default function PlaylistScreen({ routeParams, onNavigate, onBack }) {
             </header>
 
             {playlistSearchVisible && (
-                <div className="search-bar">
-                    <input
-                        className="search-input"
-                        autoFocus
-                        placeholder="Search in playlist..."
-                        value={playlistSearchStr}
-                        onChange={(e) => setPlaylistSearchStr(e.target.value)}
-                    />
-                    <button className="icon-btn" onClick={() => setPlaylistSearchStr('')}>
-                        x
-                    </button>
-                </div>
+                <SearchBar
+                    placeholder={
+                        searchInLyrics
+                            ? 'Search playlist or lyrics...'
+                            : 'Search in playlist (e.g. caetano leaozinho)...'
+                    }
+                    value={playlistSearchStr}
+                    onChange={setPlaylistSearchStr}
+                    onClear={() => setPlaylistSearchStr('')}
+                    showLyricsToggle={true}
+                    searchInLyrics={searchInLyrics}
+                    onToggleLyrics={() => setSearchInLyrics((prev) => !prev)}
+                />
             )}
 
             <VirtualList

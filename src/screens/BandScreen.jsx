@@ -1,13 +1,15 @@
 /**
  * @file src/screens/BandScreen.jsx
- * @version 2.4.0
+ * @version 2.5.0
  */
 import React, { useEffect, useState } from 'react';
 import { ArrowLeft, ArrowRight, MoreVertical, Search } from 'lucide-react';
 import SongItem from '../components/SongItem';
+import SearchBar from '../components/SearchBar';
 import executeQuery from '../shared/database';
+import { buildMultiTokenSearchClause } from '../shared/dbMerger';
 
-export const __version__ = '2.4.0';
+export const __version__ = '2.5.0';
 
 export default function BandScreen({ routeParams, onNavigate, onBack }) {
     const { selectedBandId } = routeParams;
@@ -20,6 +22,7 @@ export default function BandScreen({ routeParams, onNavigate, onBack }) {
     const [bandSearchVisible, setBandSearchVisible] = useState(false);
     const [bandOrderStr, setBandOrderStr] = useState('');
     const [bandSearchStr, setBandSearchStr] = useState('');
+    const [searchInLyrics, setSearchInLyrics] = useState(false);
 
     useEffect(() => {
         executeQuery('SELECT name FROM bands WHERE id = ?;', [selectedBandId])
@@ -30,9 +33,13 @@ export default function BandScreen({ routeParams, onNavigate, onBack }) {
             })
             .catch((err) => console.error(err));
 
-        const hasSearch = bandSearchStr !== '';
-        const searchClause = hasSearch ? ' AND (songs.name LIKE ?)' : '';
-        const queryParams = hasSearch ? [selectedBandId, `%${bandSearchStr}%`] : [selectedBandId];
+        const { sqlCondition, params: searchParams } = buildMultiTokenSearchClause(
+            bandSearchStr,
+            'COALESCE(songs.search_norm, LOWER(songs.name))',
+            searchInLyrics
+        );
+        const searchClause = sqlCondition ? ` AND (${sqlCondition})` : '';
+        const queryParams = [selectedBandId, ...searchParams];
 
         const queryStr = 'SELECT id, name FROM songs WHERE band_id = ?';
         executeQuery(queryStr + searchClause + bandOrderStr + ';', queryParams)
@@ -48,7 +55,7 @@ export default function BandScreen({ routeParams, onNavigate, onBack }) {
                 setBandFeaturing(data.rows._array);
             })
             .catch((err) => console.error(err));
-    }, [selectedBandId, bandOrderStr, bandSearchStr]);
+    }, [selectedBandId, bandOrderStr, bandSearchStr, searchInLyrics]);
 
     return (
         <>
@@ -72,18 +79,17 @@ export default function BandScreen({ routeParams, onNavigate, onBack }) {
             </header>
 
             {bandSearchVisible && (
-                <div className="search-bar">
-                    <input
-                        className="search-input"
-                        autoFocus
-                        placeholder="Search in band..."
-                        value={bandSearchStr}
-                        onChange={(e) => setBandSearchStr(e.target.value)}
-                    />
-                    <button className="icon-btn" onClick={() => setBandSearchStr('')}>
-                        x
-                    </button>
-                </div>
+                <SearchBar
+                    placeholder={
+                        searchInLyrics ? 'Search in band or lyrics...' : 'Search in band...'
+                    }
+                    value={bandSearchStr}
+                    onChange={setBandSearchStr}
+                    onClear={() => setBandSearchStr('')}
+                    showLyricsToggle={true}
+                    searchInLyrics={searchInLyrics}
+                    onToggleLyrics={() => setSearchInLyrics((prev) => !prev)}
+                />
             )}
 
             <main className="content-scroll">
@@ -138,7 +144,9 @@ export default function BandScreen({ routeParams, onNavigate, onBack }) {
                             Descending: Z <ArrowRight size={14} /> A
                         </button>
                         <div style={{ display: 'flex', justifyContent: 'center', marginTop: 22 }}>
-                            <button className="btn-primary" onClick={() => setBandModalVisible(false)}>
+                            <button
+                                className="btn-primary"
+                                onClick={() => setBandModalVisible(false)}>
                                 Close
                             </button>
                         </div>

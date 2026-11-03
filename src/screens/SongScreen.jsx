@@ -1,6 +1,6 @@
 /**
  * @file src/screens/SongScreen.jsx
- * @version 2.26.0
+ * @version 2.27.0
  */
 import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Pause, Play } from 'lucide-react';
@@ -16,10 +16,39 @@ import {
     transposeChordToken,
 } from '@shr-shared/chordTransposer.js';
 
-export const __version__ = '2.26.0';
+export const __version__ = '2.27.0';
 
 const SCROLL_SPEED_STORAGE_KEY = 'acordismo_scroll_speed';
 const TARGET_DURATION_SECONDS = 210; // 3 minutes 30 seconds at 1.0x
+
+/**
+ * Preserves the absolute original initNote and, when transposition !== 0,
+ * appends a concise comment showing the resulting transposed note/pitch relationship.
+ */
+function formatInitNoteDisplay(rawInitNote, transposition, songCapo, useFlats) {
+    if (!rawInitNote) return null;
+    const baseStr = String(rawInitNote).trim();
+    if (!transposition) {
+        return baseStr;
+    }
+
+    const sign = transposition > 0 ? `+${transposition}` : `${transposition}`;
+    const shiftedStr = baseStr.replace(/\b([A-G][#b]?[0-9]?)\b/g, (tok) =>
+        transposeChordToken(tok, transposition, useFlats)
+    );
+
+    const numCapo = Number(songCapo || 0);
+    if (numCapo !== 0 && transposition === numCapo) {
+        return `${baseStr} (${shiftedStr} at ${sign}; matches original concert pitch without capo/drop)`;
+    }
+    if (transposition + 5 === numCapo) {
+        return `${baseStr} (${shiftedStr} at ${sign}; matches original concert pitch on Ukulele)`;
+    }
+    if (shiftedStr !== baseStr) {
+        return `${baseStr} (${shiftedStr} if shifted ${sign})`;
+    }
+    return `${baseStr} (transposition ${sign})`;
+}
 
 /**
  * Renders plain lyric segments while highlighting any [choir / backing vocal] blocks
@@ -207,6 +236,11 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
         return () => cancelAnimationFrame(animationFrameId);
     }, [autoScrollActive, scrollSpeed]);
 
+    const songUseFlats = useMemo(() => {
+        if (!songData) return false;
+        return deduceSongUseFlats(songData.contents || '', transposition, songData.key);
+    }, [songData, transposition]);
+
     const songScreenItems = useMemo(() => {
         if (!songData) {
             return [];
@@ -233,7 +267,7 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
         }
 
         const lyrics = songData.contents || '';
-        const useFlats = deduceSongUseFlats(lyrics, transposition, songData.key);
+        const useFlats = songUseFlats;
         const lines = lyrics.split('\n');
         let counter = 0;
 
@@ -428,7 +462,7 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
             ...preChordItems,
             ...sections.map((sec) => <div key={sec.key}>{sec.items}</div>),
         ];
-    }, [songData, transposition, freezeChordsEnabled, sheetBgColor, palette]);
+    }, [songData, transposition, songUseFlats, freezeChordsEnabled, sheetBgColor, palette]);
 
     // Touch pinch-to-zoom handlers
     const handleTouchStart = (e) => {
@@ -626,7 +660,17 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
                                 )
                             ) : null}
                             {songData.key && <div>Key: {songData.key}</div>}
-                            {songData.init_note && <div>Init note: {songData.init_note}</div>}
+                            {songData.init_note && (
+                                <div>
+                                    Init note:{' '}
+                                    {formatInitNoteDisplay(
+                                        songData.init_note,
+                                        transposition,
+                                        songData.capo,
+                                        songUseFlats
+                                    )}
+                                </div>
+                            )}
                             {songData.time_signature && (
                                 <div>Time signature: {songData.time_signature}</div>
                             )}
