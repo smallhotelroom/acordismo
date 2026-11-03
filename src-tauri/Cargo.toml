@@ -1,0 +1,14 @@
+# File: src-tauri/Cargo.toml
+# Version: 1.0.0
+[package]
+name = "acordismo"
+version = "0.1.0"
+description = "Acordismo Songbook & Chord Transposer"
+authors = ["Small Hotel Room"]
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }

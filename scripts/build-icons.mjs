@@ -1,10 +1,9 @@
 #!/usr/bin/env node
 /**
  * @file scripts/build-icons.mjs
- * @version 1.1.0
- * Generates Android launcher icons (ic_launcher, ic_launcher_round, ic_launcher_foreground)
- * across all mipmap-* densities, updates mipmap-anydpi-v26 XMLs, and updates public/favicon.svg
- * from acordismo-logo.svg while preserving its exact white-on-black keyhole paths.
+ * @version 1.2.0
+ * Generates Web (public/favicon.svg), Android (mipmap-*), and Tauri Desktop (src-tauri/icons/*)
+ * icons from the single source of truth: acordismo-logo.svg.
  */
 import fs from 'node:fs';
 import os from 'node:os';
@@ -12,7 +11,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-export const __version__ = '1.1.0';
+export const __version__ = '1.2.0';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -46,11 +45,6 @@ function findSourceSvg() {
     );
 }
 
-/**
- * Wraps the original SVG artwork (preserving its internal white & black keyhole layers!)
- * on a #000000 background with proper safe-zone scaling, while stripping Inkscape/Sodipodi
- * metadata tags so rsvg-convert never throws XML namespace errors.
- */
 function buildPaddedSvg(rawSvg, { scaleRatio = 0.72, circleClip = false } = {}) {
     const viewBoxMatch = rawSvg.match(
         /viewBox=["']\s*([-\d.]+)\s+([-\d.]+)\s+([\d.]+)\s+([\d.]+)\s*["']/i
@@ -71,7 +65,6 @@ function buildPaddedSvg(rawSvg, { scaleRatio = 0.72, circleClip = false } = {}) 
           ? parseFloat(heightMatch[1])
           : 512;
 
-    // Extract inner contents of <svg ...>...</svg> and remove Inkscape/Sodipodi metadata tags
     let inner = rawSvg
         .replace(/<\?xml[^>]*\?>/gi, '')
         .replace(/<!DOCTYPE[^>]*>/gi, '')
@@ -84,8 +77,6 @@ function buildPaddedSvg(rawSvg, { scaleRatio = 0.72, circleClip = false } = {}) 
         .replace(/<metadata[\s\S]*?<\/metadata>/gi, '')
         .replace(/\s+(?:sodipodi|inkscape):[a-zA-Z0-9_-]+="[^"]*"/gi, '');
 
-    // If the SVG paths don't specify an explicit fill attribute on the white shape,
-    // default currentColor/unspecified fill on the group to #ffffff while preserving explicit #000000 cutouts
     const offsetX = (vbW * (1 - scaleRatio)) / 2 - minX * scaleRatio;
     const offsetY = (vbH * (1 - scaleRatio)) / 2 - minY * scaleRatio;
 
@@ -188,66 +179,76 @@ async function main() {
         scaleRatio: 0.82,
         circleClip: true,
     });
-    // Adaptive icon foreground (64% safe-zone scale so Android squircle/circle masks never clip the keyhole)
     const adaptiveForegroundSvg = buildPaddedSvg(rawSvg, {
         scaleRatio: 0.64,
         circleClip: false,
     });
 
     const androidResDir = path.join(ROOT_DIR, 'android', 'app', 'src', 'main', 'res');
-    if (!fs.existsSync(androidResDir)) {
-        console.log(`ℹ️  Android res directory not found at ${androidResDir}; skipping Android PNG generation.`);
-        return;
-    }
+    if (fs.existsSync(androidResDir)) {
+        const bgXmlPath = path.join(androidResDir, 'values', 'ic_launcher_background.xml');
+        fs.mkdirSync(path.dirname(bgXmlPath), { recursive: true });
+        fs.writeFileSync(
+            bgXmlPath,
+            `<?xml version="1.0" encoding="utf-8"?>\n<resources>\n    <color name="ic_launcher_background">#000000</color>\n</resources>\n`,
+            'utf8'
+        );
 
-    // 3. Set Android adaptive icon background color to #000000
-    const bgXmlPath = path.join(androidResDir, 'values', 'ic_launcher_background.xml');
-    fs.mkdirSync(path.dirname(bgXmlPath), { recursive: true });
-    fs.writeFileSync(
-        bgXmlPath,
-        `<?xml version="1.0" encoding="utf-8"?>\n<resources>\n    <color name="ic_launcher_background">#000000</color>\n</resources>\n`,
-        'utf8'
-    );
-
-    // 4. Ensure mipmap-anydpi-v26 XMLs point to @mipmap/ic_launcher_foreground & @color/ic_launcher_background
-    const anyDpiDir = path.join(androidResDir, 'mipmap-anydpi-v26');
-    fs.mkdirSync(anyDpiDir, { recursive: true });
-    const adaptiveXml = `<?xml version="1.0" encoding="utf-8"?>
+        const anyDpiDir = path.join(androidResDir, 'mipmap-anydpi-v26');
+        fs.mkdirSync(anyDpiDir, { recursive: true });
+        const adaptiveXml = `<?xml version="1.0" encoding="utf-8"?>
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
     <background android:drawable="@color/ic_launcher_background"/>
     <foreground android:drawable="@mipmap/ic_launcher_foreground"/>
 </adaptive-icon>
 `;
-    fs.writeFileSync(path.join(anyDpiDir, 'ic_launcher.xml'), adaptiveXml, 'utf8');
-    fs.writeFileSync(path.join(anyDpiDir, 'ic_launcher_round.xml'), adaptiveXml, 'utf8');
-    console.log(`✅ Updated mipmap-anydpi-v26/ic_launcher.xml & ic_launcher_round.xml`);
+        fs.writeFileSync(path.join(anyDpiDir, 'ic_launcher.xml'), adaptiveXml, 'utf8');
+        fs.writeFileSync(path.join(anyDpiDir, 'ic_launcher_round.xml'), adaptiveXml, 'utf8');
 
-    // 5. Render all mipmap-* PNGs
-    for (const target of MIPMAP_TARGETS) {
-        const mipmapDir = path.join(androidResDir, target.folder);
-        fs.mkdirSync(mipmapDir, { recursive: true });
+        for (const target of MIPMAP_TARGETS) {
+            const mipmapDir = path.join(androidResDir, target.folder);
+            fs.mkdirSync(mipmapDir, { recursive: true });
 
-        await renderSvgToPng(
-            legacySquareSvg,
-            path.join(mipmapDir, 'ic_launcher.png'),
-            target.legacySize
-        );
-        await renderSvgToPng(
-            legacyRoundSvg,
-            path.join(mipmapDir, 'ic_launcher_round.png'),
-            target.legacySize
-        );
-        await renderSvgToPng(
-            adaptiveForegroundSvg,
-            path.join(mipmapDir, 'ic_launcher_foreground.png'),
-            target.adaptiveSize
-        );
-        console.log(
-            `✅ Generated ${target.folder} (legacy: ${target.legacySize}px, adaptive foreground: ${target.adaptiveSize}px)`
-        );
+            await renderSvgToPng(
+                legacySquareSvg,
+                path.join(mipmapDir, 'ic_launcher.png'),
+                target.legacySize
+            );
+            await renderSvgToPng(
+                legacyRoundSvg,
+                path.join(mipmapDir, 'ic_launcher_round.png'),
+                target.legacySize
+            );
+            await renderSvgToPng(
+                adaptiveForegroundSvg,
+                path.join(mipmapDir, 'ic_launcher_foreground.png'),
+                target.adaptiveSize
+            );
+            console.log(
+                `✅ Generated ${target.folder} (legacy: ${target.legacySize}px, adaptive foreground: ${target.adaptiveSize}px)`
+            );
+        }
     }
 
-    console.log(`🎉 All Android & Web icons cleanly generated from acordismo-logo.svg!`);
+    // 3. If src-tauri/ exists, generate desktop .ico / .icns / .png icons in src-tauri/icons/
+    const tauriDir = path.join(ROOT_DIR, 'src-tauri');
+    if (fs.existsSync(tauriDir)) {
+        const masterPng = path.join(os.tmpdir(), `acordismo-master-1024-${process.pid}.png`);
+        await renderSvgToPng(legacySquareSvg, masterPng, 1024);
+        const npxCmd = process.platform === 'win32' ? 'npx.cmd' : 'npx';
+        const res = spawnSync(npxCmd, ['tauri', 'icon', masterPng], {
+            cwd: ROOT_DIR,
+            stdio: 'inherit',
+        });
+        if (fs.existsSync(masterPng)) {
+            fs.unlinkSync(masterPng);
+        }
+        if (res.status === 0) {
+            console.log(`✅ Generated Tauri desktop icons (.ico, .icns, .png) in src-tauri/icons/`);
+        }
+    }
+
+    console.log(`🎉 All Android, Web & Desktop icons cleanly generated from acordismo-logo.svg!`);
 }
 
 main().catch((err) => {

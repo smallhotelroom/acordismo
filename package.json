@@ -4,34 +4,29 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "postinstall": "node -e \"const fs = require('fs'); if (fs.existsSync('node_modules/sql.js/dist/sql-wasm.wasm')) fs.copyFileSync('node_modules/sql.js/dist/sql-wasm.wasm', 'public/sql-wasm.wasm');\"",
     "db:build": "node scripts/build-db.mjs",
     "pdf:build": "node scripts/build-pdf.mjs",
     "icon:build": "node scripts/build-icons.mjs",
     "linter:install": "node scripts/install-linter.mjs",
+    "desktop:dev": "tauri dev",
+    "desktop:build": "tauri build",
     "dev": "vite",
     "build": "vite build",
-    "lint": "oxlint",
-    "preview": "vite preview",
-    "cap:sync": "vite build && npx cap sync"
+    "preview": "vite preview"
   },
   "dependencies": {
-    "@capacitor/app": "^7.1.2",
+    "@capacitor/android": "^7.0.0",
+    "@capacitor/app": "^7.0.0",
     "@capacitor/core": "^7.0.0",
-    "chord-transposer": "^3.0.1",
-    "lucide-react": "^1.16.0",
-    "react": "^19.2.8",
-    "react-dom": "^19.2.8",
-    "sql.js": "^1.13.0"
+    "lucide-react": "^0.475.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "sql.js": "^1.12.0"
   },
   "devDependencies": {
-    "@capacitor/android": "^7.0.0",
     "@capacitor/cli": "^7.0.0",
-    "@capacitor/ios": "^7.0.0",
-    "@types/react": "^19.2.18",
-    "@types/react-dom": "^19.2.7",
-    "@vitejs/plugin-react": "^6.1.1",
-    "oxlint": "^1.81.0",
-    "vite": "^8.3.0"
+    "@tauri-apps/cli": "^2.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "vite": "^6.1.0"
   }
 }

@@ -22,6 +22,10 @@ dist-ssr
 !.env.example
 tools/acordismo-linter/.acordismo-root
 
+# Tauri Rust build artifacts & generated schemas
+src-tauri/target/
+src-tauri/gen/
+
 # Binary & Generated Assets (generated locally by npm)
 public/songs.db
 public/sql-wasm.wasm
