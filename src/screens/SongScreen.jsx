@@ -1,6 +1,6 @@
 /**
  * @file src/screens/SongScreen.jsx
- * @version 2.27.0
+ * @version 2.28.0
  */
 import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Pause, Play } from 'lucide-react';
@@ -11,12 +11,15 @@ import {
     CHORD_GROUP_DELIMITER_REGEX,
     DIRECTIVE_PAREN_REGEX,
     SYNTAX_PALETTE,
+    deduceSongKey,
     deduceSongUseFlats,
-    isStandaloneChordLine,
+    isCrawlerChordLine,
+    isValidParenChordGroup,
+    parseChordToken,
     transposeChordToken,
 } from '@shr-shared/chordTransposer.js';
 
-export const __version__ = '2.27.0';
+export const __version__ = '2.28.0';
 
 const SCROLL_SPEED_STORAGE_KEY = 'acordismo_scroll_speed';
 const TARGET_DURATION_SECONDS = 210; // 3 minutes 30 seconds at 1.0x
@@ -82,6 +85,47 @@ function renderLyricWithChoir(text, choirColor, baseKey) {
         parts.push(<span key={`${baseKey}-t-${subIdx++}`}>{text.slice(lastIdx)}</span>);
     }
     return <span key={baseKey}>{parts}</span>;
+}
+
+/**
+ * Renders a crawler chord line (where chords may be bare OR wrapped in parentheses,
+ * e.g. "(Am  F)  C  (G/B)  x2") with full transposition and syntax coloring.
+ */
+function renderCrawlerChordLineNodes(lineText, transposition, useFlats, palette, startKey) {
+    const nodes = [];
+    let keyCounter = startKey;
+    // Match parentheses, non-space non-paren tokens, or whitespace runs
+    const tokenRegex = /([()])|([^\s()]+)|(\s+)/g;
+    let match;
+
+    while ((match = tokenRegex.exec(lineText)) !== null) {
+        const [, parenChar, wordToken, spaceRun] = match;
+        if (spaceRun) {
+            nodes.push(<span key={keyCounter++}>{spaceRun}</span>);
+        } else if (parenChar) {
+            nodes.push(
+                <strong key={keyCounter++} style={{ color: palette.parenSymbol }}>
+                    {parenChar}
+                </strong>
+            );
+        } else if (wordToken) {
+            if (parseChordToken(wordToken) !== null) {
+                nodes.push(
+                    <strong key={keyCounter++} style={{ color: palette.chord }}>
+                        {transposeChordToken(wordToken, transposition, useFlats)}
+                    </strong>
+                );
+            } else {
+                nodes.push(
+                    <strong key={keyCounter++} style={{ color: palette.modifier }}>
+                        {wordToken}
+                    </strong>
+                );
+            }
+        }
+    }
+
+    return { nodes, nextKey: keyCounter };
 }
 
 export default function SongScreen({ routeParams, onNavigate, onBack }) {
@@ -241,6 +285,29 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
         return deduceSongUseFlats(songData.contents || '', transposition, songData.key);
     }, [songData, transposition]);
 
+    // Deduce key guess when frontmatter `key` is absent (or compute transposed key hint)
+    const deducedKeyInfo = useMemo(() => {
+        if (!songData) return null;
+        if (songData.key) {
+            if (!transposition) return songData.key;
+            const shifted = deduceSongKey(songData.contents || '', transposition, songData.key);
+            const sign = transposition > 0 ? `+${transposition}` : `${transposition}`;
+            return shifted && shifted !== songData.key
+                ? `${songData.key} (${shifted} at ${sign})`
+                : songData.key;
+        }
+        const guessedOriginal = deduceSongKey(songData.contents || '', 0, null);
+        if (!guessedOriginal) return null;
+        if (!transposition) {
+            return `${guessedOriginal} (guessed)`;
+        }
+        const guessedShifted = deduceSongKey(songData.contents || '', transposition, null);
+        const sign = transposition > 0 ? `+${transposition}` : `${transposition}`;
+        return guessedShifted && guessedShifted !== guessedOriginal
+            ? `${guessedOriginal} (guessed; ${guessedShifted} at ${sign})`
+            : `${guessedOriginal} (guessed)`;
+    }, [songData, transposition]);
+
     const songScreenItems = useMemo(() => {
         if (!songData) {
             return [];
@@ -268,6 +335,7 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
 
         const lyrics = songData.contents || '';
         const useFlats = songUseFlats;
+        const isCrawlerOrigin = Number(songData.origin_id || 0) > 0;
         const lines = lyrics.split('\n');
         let counter = 0;
 
@@ -275,40 +343,38 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
             const lineNodes = [];
             let hasChordsOnLine = false;
 
-            // Case A: Standalone chord line (e.g. OrigenZK / OrigenLK where line is 100% chords & spaces)
-            if (isStandaloneChordLine(lineText)) {
+            // Case A: Standalone / Crawler chord line (chords with or without parentheses on a chord-only line)
+            if (
+                (isCrawlerOrigin && isCrawlerChordLine(lineText)) ||
+                (!lineText.includes('(') && isCrawlerChordLine(lineText))
+            ) {
                 hasChordsOnLine = true;
-                const tokenRegex = /(\S+)/g;
-                let tokMatch;
-                let lastIdx = 0;
-
-                while ((tokMatch = tokenRegex.exec(lineText)) !== null) {
-                    if (tokMatch.index > lastIdx) {
-                        lineNodes.push(
-                            <span key={counter++}>
-                                {lineText.slice(lastIdx, tokMatch.index)}
-                            </span>
-                        );
-                    }
-                    const chordStr = tokMatch[0];
-                    lineNodes.push(
-                        <strong key={counter++} style={{ color: palette.chord }}>
-                            {transposeChordToken(chordStr, transposition, useFlats)}
-                        </strong>
-                    );
-                    lastIdx = tokenRegex.lastIndex;
-                }
-                if (lastIdx < lineText.length) {
-                    lineNodes.push(<span key={counter++}>{lineText.slice(lastIdx)}</span>);
-                }
+                const { nodes, nextKey } = renderCrawlerChordLineNodes(
+                    lineText,
+                    transposition,
+                    useFlats,
+                    palette,
+                    counter
+                );
+                lineNodes.push(...nodes);
+                counter = nextKey;
             } else {
-                // Case B: Standard parenthetical (...) chord notation + [choir] blocks
+                // Case B: Inline (...) groups (only treated as chords if valid chords or directives; ignores ----(12)----)
                 const re1 = /\((.+?)\)/g;
                 let array1;
                 let outerLastIndex = 0;
 
                 while ((array1 = re1.exec(lineText)) !== null) {
-                    //console.log("here: "+array1);// prints:"(chords),chords"
+                    const chordGroup = array1[1];
+                    const isDirectiveGroup = DIRECTIVE_PAREN_REGEX.test(chordGroup);
+                    const isValidChords =
+                        !isDirectiveGroup && isValidParenChordGroup(chordGroup);
+
+                    // If it's neither a directive nor valid chords (e.g. "----(12)----" or "(coro)"), leave as plain text!
+                    if (!isDirectiveGroup && !isValidChords) {
+                        continue;
+                    }
+
                     lineNodes.push(
                         renderLyricWithChoir(
                             lineText.slice(outerLastIndex, re1.lastIndex - array1[0].length),
@@ -316,39 +382,46 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
                             counter
                         )
                     );
-                    //console.log("---");
-                    //console.log("- "+array1[0]);
-                    let chordGroup = array1[1];
-                    let innerDone = false;
-                    let isDirectiveGroup = false;
-                    const innerTokens = [];
-                    let tokIdx = 0;
 
-                    while (innerDone === false) {
-                        //console.log("** chordGroup: ["+chordGroup+"]");
-                        const prefilter = DIRECTIVE_PAREN_REGEX.exec(chordGroup);
-                        if (prefilter !== null) {
-                            isDirectiveGroup = true;
-                            innerTokens.push(
-                                <span
-                                    key={`dir-${tokIdx++}`}
-                                    style={{ color: palette.directive }}>
-                                    {chordGroup}
-                                </span>
-                            );
-                            innerDone = true;
-                            continue;
-                        }
-                        const delimiter = CHORD_GROUP_DELIMITER_REGEX.exec(chordGroup);
-                        if (delimiter !== null) {
-                            //console.log("** At "+delimiter.index+" found delimiter ["+delimiter+"] of size: "+delimiter[0].length);
-                            const treatable = chordGroup.slice(0, delimiter.index);
-                            const delimStr = delimiter[0];
-                            chordGroup = chordGroup.slice(
-                                delimiter.index + delimStr.length,
-                                chordGroup.length
-                            );
-                            if (delimiter.index === 0) {
+                    if (isDirectiveGroup) {
+                        lineNodes.push(
+                            <strong key={counter + 1} style={{ color: palette.directive }}>
+                                ({chordGroup})
+                            </strong>
+                        );
+                    } else {
+                        hasChordsOnLine = true;
+                        let remaining = chordGroup;
+                        let innerDone = false;
+                        const innerTokens = [];
+                        let tokIdx = 0;
+
+                        while (innerDone === false) {
+                            const delimiter = CHORD_GROUP_DELIMITER_REGEX.exec(remaining);
+                            if (delimiter !== null) {
+                                const treatable = remaining.slice(0, delimiter.index);
+                                const delimStr = delimiter[0];
+                                remaining = remaining.slice(
+                                    delimiter.index + delimStr.length,
+                                    remaining.length
+                                );
+                                if (delimiter.index === 0) {
+                                    innerTokens.push(
+                                        <span
+                                            key={`mod-${tokIdx++}`}
+                                            style={{ color: palette.modifier }}>
+                                            {delimStr}
+                                        </span>
+                                    );
+                                    continue;
+                                }
+                                innerTokens.push(
+                                    <span
+                                        key={`ch-${tokIdx++}`}
+                                        style={{ color: palette.chord }}>
+                                        {transposeChordToken(treatable, transposition, useFlats)}
+                                    </span>
+                                );
                                 innerTokens.push(
                                     <span
                                         key={`mod-${tokIdx++}`}
@@ -358,48 +431,23 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
                                 );
                                 continue;
                             }
-                            //console.log("** treatable: {"+treatable+"}");
-                            innerTokens.push(
-                                <span key={`ch-${tokIdx++}`} style={{ color: palette.chord }}>
-                                    {transposeChordToken(treatable, transposition, useFlats)}
-                                </span>
-                            );
-                            innerTokens.push(
-                                <span
-                                    key={`mod-${tokIdx++}`}
-                                    style={{ color: palette.modifier }}>
-                                    {delimStr}
-                                </span>
-                            );
-                            continue;
+                            if (remaining.length > 0) {
+                                innerTokens.push(
+                                    <span
+                                        key={`ch-${tokIdx++}`}
+                                        style={{ color: palette.chord }}>
+                                        {transposeChordToken(remaining, transposition, useFlats)}
+                                    </span>
+                                );
+                            }
+                            innerDone = true;
                         }
-                        //Transposer.transpose(chord).up(0).toString();
-                        //console.log("** Pre-END!");
-                        if (chordGroup.length > 0) {
-                            //console.log("** treatable: {"+chordGroup+"}");
-                            innerTokens.push(
-                                <span key={`ch-${tokIdx++}`} style={{ color: palette.chord }}>
-                                    {transposeChordToken(chordGroup, transposition, useFlats)}
-                                </span>
-                            );
-                        }
-                        //console.log("** END!");
-                        innerDone = true;
-                    }
 
-                    if (!isDirectiveGroup) {
-                        hasChordsOnLine = true;
                         lineNodes.push(
                             <strong key={counter + 1}>
                                 <span style={{ color: palette.parenSymbol }}>(</span>
                                 {innerTokens}
                                 <span style={{ color: palette.parenSymbol }}>)</span>
-                            </strong>
-                        );
-                    } else {
-                        lineNodes.push(
-                            <strong key={counter + 1} style={{ color: palette.directive }}>
-                                ({innerTokens})
                             </strong>
                         );
                     }
@@ -659,7 +707,7 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
                                     <div>Capo: {songData.capo}</div>
                                 )
                             ) : null}
-                            {songData.key && <div>Key: {songData.key}</div>}
+                            {deducedKeyInfo && <div>Key: {deducedKeyInfo}</div>}
                             {songData.init_note && (
                                 <div>
                                     Init note:{' '}

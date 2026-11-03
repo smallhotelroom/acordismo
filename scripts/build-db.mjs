@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * @file scripts/build-db.mjs
- * @version 3.8.0
+ * @version 3.9.0
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -17,7 +17,7 @@ import {
     mergeDatabasesInPriorityOrder,
 } from '../src/shared/dbMerger.js';
 
-export const __version__ = '3.8.0';
+export const __version__ = '3.9.0';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -283,12 +283,6 @@ function decodeHtmlEntities(str) {
 
 function stripHtmlTags(html) {
     return decodeHtmlEntities(html.replace(/<[^>]*>/g, ''));
-}
-
-function replaceParensWithBrackets(text) {
-    return String(text || '')
-        .replace(/\(/g, '[')
-        .replace(/\)/g, ']');
 }
 
 function walkFilesSorted(dirPath) {
@@ -579,23 +573,26 @@ function buildLayerDatabase(SQL, layerConfig, schemaMod) {
                                 fs.statSync(cacheFilePath).mtimeMs >=
                                 fs.statSync(fullFileName).mtimeMs
                             ) {
-                                useCache = true;
+                                const cachedData = JSON.parse(
+                                    fs.readFileSync(cacheFilePath, 'utf8')
+                                );
+                                // Self-heal: if v3.7 mutated '(' into '[' in the cache, re-parse original HTML
+                                if (
+                                    cachedData.content &&
+                                    cachedData.content.includes('[') &&
+                                    !cachedData.content.includes('(')
+                                ) {
+                                    useCache = false;
+                                } else {
+                                    useCache = true;
+                                    songName = cachedData.name;
+                                    songContent = cachedData.content;
+                                    console.log(`** (cached) ${bandName} - ${songName}`);
+                                }
                             }
                         }
 
-                        if (useCache) {
-                            const cachedData = JSON.parse(fs.readFileSync(cacheFilePath, 'utf8'));
-                            songName = cachedData.name;
-                            const sanitized = replaceParensWithBrackets(cachedData.content);
-                            if (sanitized !== cachedData.content) {
-                                fs.writeFileSync(
-                                    cacheFilePath,
-                                    JSON.stringify({ name: songName, content: sanitized })
-                                );
-                            }
-                            songContent = sanitized;
-                            console.log(`** (cached) ${bandName} - ${songName}`);
-                        } else {
+                        if (!useCache) {
                             const html = fs.readFileSync(fullFileName, 'utf8');
                             const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
                             const rawTitle = titleMatch
@@ -626,7 +623,7 @@ function buildLayerDatabase(SQL, layerConfig, schemaMod) {
                                 continue;
                             }
 
-                            songContent = replaceParensWithBrackets(stripHtmlTags(preMatch[1]));
+                            songContent = stripHtmlTags(preMatch[1]);
                             console.log(`** ${bandName} - ${songName}`);
 
                             if (cacheBandDir && cacheFilePath) {
@@ -685,23 +682,26 @@ function buildLayerDatabase(SQL, layerConfig, schemaMod) {
                                 fs.statSync(cacheFilePath).mtimeMs >=
                                 fs.statSync(fullFileName).mtimeMs
                             ) {
-                                useCache = true;
+                                const cachedData = JSON.parse(
+                                    fs.readFileSync(cacheFilePath, 'utf8')
+                                );
+                                // Self-heal: if v3.7 mutated '(' into '[' in the cache, re-parse original HTML
+                                if (
+                                    cachedData.content &&
+                                    cachedData.content.includes('[') &&
+                                    !cachedData.content.includes('(')
+                                ) {
+                                    useCache = false;
+                                } else {
+                                    useCache = true;
+                                    songName = cachedData.name;
+                                    songContent = cachedData.content;
+                                    console.log(`** (cached) ${bandName} - ${songName}`);
+                                }
                             }
                         }
 
-                        if (useCache) {
-                            const cachedData = JSON.parse(fs.readFileSync(cacheFilePath, 'utf8'));
-                            songName = cachedData.name;
-                            const sanitized = replaceParensWithBrackets(cachedData.content);
-                            if (sanitized !== cachedData.content) {
-                                fs.writeFileSync(
-                                    cacheFilePath,
-                                    JSON.stringify({ name: songName, content: sanitized })
-                                );
-                            }
-                            songContent = sanitized;
-                            console.log(`** (cached) ${bandName} - ${songName}`);
-                        } else {
+                        if (!useCache) {
                             const htmlContent = fs.readFileSync(fullFileName, 'utf8');
                             const titleMatch = htmlContent.match(
                                 /<title[^>]*>([\s\S]*?)<\/title>/i
@@ -725,7 +725,7 @@ function buildLayerDatabase(SQL, layerConfig, schemaMod) {
                                     .join('')
                                     .replace(/\\'/g, "'")
                                     .replace(/\\n/g, '\n');
-                                songContent = replaceParensWithBrackets(stripHtmlTags(joined));
+                                songContent = stripHtmlTags(joined);
                             } else {
                                 const preMatches = [
                                     ...htmlContent.matchAll(/<pre[^>]*>([\s\S]*?)<\/pre>/gi),
@@ -742,9 +742,7 @@ function buildLayerDatabase(SQL, layerConfig, schemaMod) {
                                     }
                                     continue;
                                 }
-                                songContent = replaceParensWithBrackets(
-                                    stripHtmlTags(preMatches[1][1])
-                                );
+                                songContent = stripHtmlTags(preMatches[1][1]);
                             }
 
                             console.log(`** ${bandName} - ${songName}`);
