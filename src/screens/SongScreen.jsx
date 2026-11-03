@@ -1,6 +1,6 @@
 /**
  * @file src/screens/SongScreen.jsx
- * @version 2.28.0
+ * @version 2.29.0
  */
 import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Pause, Play } from 'lucide-react';
@@ -12,6 +12,7 @@ import {
     DIRECTIVE_PAREN_REGEX,
     SYNTAX_PALETTE,
     deduceSongKey,
+    deduceSongKeyInfo,
     deduceSongUseFlats,
     isCrawlerChordLine,
     isValidParenChordGroup,
@@ -19,7 +20,7 @@ import {
     transposeChordToken,
 } from '@shr-shared/chordTransposer.js';
 
-export const __version__ = '2.28.0';
+export const __version__ = '2.29.0';
 
 const SCROLL_SPEED_STORAGE_KEY = 'acordismo_scroll_speed';
 const TARGET_DURATION_SECONDS = 210; // 3 minutes 30 seconds at 1.0x
@@ -94,7 +95,6 @@ function renderLyricWithChoir(text, choirColor, baseKey) {
 function renderCrawlerChordLineNodes(lineText, transposition, useFlats, palette, startKey) {
     const nodes = [];
     let keyCounter = startKey;
-    // Match parentheses, non-space non-paren tokens, or whitespace runs
     const tokenRegex = /([()])|([^\s()]+)|(\s+)/g;
     let match;
 
@@ -256,7 +256,6 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
             if (el) {
                 const totalScrollableDistance = Math.max(0, el.scrollHeight - el.clientHeight);
                 if (totalScrollableDistance > 0 && scrollSpeed > 0) {
-                    // Base velocity so 1.0x covers totalScrollableDistance in 210 seconds (3:30)
                     const basePixelsPerSecond = totalScrollableDistance / TARGET_DURATION_SECONDS;
                     const pixelsPerSecond = basePixelsPerSecond * scrollSpeed;
 
@@ -285,8 +284,8 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
         return deduceSongUseFlats(songData.contents || '', transposition, songData.key);
     }, [songData, transposition]);
 
-    // Deduce key guess when frontmatter `key` is absent (or compute transposed key hint)
-    const deducedKeyInfo = useMemo(() => {
+    // Deduce key guess + confidence % when frontmatter `key` is absent
+    const deducedKeyDisplay = useMemo(() => {
         if (!songData) return null;
         if (songData.key) {
             if (!transposition) return songData.key;
@@ -296,16 +295,16 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
                 ? `${songData.key} (${shifted} at ${sign})`
                 : songData.key;
         }
-        const guessedOriginal = deduceSongKey(songData.contents || '', 0, null);
-        if (!guessedOriginal) return null;
+        const guessedOrig = deduceSongKeyInfo(songData.contents || '', 0, null);
+        if (!guessedOrig) return null;
         if (!transposition) {
-            return `${guessedOriginal} (guessed)`;
+            return `${guessedOrig.key} (guessed, ${guessedOrig.confidence}%)`;
         }
-        const guessedShifted = deduceSongKey(songData.contents || '', transposition, null);
+        const guessedShifted = deduceSongKeyInfo(songData.contents || '', transposition, null);
         const sign = transposition > 0 ? `+${transposition}` : `${transposition}`;
-        return guessedShifted && guessedShifted !== guessedOriginal
-            ? `${guessedOriginal} (guessed; ${guessedShifted} at ${sign})`
-            : `${guessedOriginal} (guessed)`;
+        return guessedShifted && guessedShifted.key !== guessedOrig.key
+            ? `${guessedOrig.key} (guessed, ${guessedOrig.confidence}%; ${guessedShifted.key} at ${sign})`
+            : `${guessedOrig.key} (guessed, ${guessedOrig.confidence}%)`;
     }, [songData, transposition]);
 
     const songScreenItems = useMemo(() => {
@@ -343,7 +342,6 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
             const lineNodes = [];
             let hasChordsOnLine = false;
 
-            // Case A: Standalone / Crawler chord line (chords with or without parentheses on a chord-only line)
             if (
                 (isCrawlerOrigin && isCrawlerChordLine(lineText)) ||
                 (!lineText.includes('(') && isCrawlerChordLine(lineText))
@@ -359,7 +357,6 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
                 lineNodes.push(...nodes);
                 counter = nextKey;
             } else {
-                // Case B: Inline (...) groups (only treated as chords if valid chords or directives; ignores ----(12)----)
                 const re1 = /\((.+?)\)/g;
                 let array1;
                 let outerLastIndex = 0;
@@ -370,7 +367,6 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
                     const isValidChords =
                         !isDirectiveGroup && isValidParenChordGroup(chordGroup);
 
-                    // If it's neither a directive nor valid chords (e.g. "----(12)----" or "(coro)"), leave as plain text!
                     if (!isDirectiveGroup && !isValidChords) {
                         continue;
                     }
@@ -707,7 +703,7 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
                                     <div>Capo: {songData.capo}</div>
                                 )
                             ) : null}
-                            {deducedKeyInfo && <div>Key: {deducedKeyInfo}</div>}
+                            {deducedKeyDisplay && <div>Key: {deducedKeyDisplay}</div>}
                             {songData.init_note && (
                                 <div>
                                     Init note:{' '}

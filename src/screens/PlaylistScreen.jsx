@@ -1,6 +1,6 @@
 /**
  * @file src/screens/PlaylistScreen.jsx
- * @version 2.5.0
+ * @version 2.5.1
  */
 import React, { useEffect, useState } from 'react';
 import { ArrowLeft, ArrowRight, MoreVertical, Search } from 'lucide-react';
@@ -10,7 +10,7 @@ import SearchBar from '../components/SearchBar';
 import executeQuery from '../shared/database';
 import { buildMultiTokenSearchClause } from '../shared/dbMerger';
 
-export const __version__ = '2.5.0';
+export const __version__ = '2.5.1';
 
 export default function PlaylistScreen({ routeParams, onNavigate, onBack }) {
     const { selectedPlaylistId } = routeParams;
@@ -76,7 +76,7 @@ export default function PlaylistScreen({ routeParams, onNavigate, onBack }) {
                     placeholder={
                         searchInLyrics
                             ? 'Search playlist or lyrics...'
-                            : 'Search in playlist (e.g. caetano leaozinho)...'
+                            : 'Search in playlist (e.g. cancionesdejuan)...'
                     }
                     value={playlistSearchStr}
                     onChange={setPlaylistSearchStr}

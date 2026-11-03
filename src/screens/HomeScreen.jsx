@@ -1,6 +1,6 @@
 /**
  * @file src/screens/HomeScreen.jsx
- * @version 2.6.0
+ * @version 2.6.1
  */
 import React, { useContext, useEffect, useState } from 'react';
 import { ArrowRight, Menu, MoreVertical, Moon, Search, Sun } from 'lucide-react';
@@ -11,7 +11,7 @@ import executeQuery from '../shared/database';
 import { buildMultiTokenSearchClause } from '../shared/dbMerger';
 import { AppContext } from '../shared/AppContext';
 
-export const __version__ = '2.6.0';
+export const __version__ = '2.6.1';
 
 export default function HomeScreen({ onNavigate }) {
     const {
@@ -152,7 +152,7 @@ export default function HomeScreen({ onNavigate }) {
                         currentTab === 'Songs'
                             ? searchInLyrics
                                 ? 'Search band, song, or lyrics...'
-                                : 'Search band or song (e.g. queen rhapsody)...'
+                                : 'Search band or song (e.g. small hotel arrest)...'
                             : `Search ${currentTab.toLowerCase()}...`
                     }
                     value={homeSearchStr}
