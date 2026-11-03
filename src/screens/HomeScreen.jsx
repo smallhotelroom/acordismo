@@ -152,7 +152,7 @@ export default function HomeScreen({ onNavigate }) {
                         currentTab === 'Songs'
                             ? searchInLyrics
                                 ? 'Search band, song, or lyrics...'
-                                : 'Search band or song (e.g. small hotel arrest)...'
+                                : 'Search band or song (e.g. small hotel moon)...'
                             : `Search ${currentTab.toLowerCase()}...`
                     }
                     value={homeSearchStr}
