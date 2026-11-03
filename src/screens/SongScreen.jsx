@@ -1,6 +1,6 @@
 /**
  * @file src/screens/SongScreen.jsx
- * @version 2.29.0
+ * @version 2.31.0
  */
 import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Pause, Play } from 'lucide-react';
@@ -11,16 +11,20 @@ import {
     CHORD_GROUP_DELIMITER_REGEX,
     DIRECTIVE_PAREN_REGEX,
     SYNTAX_PALETTE,
-    deduceSongKey,
-    deduceSongKeyInfo,
-    deduceSongUseFlats,
-    isCrawlerChordLine,
     isValidParenChordGroup,
     parseChordToken,
     transposeChordToken,
 } from '@shr-shared/chordTransposer.js';
+import {
+    deduceAcordismoSongKey,
+    deduceAcordismoSongKeyInfo,
+    deduceAcordismoSongUseFlats,
+    isCrawlerChordLine,
+    isStandaloneChordLine,
+    stripOuterPunctuation,
+} from '../shared/crawlerTransposer';
 
-export const __version__ = '2.29.0';
+export const __version__ = '2.31.0';
 
 const SCROLL_SPEED_STORAGE_KEY = 'acordismo_scroll_speed';
 const TARGET_DURATION_SECONDS = 210; // 3 minutes 30 seconds at 1.0x
@@ -89,38 +93,36 @@ function renderLyricWithChoir(text, choirColor, baseKey) {
 }
 
 /**
- * Renders a crawler chord line (where chords may be bare OR wrapped in parentheses,
- * e.g. "(Am  F)  C  (G/B)  x2") with full transposition and syntax coloring.
+ * Renders a crawler chord line (e.g. "Intro: A B C F# (I will learn this better)" or "Am  F  C  G").
+ * Never highlights parentheses `()`; only highlights & transposes actual chord tokens in blue
+ * while keeping surrounding words/remarks as normal uncolored text.
  */
 function renderCrawlerChordLineNodes(lineText, transposition, useFlats, palette, startKey) {
     const nodes = [];
     let keyCounter = startKey;
-    const tokenRegex = /([()])|([^\s()]+)|(\s+)/g;
+    const tokenRegex = /(\S+)|(\s+)/g;
     let match;
 
     while ((match = tokenRegex.exec(lineText)) !== null) {
-        const [, parenChar, wordToken, spaceRun] = match;
+        const [, rawWord, spaceRun] = match;
         if (spaceRun) {
             nodes.push(<span key={keyCounter++}>{spaceRun}</span>);
-        } else if (parenChar) {
-            nodes.push(
-                <strong key={keyCounter++} style={{ color: palette.parenSymbol }}>
-                    {parenChar}
-                </strong>
-            );
-        } else if (wordToken) {
-            if (parseChordToken(wordToken) !== null) {
+        } else if (rawWord) {
+            const { prefix, core, suffix } = stripOuterPunctuation(rawWord);
+            if (core && parseChordToken(core) !== null) {
+                if (prefix) {
+                    nodes.push(<span key={keyCounter++}>{prefix}</span>);
+                }
                 nodes.push(
                     <strong key={keyCounter++} style={{ color: palette.chord }}>
-                        {transposeChordToken(wordToken, transposition, useFlats)}
+                        {transposeChordToken(core, transposition, useFlats)}
                     </strong>
                 );
+                if (suffix) {
+                    nodes.push(<span key={keyCounter++}>{suffix}</span>);
+                }
             } else {
-                nodes.push(
-                    <strong key={keyCounter++} style={{ color: palette.modifier }}>
-                        {wordToken}
-                    </strong>
-                );
+                nodes.push(<span key={keyCounter++}>{rawWord}</span>);
             }
         }
     }
@@ -281,26 +283,47 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
 
     const songUseFlats = useMemo(() => {
         if (!songData) return false;
-        return deduceSongUseFlats(songData.contents || '', transposition, songData.key);
+        return deduceAcordismoSongUseFlats(
+            songData.contents || '',
+            transposition,
+            songData.key,
+            songData.origin_id
+        );
     }, [songData, transposition]);
 
     // Deduce key guess + confidence % when frontmatter `key` is absent
     const deducedKeyDisplay = useMemo(() => {
         if (!songData) return null;
+        const originId = songData.origin_id;
         if (songData.key) {
             if (!transposition) return songData.key;
-            const shifted = deduceSongKey(songData.contents || '', transposition, songData.key);
+            const shifted = deduceAcordismoSongKey(
+                songData.contents || '',
+                transposition,
+                songData.key,
+                originId
+            );
             const sign = transposition > 0 ? `+${transposition}` : `${transposition}`;
             return shifted && shifted !== songData.key
                 ? `${songData.key} (${shifted} at ${sign})`
                 : songData.key;
         }
-        const guessedOrig = deduceSongKeyInfo(songData.contents || '', 0, null);
+        const guessedOrig = deduceAcordismoSongKeyInfo(
+            songData.contents || '',
+            0,
+            null,
+            originId
+        );
         if (!guessedOrig) return null;
         if (!transposition) {
             return `${guessedOrig.key} (guessed, ${guessedOrig.confidence}%)`;
         }
-        const guessedShifted = deduceSongKeyInfo(songData.contents || '', transposition, null);
+        const guessedShifted = deduceAcordismoSongKeyInfo(
+            songData.contents || '',
+            transposition,
+            null,
+            originId
+        );
         const sign = transposition > 0 ? `+${transposition}` : `${transposition}`;
         return guessedShifted && guessedShifted.key !== guessedOrig.key
             ? `${guessedOrig.key} (guessed, ${guessedOrig.confidence}%; ${guessedShifted.key} at ${sign})`
@@ -342,10 +365,25 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
             const lineNodes = [];
             let hasChordsOnLine = false;
 
-            if (
-                (isCrawlerOrigin && isCrawlerChordLine(lineText)) ||
-                (!lineText.includes('(') && isCrawlerChordLine(lineText))
-            ) {
+            if (isCrawlerOrigin) {
+                // Crawler songs (OrigenZK / OrigenLK) handled via crawlerTransposer.js
+                if (isCrawlerChordLine(lineText)) {
+                    hasChordsOnLine = true;
+                    const { nodes, nextKey } = renderCrawlerChordLineNodes(
+                        lineText,
+                        transposition,
+                        useFlats,
+                        palette,
+                        counter
+                    );
+                    lineNodes.push(...nodes);
+                    counter = nextKey;
+                } else {
+                    lineNodes.push(
+                        renderLyricWithChoir(lineText, palette.choir, counter++)
+                    );
+                }
+            } else if (!lineText.includes('(') && isStandaloneChordLine(lineText)) {
                 hasChordsOnLine = true;
                 const { nodes, nextKey } = renderCrawlerChordLineNodes(
                     lineText,
@@ -357,6 +395,7 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
                 lineNodes.push(...nodes);
                 counter = nextKey;
             } else {
+                // Curated songs (origin_id === 0): canonical (...) chord groups + [choir]
                 const re1 = /\((.+?)\)/g;
                 let array1;
                 let outerLastIndex = 0;
@@ -621,10 +660,11 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
                 </div>
             </header>
 
+            {/* Isolation stacking context (zIndex: 1) prevents internal sticky masks from escaping above the modal backdrop */}
             <main
                 ref={scrollContainerRef}
                 className="content-scroll song-sheet-container"
-                style={{ paddingTop: 0 }}
+                style={{ paddingTop: 0, position: 'relative', zIndex: 1 }}
                 onClick={() => {
                     if (speedMenuOpen) {
                         setSpeedMenuOpen(false);
@@ -679,7 +719,10 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
             )}
 
             {songModalVisible && songData && (
-                <div className="modal-backdrop" onClick={() => setSongModalVisible(false)}>
+                <div
+                    className="modal-backdrop"
+                    style={{ zIndex: 30000 }}
+                    onClick={() => setSongModalVisible(false)}>
                     <div className="modal-card" onClick={(e) => e.stopPropagation()}>
                         <div
                             style={{
