@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * @file scripts/build-db.mjs
- * @version 3.6.0
+ * @version 3.7.0
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -16,7 +16,7 @@ import {
     mergeDatabasesInPriorityOrder,
 } from '../src/shared/dbMerger.js';
 
-export const __version__ = '3.6.0';
+export const __version__ = '3.7.0';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -283,6 +283,17 @@ function decodeHtmlEntities(str) {
 
 function stripHtmlTags(html) {
     return decodeHtmlEntities(html.replace(/<[^>]*>/g, ''));
+}
+
+/**
+ * Converts existing parentheses '(' and ')' into square brackets '[' and ']'
+ * for OrigenZK and OrigenLK crawler songs so standalone chord lines can be unambiguously
+ * distinguished from parenthetical chord notation.
+ */
+function replaceParensWithBrackets(text) {
+    return String(text || '')
+        .replace(/\(/g, '[')
+        .replace(/\)/g, ']');
 }
 
 function walkFilesSorted(dirPath) {
@@ -569,7 +580,14 @@ function buildLayerDatabase(SQL, layerConfig, schemaMod) {
                         if (useCache) {
                             const cachedData = JSON.parse(fs.readFileSync(cacheFilePath, 'utf8'));
                             songName = cachedData.name;
-                            songContent = cachedData.content;
+                            const sanitized = replaceParensWithBrackets(cachedData.content);
+                            if (sanitized !== cachedData.content) {
+                                fs.writeFileSync(
+                                    cacheFilePath,
+                                    JSON.stringify({ name: songName, content: sanitized })
+                                );
+                            }
+                            songContent = sanitized;
                             console.log(`** (cached) ${bandName} - ${songName}`);
                         } else {
                             const html = fs.readFileSync(fullFileName, 'utf8');
@@ -602,7 +620,7 @@ function buildLayerDatabase(SQL, layerConfig, schemaMod) {
                                 continue;
                             }
 
-                            songContent = stripHtmlTags(preMatch[1]);
+                            songContent = replaceParensWithBrackets(stripHtmlTags(preMatch[1]));
                             console.log(`** ${bandName} - ${songName}`);
 
                             if (cacheBandDir && cacheFilePath) {
@@ -667,7 +685,14 @@ function buildLayerDatabase(SQL, layerConfig, schemaMod) {
                         if (useCache) {
                             const cachedData = JSON.parse(fs.readFileSync(cacheFilePath, 'utf8'));
                             songName = cachedData.name;
-                            songContent = cachedData.content;
+                            const sanitized = replaceParensWithBrackets(cachedData.content);
+                            if (sanitized !== cachedData.content) {
+                                fs.writeFileSync(
+                                    cacheFilePath,
+                                    JSON.stringify({ name: songName, content: sanitized })
+                                );
+                            }
+                            songContent = sanitized;
                             console.log(`** (cached) ${bandName} - ${songName}`);
                         } else {
                             const htmlContent = fs.readFileSync(fullFileName, 'utf8');
@@ -693,7 +718,7 @@ function buildLayerDatabase(SQL, layerConfig, schemaMod) {
                                     .join('')
                                     .replace(/\\'/g, "'")
                                     .replace(/\\n/g, '\n');
-                                songContent = stripHtmlTags(joined);
+                                songContent = replaceParensWithBrackets(stripHtmlTags(joined));
                             } else {
                                 const preMatches = [
                                     ...htmlContent.matchAll(/<pre[^>]*>([\s\S]*?)<\/pre>/gi),
@@ -710,7 +735,9 @@ function buildLayerDatabase(SQL, layerConfig, schemaMod) {
                                     }
                                     continue;
                                 }
-                                songContent = stripHtmlTags(preMatches[1][1]);
+                                songContent = replaceParensWithBrackets(
+                                    stripHtmlTags(preMatches[1][1])
+                                );
                             }
 
                             console.log(`** ${bandName} - ${songName}`);
