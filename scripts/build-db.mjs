@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * @file scripts/build-db.mjs
- * @version 3.5.0
+ * @version 3.6.0
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -16,7 +16,7 @@ import {
     mergeDatabasesInPriorityOrder,
 } from '../src/shared/dbMerger.js';
 
-export const __version__ = '3.5.0';
+export const __version__ = '3.6.0';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -425,6 +425,12 @@ function buildLayerDatabase(SQL, layerConfig, schemaMod) {
 
                 const falsetto = song.falsetto ?? null;
                 const highest = song.highest ?? null;
+                const initNote =
+                    song.initNote !== undefined && song.initNote !== null
+                        ? String(song.initNote)
+                        : song.init !== undefined && song.init !== null
+                          ? String(song.init)
+                          : null;
                 const isrc = song.isrc ?? null;
                 const songKey = song.key ?? null;
                 const lang = song.lang ?? null;
@@ -449,9 +455,9 @@ function buildLayerDatabase(SQL, layerConfig, schemaMod) {
                 db.run(
                     `INSERT INTO songs (
                         content_hash, name, band_id, origin_id, album, author, bpm, capo,
-                        falsetto, highest, isrc, key, lang, license, musicians, spotify,
-                        time_signature, track, url, writer, contents
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+                        falsetto, highest, init_note, isrc, key, lang, license, musicians,
+                        spotify, time_signature, track, url, writer, contents
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
                     [
                         contentHash,
                         songName,
@@ -463,6 +469,7 @@ function buildLayerDatabase(SQL, layerConfig, schemaMod) {
                         capo,
                         falsetto,
                         highest,
+                        initNote,
                         isrc,
                         songKey,
                         lang,

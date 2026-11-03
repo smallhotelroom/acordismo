@@ -1,8 +1,8 @@
 /**
  * @file tools/acordismo-linter/extension.js
- * @version 2.8.0
+ * @version 2.9.0
  * Zero-copy VS Code Linter & Live Chord Decorator for Acordismo.
- * Reads SYNTAX_PALETTE.dark directly from smallhotelroom.github.io/src/shared/songSchema.js.
+ * Uses DIRECTIVE_PAREN_REGEX and SYNTAX_PALETTE directly from songSchema.js.
  */
 const vscode = require('vscode');
 const fs = require('fs');
@@ -10,23 +10,22 @@ const os = require('os');
 const path = require('path');
 const { pathToFileURL } = require('url');
 
-const __version__ = '2.8.0';
+const __version__ = '2.9.0';
 
 const diagnosticCollection = vscode.languages.createDiagnosticCollection('acordismoLinter');
 let statusBarItem = null;
 let modulesPromise = null;
 
-// Lazily initialized from songSchema.SYNTAX_PALETTE.dark
 let decorations = null;
 
 function ensureDecorations(palette) {
     if (decorations) return decorations;
     const p = palette?.dark || {
         parenBg: 'rgba(121, 192, 255, 0.06)',
-        parenSymbol: '#d29922',
+        parenSymbol: '#b392f0',
         chord: '#79c0ff',
-        modifier: '#d29922',
-        directive: '#b392f0',
+        modifier: '#b392f0',
+        directive: '#d29922',
         choir: '#7ee787',
     };
 
@@ -328,15 +327,11 @@ async function updateDiagnostics(document) {
         let match;
         while ((match = parenRegex.exec(lineStr)) !== null) {
             const fullParen = match[0];
-            const lowerParen = fullParen.toLowerCase();
+            const innerStr = match[1];
             const blockStartCol = match.index;
             const blockEndCol = match.index + fullParen.length;
 
-            if (
-                schemaMod.SKIP_PAREN_PREFIXES.some((p) => lowerParen.startsWith(p)) ||
-                lowerParen.includes('capo') ||
-                lowerParen.includes('drop')
-            ) {
+            if (schemaMod.DIRECTIVE_PAREN_REGEX.test(innerStr)) {
                 directiveRanges.push(
                     new vscode.Range(lineIdx, blockStartCol, lineIdx, blockEndCol)
                 );
@@ -344,13 +339,11 @@ async function updateDiagnostics(document) {
             }
 
             parenRanges.push(new vscode.Range(lineIdx, blockStartCol, lineIdx, blockEndCol));
-            // Gold '(' and ')' parenthesis symbols
             parenSymbolRanges.push(
                 new vscode.Range(lineIdx, blockStartCol, lineIdx, blockStartCol + 1),
                 new vscode.Range(lineIdx, blockEndCol - 1, lineIdx, blockEndCol)
             );
 
-            const innerStr = match[1];
             const innerStartCol = blockStartCol + 1;
             let cursor = 0;
             let remaining = innerStr;

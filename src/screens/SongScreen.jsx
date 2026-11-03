@@ -1,6 +1,6 @@
 /**
  * @file src/screens/SongScreen.jsx
- * @version 2.24.0
+ * @version 2.25.0
  */
 import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Pause, Play } from 'lucide-react';
@@ -9,12 +9,13 @@ import { AppContext } from '../shared/AppContext';
 import { FREEZE_CHORDS_STORAGE_KEY } from './SettingsScreen';
 import {
     CHORD_GROUP_DELIMITER_REGEX,
+    DIRECTIVE_PAREN_REGEX,
     SYNTAX_PALETTE,
     deduceSongUseFlats,
     transposeChordToken,
 } from '@shr-shared/chordTransposer.js';
 
-export const __version__ = '2.24.0';
+export const __version__ = '2.25.0';
 
 const SCROLL_SPEED_STORAGE_KEY = 'acordismo_scroll_speed';
 const TARGET_DURATION_SECONDS = 210; // 3 minutes 30 seconds at 1.0x
@@ -261,10 +262,7 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
 
                 while (innerDone === false) {
                     //console.log("** chordGroup: ["+chordGroup+"]");
-                    const prefilter =
-                        /bpm|tempo|key|highest|falsetto|all|chords for|capo|drop/i.exec(
-                            chordGroup
-                        );
+                    const prefilter = DIRECTIVE_PAREN_REGEX.exec(chordGroup);
                     if (prefilter !== null) {
                         isDirectiveGroup = true;
                         innerTokens.push(
@@ -591,6 +589,7 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
                                 )
                             ) : null}
                             {songData.key && <div>Key: {songData.key}</div>}
+                            {songData.init_note && <div>Init note: {songData.init_note}</div>}
                             {songData.time_signature && (
                                 <div>Time signature: {songData.time_signature}</div>
                             )}
