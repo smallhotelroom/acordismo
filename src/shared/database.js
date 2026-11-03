@@ -1,11 +1,15 @@
 /**
  * @file src/shared/database.js
- * @version 3.2.0
+ * @version 3.3.0
  */
 import * as sqlJsModule from 'sql.js';
-import { inspectDatabase, mergeDatabasesInPriorityOrder } from './dbMerger';
+import {
+    inspectDatabase,
+    mergeDatabasesInPriorityOrder,
+    normalizeSearchText,
+} from './dbMerger';
 
-export const __version__ = '3.2.0';
+export const __version__ = '3.3.0';
 
 const initSqlJs = sqlJsModule.default || sqlJsModule;
 
@@ -56,7 +60,7 @@ async function idbSet(key, value) {
             const tx = db.transaction(IDB_STORE, 'readwrite');
             tx.objectStore(IDB_STORE).put(value, key);
             tx.oncomplete = () => resolve();
-            tx.onerror = () => reject(tx.error);
+            req.onerror = () => reject(tx.error);
         });
     } catch (err) {
         console.error('IndexedDB write error:', err);
@@ -111,6 +115,64 @@ async function fetchDefaultDbBytes() {
     const buffer = await response.arrayBuffer();
     cachedDefaultBytes = new Uint8Array(buffer);
     return cachedDefaultBytes;
+}
+
+/**
+ * Ensures any opened SQL.Database has `search_norm` columns on bands, playlists, and songs.
+ * If an older .db pack without `search_norm` is loaded directly, backfills it in memory.
+ */
+function ensureSearchNormPopulated(db) {
+    if (!db) return db;
+    try {
+        db.run('SELECT search_norm FROM songs LIMIT 1;');
+    } catch {
+        db.run('BEGIN TRANSACTION;');
+        try {
+            db.run('ALTER TABLE bands ADD COLUMN search_norm TEXT;');
+        } catch {}
+        try {
+            db.run('ALTER TABLE playlists ADD COLUMN search_norm TEXT;');
+        } catch {}
+        try {
+            db.run('ALTER TABLE songs ADD COLUMN search_norm TEXT;');
+        } catch {}
+
+        const bandMap = new Map();
+        const bStmt = db.prepare('SELECT id, name FROM bands;');
+        while (bStmt.step()) {
+            const b = bStmt.getAsObject();
+            bandMap.set(b.id, b.name);
+            db.run('UPDATE bands SET search_norm = ? WHERE id = ?;', [
+                normalizeSearchText(b.name),
+                b.id,
+            ]);
+        }
+        bStmt.free();
+
+        const pStmt = db.prepare('SELECT id, name FROM playlists;');
+        while (pStmt.step()) {
+            const p = pStmt.getAsObject();
+            db.run('UPDATE playlists SET search_norm = ? WHERE id = ?;', [
+                normalizeSearchText(p.name),
+                p.id,
+            ]);
+        }
+        pStmt.free();
+
+        const sStmt = db.prepare('SELECT id, name, band_id, album FROM songs;');
+        while (sStmt.step()) {
+            const s = sStmt.getAsObject();
+            const bName = bandMap.get(s.band_id) || '';
+            db.run('UPDATE songs SET search_norm = ? WHERE id = ?;', [
+                normalizeSearchText(`${bName} ${s.name} ${s.album || ''}`),
+                s.id,
+            ]);
+        }
+        sStmt.free();
+        db.run('CREATE INDEX IF NOT EXISTS idx_songs_search_norm ON songs (search_norm);');
+        db.run('COMMIT;');
+    }
+    return db;
 }
 
 function computeStackLabel(stack) {
@@ -196,14 +258,14 @@ export async function rebuildMergedDatabase(providedStack = null) {
     if (enabledLayers.length === 1 && enabledLayers[0].builtin) {
         await idbDelete(IDB_KEY_MERGED_CACHE);
         const defaultBytes = await fetchDefaultDbBytes();
-        dbInstance = new SQL.Database(defaultBytes);
+        dbInstance = ensureSearchNormPopulated(new SQL.Database(defaultBytes));
         return dbInstance;
     }
 
     if (enabledLayers.length === 1 && !enabledLayers[0].builtin && enabledLayers[0].bytes) {
         const singleBytes = enabledLayers[0].bytes;
-        await idbSet(IDB_KEY_MERGED_CACHE, singleBytes);
-        dbInstance = new SQL.Database(singleBytes);
+        dbInstance = ensureSearchNormPopulated(new SQL.Database(singleBytes));
+        await idbSet(IDB_KEY_MERGED_CACHE, dbInstance.export());
         return dbInstance;
     }
 
@@ -234,7 +296,7 @@ export async function initDatabase(customUint8Array = null) {
         if (dbInstance) {
             dbInstance.close();
         }
-        dbInstance = new SQL.Database(customUint8Array);
+        dbInstance = ensureSearchNormPopulated(new SQL.Database(customUint8Array));
         return dbInstance;
     }
 
@@ -246,7 +308,7 @@ export async function initDatabase(customUint8Array = null) {
         initPromise = (async () => {
             const cachedMergedBytes = await idbGet(IDB_KEY_MERGED_CACHE);
             if (cachedMergedBytes && cachedMergedBytes instanceof Uint8Array) {
-                dbInstance = new SQL.Database(cachedMergedBytes);
+                dbInstance = ensureSearchNormPopulated(new SQL.Database(cachedMergedBytes));
                 return dbInstance;
             }
 
@@ -255,14 +317,14 @@ export async function initDatabase(customUint8Array = null) {
                 const enabled = stack.filter((l) => l.enabled);
                 if (enabled.length === 1 && enabled[0].builtin) {
                     const defaultBytes = await fetchDefaultDbBytes();
-                    dbInstance = new SQL.Database(defaultBytes);
+                    dbInstance = ensureSearchNormPopulated(new SQL.Database(defaultBytes));
                     return dbInstance;
                 }
                 return await rebuildMergedDatabase(stack);
             }
 
             const defaultBytes = await fetchDefaultDbBytes();
-            dbInstance = new SQL.Database(defaultBytes);
+            dbInstance = ensureSearchNormPopulated(new SQL.Database(defaultBytes));
             return dbInstance;
         })().finally(() => {
             initPromise = null;
@@ -272,10 +334,6 @@ export async function initDatabase(customUint8Array = null) {
     return initPromise;
 }
 
-/**
- * Adds or updates an external .db pack from raw Uint8Array bytes and fileName
- * (used by both the file input picker and Android "Open with..." / Share intents).
- */
 export async function loadExternalDatabaseBytes(bytes, fileName = 'shared-pack.db') {
     const SQL = await getSqlEngine();
     const testDb = new SQL.Database(bytes);
@@ -309,9 +367,6 @@ export async function loadExternalDatabaseBytes(bytes, fileName = 'shared-pack.d
     return stack;
 }
 
-/**
- * Adds or updates an external .db pack in the N-Layer Priority Stack and rebuilds the merged DB.
- */
 export async function loadExternalDatabaseFile(file) {
     const buffer = await file.arrayBuffer();
     const bytes = new Uint8Array(buffer);

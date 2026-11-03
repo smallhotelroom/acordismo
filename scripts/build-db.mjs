@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * @file scripts/build-db.mjs
- * @version 3.7.0
+ * @version 3.8.0
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -12,17 +12,17 @@ import initSqlJs from 'sql.js';
 import {
     SCHEMA_SQL,
     INDEX_SQL,
+    normalizeSearchText,
     wildcardToRegExp,
     mergeDatabasesInPriorityOrder,
 } from '../src/shared/dbMerger.js';
 
-export const __version__ = '3.7.0';
+export const __version__ = '3.8.0';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const ROOT_DIR = path.resolve(__dirname, '..');
 
-// Dynamically loads the Single Source of Truth songSchema.js from smallhotelroom.github.io
 const EXTERNAL_SCHEMA_PATH = path.resolve(
     ROOT_DIR,
     '../smallhotelroom.github.io/src/shared/songSchema.js'
@@ -285,11 +285,6 @@ function stripHtmlTags(html) {
     return decodeHtmlEntities(html.replace(/<[^>]*>/g, ''));
 }
 
-/**
- * Converts existing parentheses '(' and ')' into square brackets '[' and ']'
- * for OrigenZK and OrigenLK crawler songs so standalone chord lines can be unambiguously
- * distinguished from parenthetical chord notation.
- */
 function replaceParensWithBrackets(text) {
     return String(text || '')
         .replace(/\(/g, '[')
@@ -347,7 +342,10 @@ function buildLayerDatabase(SQL, layerConfig, schemaMod) {
         if (bandCache.has(clean)) {
             return bandCache.get(clean);
         }
-        db.run('INSERT INTO bands (name) VALUES (?);', [clean]);
+        db.run('INSERT INTO bands (name, search_norm) VALUES (?, ?);', [
+            clean,
+            normalizeSearchText(clean),
+        ]);
         const id = queryAll(db, 'SELECT last_insert_rowid() AS id;')[0].id;
         bandCache.set(clean, id);
         return id;
@@ -358,7 +356,10 @@ function buildLayerDatabase(SQL, layerConfig, schemaMod) {
         if (playlistCache.has(clean)) {
             return playlistCache.get(clean);
         }
-        db.run('INSERT INTO playlists (name) VALUES (?);', [clean]);
+        db.run('INSERT INTO playlists (name, search_norm) VALUES (?, ?);', [
+            clean,
+            normalizeSearchText(clean),
+        ]);
         const id = queryAll(db, 'SELECT last_insert_rowid() AS id;')[0].id;
         playlistCache.set(clean, id);
         return id;
@@ -463,17 +464,22 @@ function buildLayerDatabase(SQL, layerConfig, schemaMod) {
                     .digest('hex')
                     .slice(0, 16);
 
+                const searchNorm = normalizeSearchText(
+                    `${bandName} ${song.featuring || ''} ${songName} ${album || ''}`
+                );
+
                 db.run(
                     `INSERT INTO songs (
-                        content_hash, name, band_id, origin_id, album, author, bpm, capo,
+                        content_hash, name, band_id, origin_id, search_norm, album, author, bpm, capo,
                         falsetto, highest, init_note, isrc, key, lang, license, musicians,
                         spotify, time_signature, track, url, writer, contents
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
                     [
                         contentHash,
                         songName,
                         bandId,
                         0,
+                        searchNorm,
                         album,
                         author,
                         bpm,
@@ -635,9 +641,10 @@ function buildLayerDatabase(SQL, layerConfig, schemaMod) {
                         if (songName && songContent !== null) {
                             const bandId = getOrCreateBand(bandName);
                             const playlistId = getOrCreatePlaylist(playlistName);
+                            const searchNorm = normalizeSearchText(`${bandName} ${songName}`);
                             db.run(
-                                'INSERT INTO songs (name, band_id, origin_id, contents) VALUES (?, ?, ?, ?);',
-                                [songName, bandId, 1, songContent]
+                                'INSERT INTO songs (name, band_id, origin_id, search_norm, contents) VALUES (?, ?, ?, ?, ?);',
+                                [songName, bandId, 1, searchNorm, songContent]
                             );
                             const songId = queryAll(db, 'SELECT last_insert_rowid() AS id;')[0].id;
                             db.run(
@@ -754,9 +761,10 @@ function buildLayerDatabase(SQL, layerConfig, schemaMod) {
                         if (songName && songContent !== null) {
                             const bandId = getOrCreateBand(bandName);
                             const playlistId = getOrCreatePlaylist(playlistName);
+                            const searchNorm = normalizeSearchText(`${bandName} ${songName}`);
                             db.run(
-                                'INSERT INTO songs (name, band_id, origin_id, contents) VALUES (?, ?, ?, ?);',
-                                [songName, bandId, 2, songContent]
+                                'INSERT INTO songs (name, band_id, origin_id, search_norm, contents) VALUES (?, ?, ?, ?, ?);',
+                                [songName, bandId, 2, searchNorm, songContent]
                             );
                             const songId = queryAll(db, 'SELECT last_insert_rowid() AS id;')[0].id;
                             db.run(

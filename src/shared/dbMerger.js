@@ -1,9 +1,31 @@
 /**
  * @file src/shared/dbMerger.js
- * @version 1.2.0
+ * @version 1.3.0
  */
 
-export const __version__ = '1.2.0';
+export const __version__ = '1.3.0';
+
+/**
+ * Strips diacritics/accents (e.g. "Leãozinho" -> "leaozinho", "Español" -> "espanol")
+ * and normalizes whitespace to lowercase for instant accent-insensitive multi-token search.
+ */
+export function normalizeSearchText(str) {
+    return String(str || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+/**
+ * Splits a user's search query into normalized diacritic-free tokens.
+ * Example: "Caetano  Leãozinho" -> ["caetano", "leaozinho"]
+ */
+export function tokenizeSearchQuery(queryStr) {
+    const norm = normalizeSearchText(queryStr);
+    return norm ? norm.split(' ').filter(Boolean) : [];
+}
 
 export const SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS meta (
@@ -12,11 +34,13 @@ CREATE TABLE IF NOT EXISTS meta (
 );
 CREATE TABLE IF NOT EXISTS bands (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL
+    name TEXT NOT NULL,
+    search_norm TEXT
 );
 CREATE TABLE IF NOT EXISTS playlists (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL
+    name TEXT NOT NULL,
+    search_norm TEXT
 );
 CREATE TABLE IF NOT EXISTS playlist_rules (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -29,6 +53,7 @@ CREATE TABLE IF NOT EXISTS songs (
     name TEXT NOT NULL,
     band_id INTEGER NOT NULL,
     origin_id INTEGER NOT NULL,
+    search_norm TEXT,
     album TEXT,
     author TEXT,
     bpm INTEGER,
@@ -67,10 +92,13 @@ CREATE TABLE IF NOT EXISTS playlists_songs (
 
 export const INDEX_SQL = `
 CREATE INDEX IF NOT EXISTS idx_bands_name ON bands (name);
+CREATE INDEX IF NOT EXISTS idx_bands_search_norm ON bands (search_norm);
 CREATE INDEX IF NOT EXISTS idx_playlists_name ON playlists (name);
+CREATE INDEX IF NOT EXISTS idx_playlists_search_norm ON playlists (search_norm);
 CREATE INDEX IF NOT EXISTS idx_songs_name ON songs (name);
 CREATE INDEX IF NOT EXISTS idx_songs_band_id ON songs (band_id);
 CREATE INDEX IF NOT EXISTS idx_songs_hash ON songs (content_hash);
+CREATE INDEX IF NOT EXISTS idx_songs_search_norm ON songs (search_norm);
 CREATE INDEX IF NOT EXISTS idx_playlists_songs_playlist_id ON playlists_songs (playlist_id);
 CREATE INDEX IF NOT EXISTS idx_playlists_songs_song_id ON playlists_songs (song_id);
 CREATE INDEX IF NOT EXISTS idx_songs_ft_bands_song_id ON songs_ft_bands (song_id);
@@ -120,7 +148,7 @@ export function inspectDatabase(db, fallbackName = 'custom') {
 
 /**
  * Merges an ordered array of SQL.Database instances (Priority #1 first, lowest priority last)
- * into a brand new SQL.Database instance.
+ * into a brand new SQL.Database instance, populating search_norm automatically.
  */
 export function mergeDatabasesInPriorityOrder(SQL, sourceDbs, mergedId = 'merged') {
     const outDb = new SQL.Database();
@@ -139,7 +167,10 @@ export function mergeDatabasesInPriorityOrder(SQL, sourceDbs, mergedId = 'merged
         if (bandNameToId.has(key)) {
             return bandNameToId.get(key);
         }
-        outDb.run('INSERT INTO bands (name) VALUES (?);', [clean]);
+        outDb.run('INSERT INTO bands (name, search_norm) VALUES (?, ?);', [
+            clean,
+            normalizeSearchText(clean),
+        ]);
         const newId = queryObjects(outDb, 'SELECT last_insert_rowid() AS id;')[0].id;
         bandNameToId.set(key, newId);
         return newId;
@@ -151,7 +182,10 @@ export function mergeDatabasesInPriorityOrder(SQL, sourceDbs, mergedId = 'merged
         if (playlistNameToId.has(key)) {
             return playlistNameToId.get(key);
         }
-        outDb.run('INSERT INTO playlists (name) VALUES (?);', [clean]);
+        outDb.run('INSERT INTO playlists (name, search_norm) VALUES (?, ?);', [
+            clean,
+            normalizeSearchText(clean),
+        ]);
         const newId = queryObjects(outDb, 'SELECT last_insert_rowid() AS id;')[0].id;
         playlistNameToId.set(key, newId);
         return newId;
@@ -253,17 +287,23 @@ export function mergeDatabasesInPriorityOrder(SQL, sourceDbs, mergedId = 'merged
             }
 
             const newBandId = getOrCreateBandId(bandName);
+            const ftNames = songIdToFtBandNames.get(s.id) || [];
+            const songSearchNorm =
+                s.search_norm ||
+                normalizeSearchText(`${bandName} ${ftNames.join(' ')} ${s.name} ${s.album || ''}`);
+
             outDb.run(
                 `INSERT INTO songs (
-                    content_hash, name, band_id, origin_id, album, author, bpm, capo,
+                    content_hash, name, band_id, origin_id, search_norm, album, author, bpm, capo,
                     falsetto, highest, init_note, isrc, key, lang, license, musicians,
                     spotify, time_signature, track, url, writer, contents
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
                 [
                     s.content_hash ?? null,
                     s.name,
                     newBandId,
                     s.origin_id ?? 0,
+                    songSearchNorm,
                     s.album ?? null,
                     s.author ?? null,
                     s.bpm ?? null,
@@ -288,7 +328,6 @@ export function mergeDatabasesInPriorityOrder(SQL, sourceDbs, mergedId = 'merged
             seenSongKeys.add(dedupeKey);
             srcSongKeyToNewSongId.set(dedupeKey, newSongId);
 
-            const ftNames = songIdToFtBandNames.get(s.id) || [];
             for (const ftName of ftNames) {
                 const newFtBandId = getOrCreateBandId(ftName);
                 outDb.run('INSERT INTO songs_ft_bands (song_id, ft_band_id) VALUES (?, ?);', [
