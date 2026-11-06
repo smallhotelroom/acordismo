@@ -65,14 +65,14 @@ layers:
     output: "dist-dbs/songs-crawler.db"
     sources:
       - type: "dataset_zk"
-        path: "${ACORDISMO_CRAWLER_ZK_DIR}"
-        subdir: "${ACORDISMO_CRAWLER_ZK_SUBDIR}"
+        path: "${ACORDISMO_CRAWLER_DIR}"
+        subdir: "${ACORDISMO_ZK_SUBDIR}"
         cache: "${ACORDISMO_CRAWLER_CACHE_DIR}"
         playlist: "OrigenZK"
         max_errors: 5
       - type: "dataset_lk"
-        path: "${ACORDISMO_CRAWLER_LK_DIR}"
-        subdir: "${ACORDISMO_CRAWLER_LK_SUBDIR}"
+        path: "${ACORDISMO_CRAWLER_DIR}"
+        subdir: "${ACORDISMO_LK_SUBDIR}"
         cache: "${ACORDISMO_CRAWLER_CACHE_DIR}"
         playlist: "OrigenLK"
         max_errors: 5
