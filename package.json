@@ -9,6 +9,7 @@
     "pdf:build:bw": "node scripts/build-pdf.mjs --bw",
     "icon:build": "node scripts/build-icons.mjs",
     "linter:install": "node scripts/install-linter.mjs",
+    "tauri": "tauri",
     "desktop:dev": "tauri dev",
     "desktop:build": "tauri build",
     "dev": "vite",

@@ -1,5 +1,5 @@
 # File: .github/workflows/release-desktop.yml
-# Version: 1.0.0
+# Version: 1.1.0
 # Builds Windows (.exe/.msi), macOS Universal (.dmg/.app), and Linux (.deb/.AppImage)
 # whenever you push a version tag (e.g. git tag v0.1.0 && git push origin v0.1.0)
 # or trigger it manually from the GitHub Actions tab.
