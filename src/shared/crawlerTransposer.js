@@ -1,6 +1,6 @@
 /**
  * @file src/shared/crawlerTransposer.js
- * @version 1.0.0
+ * @version 1.0.1
  * Crawler-specific (OrigenZK / OrigenLK) chord line detection, mixed-text chord extraction,
  * and harmonic analysis wrappers for Acordismo.
  * Keeps `smallhotelroom.github.io/src/shared/chordTransposer.js` 100% pure for curated songs.
@@ -12,9 +12,9 @@ import {
     extractCuratedChordsFromLyrics,
     parseChordToken,
     transposeChordToken,
-} from '@shr-shared/chordTransposer.js';
+} from '../../../smallhotelroom.github.io/src/shared/chordTransposer.js';
 
-export const __version__ = '1.0.0';
+export const __version__ = '1.0.1';
 
 /**
  * Checks if a parsed chord is an unambiguous musical chord (e.g. F#, Am, G7, D/F#, Bb)
