@@ -1,0 +1,90 @@
+# File: .github/workflows/release-desktop.yml
+# Version: 1.0.0
+# Builds Windows (.exe/.msi), macOS Universal (.dmg/.app), and Linux (.deb/.AppImage)
+# whenever you push a version tag (e.g. git tag v0.1.0 && git push origin v0.1.0)
+# or trigger it manually from the GitHub Actions tab.
+
+name: Build & Release Desktop Apps
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-tauri:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: 'macos-latest'
+            args: '--target universal-apple-darwin'
+          - platform: 'ubuntu-24.04'
+            args: ''
+          - platform: 'windows-latest'
+            args: ''
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - name: Checkout Acordismo into ./acordismo
+        uses: actions/checkout@v4
+        with:
+          path: acordismo
+
+      - name: Checkout smallhotelroom.github.io alongside ./acordismo
+        uses: actions/checkout@v4
+        with:
+          repository: smallhotelroom/smallhotelroom.github.io
+          path: smallhotelroom.github.io
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+          cache-dependency-path: acordismo/package-lock.json
+
+      - name: Install Linux System Dependencies (Ubuntu 24.04)
+        if: matrix.platform == 'ubuntu-24.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            librsvg2-bin \
+            patchelf
+
+      - name: Install Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: Rust Cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './acordismo/src-tauri -> target'
+
+      - name: Install Frontend Dependencies & Build Official DB
+        working-directory: ./acordismo
+        run: |
+          npm ci
+          npm run db:build
+
+      - name: Build Tauri Desktop Bundles (.exe, .dmg, .deb, .AppImage)
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: ./acordismo
+          tagName: v__VERSION__
+          releaseName: 'Acordismo v__VERSION__'
+          releaseBody: 'Desktop installers for Windows (.exe), macOS (.dmg), and Linux (.deb / .AppImage).'
+          releaseDraft: true
+          prerelease: false
+          args: ${{ matrix.args }}
