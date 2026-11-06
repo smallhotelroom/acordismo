@@ -59,7 +59,7 @@ layers:
         playlist: "Português"
     playlists:
       - name: "★ Metal, Rock y Punk"
-        from_file: "${ACORDISMO_CURATED_LISTS_DIR}/metal_rock_punk.txt"
+        from_file: "${ACORDISMO_CURATED_DIR}/additionalPlaylists/metal-rock-punk.txt"
 
   - id: "crawler"
     output: "dist-dbs/songs-crawler.db"
