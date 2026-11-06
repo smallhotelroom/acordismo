@@ -1,15 +1,16 @@
 /**
  * @file src/shared/database.js
- * @version 3.3.0
+ * @version 3.4.0
  */
 import * as sqlJsModule from 'sql.js';
+import sqlWasmUrl from 'sql.js/dist/sql-wasm.wasm?url';
 import {
     inspectDatabase,
     mergeDatabasesInPriorityOrder,
     normalizeSearchText,
 } from './dbMerger';
 
-export const __version__ = '3.3.0';
+export const __version__ = '3.4.0';
 
 const initSqlJs = sqlJsModule.default || sqlJsModule;
 
@@ -98,7 +99,7 @@ async function idbClear() {
 async function getSqlEngine() {
     if (!sqlPromise) {
         sqlPromise = initSqlJs({
-            locateFile: () => '/sql-wasm.wasm',
+            locateFile: () => sqlWasmUrl,
         });
     }
     return sqlPromise;
