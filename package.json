@@ -6,6 +6,7 @@
   "scripts": {
     "db:build": "node scripts/build-db.mjs",
     "pdf:build": "node scripts/build-pdf.mjs",
+    "pdf:build:color": "node scripts/build-pdf.mjs --color",
     "icon:build": "node scripts/build-icons.mjs",
     "linter:install": "node scripts/install-linter.mjs",
     "desktop:dev": "tauri dev",
