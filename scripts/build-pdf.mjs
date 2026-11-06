@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * @file scripts/build-pdf.mjs
- * @version 2.4.0
+ * @version 2.5.0
  * Builds printable LaTeX/PDF songbooks from Acordismo SQLite databases.
  * Features:
  * - Vertically & horizontally centered cover page (with explicit line break below acordismo-logo.svg)
@@ -27,7 +27,7 @@ import {
     stripOuterPunctuation,
 } from '../src/shared/crawlerTransposer.js';
 
-export const __version__ = '2.4.0';
+export const __version__ = '2.5.0';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -37,6 +37,20 @@ const EXTERNAL_TRANSPOSER_PATH = path.resolve(
     ROOT_DIR,
     '../smallhotelroom.github.io/src/shared/chordTransposer.js'
 );
+
+const LATEX_ESCAPE_MAP = {
+    '\\': '\\textbackslash{}',
+    '{': '\\{',
+    '}': '\\}',
+    '#': '\\#',
+    $: '\\$',
+    '%': '\\%',
+    '&': '\\&',
+    _: '\\_',
+    '^': '\\textasciicircum{}',
+    '~': '\\textasciitilde{}',
+    '-': '-\\kern0pt{}',
+};
 
 async function loadSharedTransposer() {
     if (!fs.existsSync(EXTERNAL_TRANSPOSER_PATH)) {
@@ -56,60 +70,15 @@ function loadPdfConfig() {
 }
 
 /**
- * Escapes special LaTeX characters.
- * When `preserveSpaces` is true, every space (including leading spaces at column 0)
- * is turned into `\hspace*{0.6em}` so monospace alignment matches a plain text editor.
+ * Escapes special LaTeX characters via dictionary lookup.
+ * When `preserveSpaces` is true, spaces become `\hspace*{0.6em}` for exact monospace alignment.
  */
 export function escapeLatex(str, preserveSpaces = false) {
-    const normalized = String(str || '').replace(/\t/g, '    ');
-    let out = '';
+    const escaped = String(str || '')
+        .replace(/\t/g, '    ')
+        .replace(/[\\{}#$%&_^~-]/g, (ch) => LATEX_ESCAPE_MAP[ch]);
 
-    for (let i = 0; i < normalized.length; i++) {
-        const ch = normalized[i];
-        switch (ch) {
-            case '\\':
-                out += '\\textbackslash{}';
-                break;
-            case '{':
-                out += '\\{';
-                break;
-            case '}':
-                out += '\\}';
-                break;
-            case '#':
-                out += '\\#';
-                break;
-            case '$':
-                out += '\\$';
-                break;
-            case '%':
-                out += '\\%';
-                break;
-            case '&':
-                out += '\\&';
-                break;
-            case '_':
-                out += '\\_';
-                break;
-            case '^':
-                out += '\\textasciicircum{}';
-                break;
-            case '~':
-                out += '\\textasciitilde{}';
-                break;
-            case '-':
-                out += '-\\kern0pt{}';
-                break;
-            case ' ':
-                out += preserveSpaces ? '\\hspace*{0.6em}' : ' ';
-                break;
-            default:
-                out += ch;
-                break;
-        }
-    }
-
-    return out;
+    return preserveSpaces ? escaped.replace(/ /g, '\\hspace*{0.6em}') : escaped;
 }
 
 /**

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * @file scripts/build-db.mjs
- * @version 4.1.0
+ * @version 4.2.0
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -18,7 +18,7 @@ import {
 } from '../src/shared/dbMerger.js';
 import { parseAcordismoConfigYaml } from '../src/shared/acordismoConfig.js';
 
-export const __version__ = '4.1.0';
+export const __version__ = '4.2.0';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -123,6 +123,10 @@ function loadDotEnv() {
     }
 }
 
+/**
+ * Resolves a path from `acordismo-config.yaml`, with automatic case-insensitive leaf matching
+ * and `0-GUITAR` parent fallback if `ACORDISMO_CURATED_DIR` points to the parent `chords` folder.
+ */
 function resolveConfigPath(rawStr) {
     if (!rawStr || typeof rawStr !== 'string') {
         return null;
@@ -151,7 +155,38 @@ function resolveConfigPath(rawStr) {
         normalized = path.join(os.homedir(), normalized.slice(2));
     }
 
-    return path.resolve(ROOT_DIR, normalized);
+    const candidate = path.resolve(ROOT_DIR, normalized);
+    if (fs.existsSync(candidate)) {
+        return candidate;
+    }
+
+    // Fallback: check case-insensitive leaf directory name and optional 0-GUITAR intermediate dir
+    const parentDir = path.dirname(candidate);
+    const leafName = path.basename(candidate);
+    const leafNorm = normalizeSearchText(leafName);
+
+    const searchParents = [
+        parentDir,
+        path.join(parentDir, '0-GUITAR'),
+        path.dirname(parentDir), // in case ACORDISMO_CURATED_DIR already ends in /0-GUITAR
+    ];
+
+    for (const pDir of searchParents) {
+        if (!fs.existsSync(pDir) || !fs.statSync(pDir).isDirectory()) {
+            continue;
+        }
+        const entries = fs.readdirSync(pDir);
+        const match = entries.find(
+            (e) =>
+                e.toLowerCase() === leafName.toLowerCase() ||
+                normalizeSearchText(e) === leafNorm
+        );
+        if (match) {
+            return path.join(pDir, match);
+        }
+    }
+
+    return candidate;
 }
 
 function expandEnvString(rawStr) {

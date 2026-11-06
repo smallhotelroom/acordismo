@@ -1,5 +1,5 @@
 # File: acordismo-config.yaml
-# Version: 1.0.0
+# Version: 1.1.0
 # Single Source of Truth for Acordismo App Defaults, PDF Generation, and Database Layers.
 
 app:
@@ -36,8 +36,7 @@ layers:
     output: "dist-dbs/songs-official.db"
     also_copy_to: "public/songs.db"
     sources:
-      - type: "markdown_dir"
-        path: "${ACORDISMO_OFFICIAL_DIR:-../smallhotelroom.github.io/src/contents/songs}"
+      - path: "${ACORDISMO_OFFICIAL_DIR:-../smallhotelroom.github.io/src/contents/songs}"
         playlist: "★ Small Hotel Room"
     playlists:
       - name: "★ cancionesdejuan"
@@ -46,23 +45,17 @@ layers:
   - id: "curated"
     output: "dist-dbs/songs-curated.db"
     sources:
-      - type: "markdown_dir"
-        path: "${ACORDISMO_CURATED_DIR}/English"
+      - path: "${ACORDISMO_CURATED_DIR}/0-GUITAR/english"
         playlist: "English"
-      - type: "markdown_dir"
-        path: "${ACORDISMO_CURATED_DIR}/Español"
+      - path: "${ACORDISMO_CURATED_DIR}/0-GUITAR/espanol"
         playlist: "Español"
-      - type: "markdown_dir"
-        path: "${ACORDISMO_CURATED_DIR}/Français"
+      - path: "${ACORDISMO_CURATED_DIR}/0-GUITAR/francais"
         playlist: "Français"
-      - type: "markdown_dir"
-        path: "${ACORDISMO_CURATED_DIR}/Italiano"
+      - path: "${ACORDISMO_CURATED_DIR}/0-GUITAR/italiano"
         playlist: "Italiano"
-      - type: "markdown_dir"
-        path: "${ACORDISMO_CURATED_DIR}/日本"
+      - path: "${ACORDISMO_CURATED_DIR}/0-GUITAR/日本"
         playlist: "日本"
-      - type: "markdown_dir"
-        path: "${ACORDISMO_CURATED_DIR}/Português"
+      - path: "${ACORDISMO_CURATED_DIR}/0-GUITAR/portugues"
         playlist: "Português"
     playlists:
       - name: "★ Metal, Rock y Punk"
