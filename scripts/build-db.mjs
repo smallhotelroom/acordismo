@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * @file scripts/build-db.mjs
- * @version 4.0.0
+ * @version 4.1.0
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -18,7 +18,7 @@ import {
 } from '../src/shared/dbMerger.js';
 import { parseAcordismoConfigYaml } from '../src/shared/acordismoConfig.js';
 
-export const __version__ = '4.0.0';
+export const __version__ = '4.1.0';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -36,6 +36,16 @@ export async function loadMasterSongSchema() {
         );
     }
     return await import(pathToFileURL(EXTERNAL_SCHEMA_PATH).href);
+}
+
+/**
+ * Normalizes CRLF to LF and strips trailing newlines/whitespace at the end of a song
+ * so neither the DB nor PDF generator ever renders trailing blank lines.
+ */
+function cleanSongContents(rawContent) {
+    return String(rawContent || '')
+        .replace(/\r\n/g, '\n')
+        .replace(/[\s\n]+$/, '');
 }
 
 function formatClickableLocation(fullPath, line = 1, col = 1) {
@@ -298,7 +308,9 @@ function buildLayerDatabase(SQL, layerConfig, schemaMod) {
                 const songName = baseName.slice(splitIdx + 3);
 
                 const rawText = fs.readFileSync(fullPath, 'utf8');
-                const { data: song, keyLines, content } = schemaMod.parseFrontmatterFile(rawText);
+                const { data: song, keyLines, content: rawContent } =
+                    schemaMod.parseFrontmatterFile(rawText);
+                const content = cleanSongContents(rawContent);
 
                 const schemaErrors = validateSongFrontmatter(
                     song,
@@ -353,7 +365,7 @@ function buildLayerDatabase(SQL, layerConfig, schemaMod) {
                 const url = song.url ?? null;
                 const writer = song.writer ?? author;
 
-                const rawHashInput = `${bandName.trim()}|${songName.trim()}|${content.trim()}`;
+                const rawHashInput = `${bandName.trim()}|${songName.trim()}|${content}`;
                 const contentHash = crypto
                     .createHash('sha256')
                     .update(rawHashInput, 'utf8')
@@ -487,7 +499,7 @@ function buildLayerDatabase(SQL, layerConfig, schemaMod) {
                                 } else {
                                     useCache = true;
                                     songName = cachedData.name;
-                                    songContent = cachedData.content;
+                                    songContent = cleanSongContents(cachedData.content);
                                     console.log(`** (cached) ${bandName} - ${songName}`);
                                 }
                             }
@@ -524,7 +536,7 @@ function buildLayerDatabase(SQL, layerConfig, schemaMod) {
                                 continue;
                             }
 
-                            songContent = stripHtmlTags(preMatch[1]);
+                            songContent = cleanSongContents(stripHtmlTags(preMatch[1]));
                             console.log(`** ${bandName} - ${songName}`);
 
                             if (cacheBandDir && cacheFilePath) {
@@ -595,7 +607,7 @@ function buildLayerDatabase(SQL, layerConfig, schemaMod) {
                                 } else {
                                     useCache = true;
                                     songName = cachedData.name;
-                                    songContent = cachedData.content;
+                                    songContent = cleanSongContents(cachedData.content);
                                     console.log(`** (cached) ${bandName} - ${songName}`);
                                 }
                             }
@@ -625,7 +637,7 @@ function buildLayerDatabase(SQL, layerConfig, schemaMod) {
                                     .join('')
                                     .replace(/\\'/g, "'")
                                     .replace(/\\n/g, '\n');
-                                songContent = stripHtmlTags(joined);
+                                songContent = cleanSongContents(stripHtmlTags(joined));
                             } else {
                                 const preMatches = [
                                     ...htmlContent.matchAll(/<pre[^>]*>([\s\S]*?)<\/pre>/gi),
@@ -642,7 +654,7 @@ function buildLayerDatabase(SQL, layerConfig, schemaMod) {
                                     }
                                     continue;
                                 }
-                                songContent = stripHtmlTags(preMatches[1][1]);
+                                songContent = cleanSongContents(stripHtmlTags(preMatches[1][1]));
                             }
 
                             console.log(`** ${bandName} - ${songName}`);

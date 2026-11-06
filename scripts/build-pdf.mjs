@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 /**
  * @file scripts/build-pdf.mjs
- * @version 2.3.0
+ * @version 2.4.0
  * Builds printable LaTeX/PDF songbooks from Acordismo SQLite databases.
  * Features:
  * - Vertically & horizontally centered cover page (with explicit line break below acordismo-logo.svg)
  * - Initial Table of Contents (Band - Song order)
  * - Notepad/App-faithful monospace layout (zero left indent unless spaces exist, natural line height)
+ * - Strips trailing blank lines so full-page songs like "Arrest" never overflow into a blank page
  * - Short '-' separator for "Band - Song"
  * - 2-column back-of-book alphabetical Song Index (Song titles + clickable page numbers only)
  * - Defaults to color palette (`SYNTAX_PALETTE.light`), or B/W (`SYNTAX_PALETTE.pdfBw`) with `--bw`.
@@ -26,7 +27,7 @@ import {
     stripOuterPunctuation,
 } from '../src/shared/crawlerTransposer.js';
 
-export const __version__ = '2.3.0';
+export const __version__ = '2.4.0';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -97,7 +98,6 @@ export function escapeLatex(str, preserveSpaces = false) {
                 out += '\\textasciitilde{}';
                 break;
             case '-':
-                // Prevent LaTeX from merging '--' or '---' into en/em-dashes in monospace tabs!
                 out += '-\\kern0pt{}';
                 break;
             case ' ':
@@ -170,8 +170,9 @@ function formatCrawlerChordLineLatex(lineText, transposerMod, semitones, useFlat
 
 /**
  * Converts a single song's contents into notepad-faithful monospace LaTeX lines:
+ * - Strips trailing blank lines at the end of the song to prevent blank overflow pages
  * - Zero left indentation unless spaces are actually present in the line
- * - Exact single-line blank spacing on empty lines
+ * - Exact single-line blank spacing on internal empty lines
  * - Syntax highlighting matching SongScreen
  */
 export function formatSongContentsToLatex(
@@ -187,9 +188,12 @@ export function formatSongContentsToLatex(
         transposeChordToken,
     } = transposerMod;
 
-    const useFlats = deduceSongUseFlats(contents, semitones, songKeyHint);
+    const trimmedContents = String(contents || '')
+        .replace(/\r\n/g, '\n')
+        .replace(/[\s\n]+$/, '');
+    const useFlats = deduceSongUseFlats(trimmedContents, semitones, songKeyHint);
     const isCrawlerOrigin = Number(originId || 0) > 0;
-    const lines = String(contents || '').replace(/\r\n/g, '\n').split('\n');
+    const lines = trimmedContents.split('\n');
     const latexLines = [];
 
     if (frontmatterCapo) {
@@ -204,7 +208,7 @@ export function formatSongContentsToLatex(
     }
 
     for (const lineText of lines) {
-        if (lineText.length === 0) {
+        if (lineText.trim().length === 0) {
             // Exact notepad empty line height
             latexLines.push(`\\noindent\\strut\\par`);
             continue;
@@ -312,10 +316,6 @@ export function buildLatexPalettePreamble(SYNTAX_PALETTE, useColor = true) {
 `.trim();
 }
 
-/**
- * Optionally renders `acordismo-logo.svg` into `outDir/acordismo-cover-logo.png`
- * so the cover page can include the keyhole emblem.
- */
 function prepareCoverLogoPng(outDir) {
     const candidates = [
         path.join(ROOT_DIR, 'public', 'favicon.svg'),
@@ -415,7 +415,7 @@ async function main() {
 {\\ttfamily\\small\\linespread{1.05}\\selectfont
 ${bodyLatex}
 }
-\\newpage
+\\clearpage
 `.trim();
     });
 
@@ -438,7 +438,6 @@ ${bodyLatex}
     const margin = pdfCfg.margin || '1.6cm';
     const todayStr = new Date().toISOString().slice(0, 10);
 
-    // Explicit `\par` after `\includegraphics` guarantees a line break so logo and "Acordismo" are both centered on their own lines
     const logoLatexBlock = coverLogoFile
         ? `\\includegraphics[width=4.6cm]{${coverLogoFile}}\\par\n    \\vspace{1.2cm}`
         : '';
@@ -483,7 +482,7 @@ ${palettePreamble}
 
 % --- INITIAL TABLE OF CONTENTS (BAND - SONG) ---
 \\tableofcontents
-\\newpage
+\\clearpage
 
 % --- SONG SHEETS ---
 ${songSections.join('\n\n')}
