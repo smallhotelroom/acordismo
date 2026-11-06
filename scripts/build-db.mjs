@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * @file scripts/build-db.mjs
- * @version 4.2.0
+ * @version 4.3.0
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -18,7 +18,7 @@ import {
 } from '../src/shared/dbMerger.js';
 import { parseAcordismoConfigYaml } from '../src/shared/acordismoConfig.js';
 
-export const __version__ = '4.2.0';
+export const __version__ = '4.3.0';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -124,8 +124,7 @@ function loadDotEnv() {
 }
 
 /**
- * Resolves a path from `acordismo-config.yaml`, with automatic case-insensitive leaf matching
- * and `0-GUITAR` parent fallback if `ACORDISMO_CURATED_DIR` points to the parent `chords` folder.
+ * Strictly case-sensitive path resolver for `acordismo-config.yaml`.
  */
 function resolveConfigPath(rawStr) {
     if (!rawStr || typeof rawStr !== 'string') {
@@ -155,38 +154,7 @@ function resolveConfigPath(rawStr) {
         normalized = path.join(os.homedir(), normalized.slice(2));
     }
 
-    const candidate = path.resolve(ROOT_DIR, normalized);
-    if (fs.existsSync(candidate)) {
-        return candidate;
-    }
-
-    // Fallback: check case-insensitive leaf directory name and optional 0-GUITAR intermediate dir
-    const parentDir = path.dirname(candidate);
-    const leafName = path.basename(candidate);
-    const leafNorm = normalizeSearchText(leafName);
-
-    const searchParents = [
-        parentDir,
-        path.join(parentDir, '0-GUITAR'),
-        path.dirname(parentDir), // in case ACORDISMO_CURATED_DIR already ends in /0-GUITAR
-    ];
-
-    for (const pDir of searchParents) {
-        if (!fs.existsSync(pDir) || !fs.statSync(pDir).isDirectory()) {
-            continue;
-        }
-        const entries = fs.readdirSync(pDir);
-        const match = entries.find(
-            (e) =>
-                e.toLowerCase() === leafName.toLowerCase() ||
-                normalizeSearchText(e) === leafNorm
-        );
-        if (match) {
-            return path.join(pDir, match);
-        }
-    }
-
-    return candidate;
+    return path.resolve(ROOT_DIR, normalized);
 }
 
 function expandEnvString(rawStr) {
@@ -383,9 +351,7 @@ function buildLayerDatabase(SQL, layerConfig, schemaMod) {
                 const initNote =
                     song.initNote !== undefined && song.initNote !== null
                         ? String(song.initNote)
-                        : song.init !== undefined && song.init !== null
-                          ? String(song.init)
-                          : null;
+                        : null;
                 const isrc = song.isrc ?? null;
                 const songKey = song.key ?? null;
                 const lang = song.lang ?? null;
@@ -516,31 +482,18 @@ function buildLayerDatabase(SQL, layerConfig, schemaMod) {
                             ? path.join(cacheBandDir, `${name}.json`)
                             : null;
 
-                        let useCache = false;
-                        if (cacheFilePath && fs.existsSync(cacheFilePath)) {
-                            if (
-                                fs.statSync(cacheFilePath).mtimeMs >=
-                                fs.statSync(fullFileName).mtimeMs
-                            ) {
-                                const cachedData = JSON.parse(
-                                    fs.readFileSync(cacheFilePath, 'utf8')
-                                );
-                                if (
-                                    cachedData.content &&
-                                    cachedData.content.includes('[') &&
-                                    !cachedData.content.includes('(')
-                                ) {
-                                    useCache = false;
-                                } else {
-                                    useCache = true;
-                                    songName = cachedData.name;
-                                    songContent = cleanSongContents(cachedData.content);
-                                    console.log(`** (cached) ${bandName} - ${songName}`);
-                                }
-                            }
-                        }
+                        const useCache =
+                            cacheFilePath &&
+                            fs.existsSync(cacheFilePath) &&
+                            fs.statSync(cacheFilePath).mtimeMs >=
+                                fs.statSync(fullFileName).mtimeMs;
 
-                        if (!useCache) {
+                        if (useCache) {
+                            const cachedData = JSON.parse(fs.readFileSync(cacheFilePath, 'utf8'));
+                            songName = cachedData.name;
+                            songContent = cleanSongContents(cachedData.content);
+                            console.log(`** (cached) ${bandName} - ${songName}`);
+                        } else {
                             const html = fs.readFileSync(fullFileName, 'utf8');
                             const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
                             const rawTitle = titleMatch
@@ -624,31 +577,18 @@ function buildLayerDatabase(SQL, layerConfig, schemaMod) {
                             ? path.join(cacheBandDir, `${songDirName}.json`)
                             : null;
 
-                        let useCache = false;
-                        if (cacheFilePath && fs.existsSync(cacheFilePath)) {
-                            if (
-                                fs.statSync(cacheFilePath).mtimeMs >=
-                                fs.statSync(fullFileName).mtimeMs
-                            ) {
-                                const cachedData = JSON.parse(
-                                    fs.readFileSync(cacheFilePath, 'utf8')
-                                );
-                                if (
-                                    cachedData.content &&
-                                    cachedData.content.includes('[') &&
-                                    !cachedData.content.includes('(')
-                                ) {
-                                    useCache = false;
-                                } else {
-                                    useCache = true;
-                                    songName = cachedData.name;
-                                    songContent = cleanSongContents(cachedData.content);
-                                    console.log(`** (cached) ${bandName} - ${songName}`);
-                                }
-                            }
-                        }
+                        const useCache =
+                            cacheFilePath &&
+                            fs.existsSync(cacheFilePath) &&
+                            fs.statSync(cacheFilePath).mtimeMs >=
+                                fs.statSync(fullFileName).mtimeMs;
 
-                        if (!useCache) {
+                        if (useCache) {
+                            const cachedData = JSON.parse(fs.readFileSync(cacheFilePath, 'utf8'));
+                            songName = cachedData.name;
+                            songContent = cleanSongContents(cachedData.content);
+                            console.log(`** (cached) ${bandName} - ${songName}`);
+                        } else {
                             const htmlContent = fs.readFileSync(fullFileName, 'utf8');
                             const titleMatch = htmlContent.match(
                                 /<title[^>]*>([\s\S]*?)<\/title>/i
@@ -834,16 +774,9 @@ async function main() {
     loadDotEnv();
     const schemaMod = await loadMasterSongSchema();
 
-    const primaryConfigPath = path.join(ROOT_DIR, 'acordismo-config.yaml');
-    const legacyConfigPath = path.join(ROOT_DIR, 'db-origins.yaml');
-    const configPath = fs.existsSync(primaryConfigPath)
-        ? primaryConfigPath
-        : legacyConfigPath;
-
+    const configPath = path.join(ROOT_DIR, 'acordismo-config.yaml');
     if (!fs.existsSync(configPath)) {
-        console.error(
-            `Error: Neither acordismo-config.yaml nor db-origins.yaml found in ${ROOT_DIR}`
-        );
+        console.error(`Error: acordismo-config.yaml not found at ${configPath}`);
         process.exit(1);
     }
 
