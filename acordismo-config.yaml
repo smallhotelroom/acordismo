@@ -53,8 +53,8 @@ layers:
         playlist: "Français"
       - path: "${ACORDISMO_CURATED_DIR}/0-GUITAR/italiano"
         playlist: "Italiano"
-      - path: "${ACORDISMO_CURATED_DIR}/0-GUITAR/nihon"
-        playlist: "日本"
+      - path: "${ACORDISMO_CURATED_DIR}/0-GUITAR/japanese"
+        playlist: "日本語"
       - path: "${ACORDISMO_CURATED_DIR}/0-GUITAR/portugues"
         playlist: "Português"
     playlists:
