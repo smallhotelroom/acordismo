@@ -1,12 +1,17 @@
 /**
  * @file src/shared/AppContext.jsx
- * @version 2.9.0
+ * @version 3.0.0
  */
 import React, { createContext, useEffect, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { getSavedDbLabel, loadExternalDatabaseBytes } from './database';
+import { parseAcordismoConfigYaml } from './acordismoConfig';
+import rawConfigYaml from '../../acordismo-config.yaml?raw';
 
-export const __version__ = '2.9.0';
+export const __version__ = '3.0.0';
+
+export const ACORDISMO_CONFIG = parseAcordismoConfigYaml(rawConfigYaml);
+export const APP_DEFAULTS = ACORDISMO_CONFIG.app;
 
 export const AppContext = createContext(null);
 
@@ -18,36 +23,46 @@ const FREEZE_CHORDS_STORAGE_KEY = 'acordismo_freeze_chords';
 const DEFAULT_FONT_SIZE_STORAGE_KEY = 'acordismo_default_font_size';
 
 export function AppProvider({ children }) {
-    const [transposition, setTransposition] = useState(0);
+    const [transposition, setTransposition] = useState(
+        APP_DEFAULTS.default_transposition
+    );
     const [darkMode, setDarkMode] = useState(() => {
-        return localStorage.getItem('acordismo_dark_mode') === 'true';
+        const saved = localStorage.getItem('acordismo_dark_mode');
+        return saved !== null ? saved === 'true' : Boolean(APP_DEFAULTS.default_dark_mode);
     });
     const [topSpaceEnabled, setTopSpaceEnabled] = useState(() => {
         const saved = localStorage.getItem(TOP_SPACE_STORAGE_KEY);
         if (saved !== null) {
             return saved === 'true';
         }
-        // Default ON for native mobile apps (Android/iOS), OFF for desktop/web browsers
-        return Capacitor.isNativePlatform();
+        return Capacitor.isNativePlatform()
+            ? Boolean(APP_DEFAULTS.default_system_bars_native)
+            : Boolean(APP_DEFAULTS.default_system_bars_web);
     });
     const [freezeChordsEnabled, setFreezeChordsEnabled] = useState(() => {
         const saved = localStorage.getItem(FREEZE_CHORDS_STORAGE_KEY);
-        return saved !== null ? saved === 'true' : true;
+        return saved !== null
+            ? saved === 'true'
+            : Boolean(APP_DEFAULTS.default_freeze_chords);
     });
     const [defaultFontSize, setDefaultFontSize] = useState(() => {
         const saved = parseInt(localStorage.getItem(DEFAULT_FONT_SIZE_STORAGE_KEY), 10);
-        return !Number.isNaN(saved) && saved >= 10 && saved <= 36 ? saved : 14;
+        return !Number.isNaN(saved) &&
+            saved >= APP_DEFAULTS.min_font_size &&
+            saved <= APP_DEFAULTS.max_font_size
+            ? saved
+            : APP_DEFAULTS.default_font_size;
     });
-    const [currentTab, setCurrentTab] = useState('Playlists');
+    const [currentTab, setCurrentTab] = useState(APP_DEFAULTS.default_tab);
     const [tabOrders, setTabOrders] = useState({
-        Playlists: 'Original',
-        Bands: 'ASC',
-        Songs: 'ASC',
+        Playlists: APP_DEFAULTS.default_playlist_order,
+        Bands: APP_DEFAULTS.default_band_order,
+        Songs: APP_DEFAULTS.default_song_order,
     });
     const [homeSearchVisible, setHomeSearchVisible] = useState(false);
     const [homeSearchStr, setHomeSearchStr] = useState('');
     const [homeModalVisible, setHomeModalVisible] = useState(false);
-    const [activeDbLabel, setActiveDbLabel] = useState('Default (Small Hotel Room)');
+    const [activeDbLabel, setActiveDbLabel] = useState(APP_DEFAULTS.default_db_label);
     const [dbRevision, setDbRevision] = useState(0);
 
     useEffect(() => {

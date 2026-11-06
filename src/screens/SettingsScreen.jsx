@@ -1,6 +1,6 @@
 /**
  * @file src/screens/SettingsScreen.jsx
- * @version 3.4.0
+ * @version 3.5.0
  */
 import React, { useContext, useEffect, useRef, useState } from 'react';
 import {
@@ -22,9 +22,9 @@ import {
     resetToDefaultDatabase,
     toggleDatabaseLayer,
 } from '../shared/database';
-import { AppContext } from '../shared/AppContext';
+import { APP_DEFAULTS, AppContext } from '../shared/AppContext';
 
-export const __version__ = '3.4.0';
+export const __version__ = '3.5.0';
 
 export const FREEZE_CHORDS_STORAGE_KEY = 'acordismo_freeze_chords';
 
@@ -48,7 +48,9 @@ export default function SettingsScreen({ onBack }) {
 
     const [localFreezeChords, setLocalFreezeChords] = useState(() => {
         const saved = localStorage.getItem(FREEZE_CHORDS_STORAGE_KEY);
-        return saved !== null ? saved === 'true' : true;
+        return saved !== null
+            ? saved === 'true'
+            : Boolean(APP_DEFAULTS.default_freeze_chords);
     });
 
     const freezeChordsEnabled =
@@ -63,7 +65,11 @@ export default function SettingsScreen({ onBack }) {
         }
     };
 
-    const clampFontSize = (val) => Math.max(10, Math.min(36, val));
+    const clampFontSize = (val) =>
+        Math.max(
+            APP_DEFAULTS.min_font_size,
+            Math.min(APP_DEFAULTS.max_font_size, val)
+        );
 
     const fileInputRef = useRef(null);
     const [layerStack, setLayerStack] = useState([]);
@@ -180,7 +186,9 @@ export default function SettingsScreen({ onBack }) {
                     </button>
                     <button
                         className="btn-primary"
-                        onClick={() => setTransposition(0)}>
+                        onClick={() =>
+                            setTransposition(APP_DEFAULTS.default_transposition)
+                        }>
                         RESET
                     </button>
                 </div>
@@ -229,7 +237,9 @@ export default function SettingsScreen({ onBack }) {
                     </button>
                     <button
                         className="btn-primary"
-                        onClick={() => setDefaultFontSize(14)}>
+                        onClick={() =>
+                            setDefaultFontSize(APP_DEFAULTS.default_font_size)
+                        }>
                         RESET
                     </button>
                 </div>

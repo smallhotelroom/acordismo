@@ -1,20 +1,22 @@
 #!/usr/bin/env node
 /**
  * @file scripts/build-pdf.mjs
- * @version 2.0.0
- * Builds printable LaTeX/PDF songbooks from Acordismo SQLite databases or markdown sources.
- * - Default mode: High-contrast B/W grayscale (`SYNTAX_PALETTE.pdfBw` from songSchema.js)
- *   where chords are pure black and parentheses/modifiers are charcoal grey (#6e6e6e).
- * - Color mode (`--color` / `--colours`): Uses `SYNTAX_PALETTE.light` from songSchema.js
- *   (purple parentheses/modifiers, royal blue chords, amber directives, green choir).
+ * @version 2.1.0
+ * Builds printable LaTeX/PDF songbooks from Acordismo SQLite databases.
+ * Reads defaults from `acordismo-config.yaml` (defaults to `color` palette: `SYNTAX_PALETTE.light`).
+ * Pass `--bw` or `--grayscale` to build with the B/W print palette (`SYNTAX_PALETTE.pdfBw`).
  */
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import initSqlJs from 'sql.js';
+import {
+    FALLBACK_ACORDISMO_CONFIG,
+    parseAcordismoConfigYaml,
+} from '../src/shared/acordismoConfig.js';
 
-export const __version__ = '2.0.0';
+export const __version__ = '2.1.0';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -34,9 +36,14 @@ async function loadSharedTransposer() {
     return await import(pathToFileURL(EXTERNAL_TRANSPOSER_PATH).href);
 }
 
-/**
- * Escapes special LaTeX characters in plain text/chords while preserving spaces via ~ in monospace.
- */
+function loadPdfConfig() {
+    const configPath = path.join(ROOT_DIR, 'acordismo-config.yaml');
+    if (fs.existsSync(configPath)) {
+        return parseAcordismoConfigYaml(fs.readFileSync(configPath, 'utf8')).pdf;
+    }
+    return FALLBACK_ACORDISMO_CONFIG.pdf;
+}
+
 export function escapeLatex(str, preserveSpaces = false) {
     let out = String(str || '')
         .replace(/\\/g, '\\textbackslash{}')
@@ -50,9 +57,6 @@ export function escapeLatex(str, preserveSpaces = false) {
     return out;
 }
 
-/**
- * Formats [choir] blocks inside lyric text into italic `\textcolor{acChoir}{\textit{...}}`.
- */
 function formatLyricSegmentLatex(text) {
     if (!text) return '';
     if (!text.includes('[')) {
@@ -78,10 +82,6 @@ function formatLyricSegmentLatex(text) {
     return parts.join('');
 }
 
-/**
- * Converts a single song's contents into syntax-highlighted LaTeX lines using the
- * shared grammar and LaTeX color definitions (`acParen`, `acChord`, `acMod`, `acDir`, `acChoir`).
- */
 export function formatSongContentsToLatex(
     contents,
     transposerMod,
@@ -182,12 +182,8 @@ export function formatSongContentsToLatex(
     return latexLines.join('\n');
 }
 
-/**
- * Generates the LaTeX `\definecolor` block directly from `SYNTAX_PALETTE.pdfBw` (default)
- * or `SYNTAX_PALETTE.light` (when `--color` is passed).
- */
-export function buildLatexPalettePreamble(SYNTAX_PALETTE, useColor = false) {
-    const p = useColor ? SYNTAX_PALETTE.light : SYNTAX_PALETTE.pdfBw;
+export function buildLatexPalettePreamble(SYNTAX_PALETTE, useColor = true) {
+    const p = useColor ? SYNTAX_PALETTE.light : SYNTAX_PALETTE.pdfBw || SYNTAX_PALETTE.light;
     const stripHash = (hex) => String(hex || '#000000').replace(/^#/, '').toUpperCase();
 
     return `
@@ -201,9 +197,18 @@ export function buildLatexPalettePreamble(SYNTAX_PALETTE, useColor = false) {
 }
 
 async function main() {
+    const pdfCfg = loadPdfConfig();
     const args = process.argv.slice(2);
-    const useColor = args.includes('--color') || args.includes('--colours') || args.includes('-c');
-    const dbArg = args.find((a) => !a.startsWith('-')) || 'public/songs.db';
+
+    const forceBw = args.includes('--bw') || args.includes('--grayscale') || args.includes('--b/w');
+    const forceColor = args.includes('--color') || args.includes('--colours') || args.includes('-c');
+    const useColor = forceBw
+        ? false
+        : forceColor
+          ? true
+          : String(pdfCfg.default_palette || 'color').toLowerCase() !== 'bw';
+
+    const dbArg = args.find((a) => !a.startsWith('-')) || pdfCfg.default_db || 'public/songs.db';
     const dbPath = path.resolve(ROOT_DIR, dbArg);
 
     if (!fs.existsSync(dbPath)) {
@@ -231,7 +236,7 @@ async function main() {
     db.close();
 
     const modeSuffix = useColor ? 'color' : 'bw';
-    const outDir = path.join(ROOT_DIR, 'dist-pdfs');
+    const outDir = path.resolve(ROOT_DIR, pdfCfg.output_dir || 'dist-pdfs');
     fs.mkdirSync(outDir, { recursive: true });
 
     const palettePreamble = buildLatexPalettePreamble(SYNTAX_PALETTE, useColor);
@@ -253,11 +258,15 @@ ${bodyLatex}
 `.trim();
     });
 
+    const fontSize = pdfCfg.font_size || '10pt';
+    const paperSize = pdfCfg.paper_size || 'a4paper';
+    const margin = pdfCfg.margin || '1.6cm';
+
     const texDocument = `
-\\documentclass[10pt,a4paper]{article}
+\\documentclass[${fontSize},${paperSize}]{article}
 \\usepackage[utf8]{inputenc}
 \\usepackage[T1]{fontenc}
-\\usepackage[margin=1.6cm]{geometry}
+\\usepackage[margin=${margin}]{geometry}
 \\usepackage{hyperref}
 ${palettePreamble}
 
@@ -280,7 +289,6 @@ ${songSections.join('\n\n')}
     const pdflatexCheck = spawnSync('pdflatex', ['--version'], { stdio: 'ignore' });
     if (!pdflatexCheck.error && pdflatexCheck.status === 0) {
         console.log(`🖨️  Compiling PDF via pdflatex...`);
-        // Run twice so Table of Contents resolves
         for (let pass = 1; pass <= 2; pass++) {
             spawnSync(
                 'pdflatex',

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * @file scripts/build-db.mjs
- * @version 3.9.0
+ * @version 4.0.0
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -16,8 +16,9 @@ import {
     wildcardToRegExp,
     mergeDatabasesInPriorityOrder,
 } from '../src/shared/dbMerger.js';
+import { parseAcordismoConfigYaml } from '../src/shared/acordismoConfig.js';
 
-export const __version__ = '3.9.0';
+export const __version__ = '4.0.0';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -160,105 +161,6 @@ function expandEnvString(rawStr) {
         return '';
     });
     return missingVar ? '' : expanded.trim();
-}
-
-function parseDbOriginsYaml(yamlText) {
-    const config = { layers: [], merged_output: null };
-    let currentLayer = null;
-    let currentSection = null;
-    let currentItem = null;
-
-    const unquote = (v) => {
-        const s = v.trim();
-        if ((s.startsWith('"') && s.endsWith('"')) || (s.startsWith("'") && s.endsWith("'"))) {
-            return s.slice(1, -1);
-        }
-        if (/^-?\d+(\.\d+)?$/.test(s)) {
-            return Number(s);
-        }
-        return s;
-    };
-
-    for (const rawLine of yamlText.split(/\r?\n/)) {
-        const stripped = rawLine.replace(/\s+#.*$/, '').trimEnd();
-        const trimmed = stripped.trim();
-        if (!trimmed || trimmed.startsWith('#')) {
-            continue;
-        }
-
-        const indent = stripped.search(/\S/);
-
-        if (indent === 0) {
-            if (trimmed.startsWith('merged_output:')) {
-                config.merged_output = unquote(trimmed.slice('merged_output:'.length));
-            }
-            continue;
-        }
-
-        if (indent === 2 && trimmed.startsWith('- id:')) {
-            currentLayer = {
-                id: unquote(trimmed.slice('- id:'.length)),
-                output: null,
-                also_copy_to: null,
-                sources: [],
-                playlists: [],
-            };
-            config.layers.push(currentLayer);
-            currentSection = null;
-            currentItem = null;
-            continue;
-        }
-
-        if (!currentLayer) {
-            continue;
-        }
-
-        if (indent === 4) {
-            if (trimmed === 'sources:') {
-                currentSection = 'sources';
-                currentItem = null;
-            } else if (trimmed === 'playlists:') {
-                currentSection = 'playlists';
-                currentItem = null;
-            } else {
-                const colonIdx = trimmed.indexOf(':');
-                if (colonIdx !== -1) {
-                    const k = trimmed.slice(0, colonIdx).trim();
-                    const v = unquote(trimmed.slice(colonIdx + 1));
-                    currentLayer[k] = v;
-                }
-            }
-            continue;
-        }
-
-        if (indent === 6 && trimmed.startsWith('- ')) {
-            currentItem = {};
-            if (currentSection === 'sources') {
-                currentLayer.sources.push(currentItem);
-            } else if (currentSection === 'playlists') {
-                currentLayer.playlists.push(currentItem);
-            }
-            const rest = trimmed.slice(2);
-            const colonIdx = rest.indexOf(':');
-            if (colonIdx !== -1) {
-                const k = rest.slice(0, colonIdx).trim();
-                const v = unquote(rest.slice(colonIdx + 1));
-                currentItem[k] = v;
-            }
-            continue;
-        }
-
-        if (indent >= 8 && currentItem) {
-            const colonIdx = trimmed.indexOf(':');
-            if (colonIdx !== -1) {
-                const k = trimmed.slice(0, colonIdx).trim();
-                const v = unquote(trimmed.slice(colonIdx + 1));
-                currentItem[k] = v;
-            }
-        }
-    }
-
-    return config;
 }
 
 function serializeField(val) {
@@ -576,7 +478,6 @@ function buildLayerDatabase(SQL, layerConfig, schemaMod) {
                                 const cachedData = JSON.parse(
                                     fs.readFileSync(cacheFilePath, 'utf8')
                                 );
-                                // Self-heal: if v3.7 mutated '(' into '[' in the cache, re-parse original HTML
                                 if (
                                     cachedData.content &&
                                     cachedData.content.includes('[') &&
@@ -685,7 +586,6 @@ function buildLayerDatabase(SQL, layerConfig, schemaMod) {
                                 const cachedData = JSON.parse(
                                     fs.readFileSync(cacheFilePath, 'utf8')
                                 );
-                                // Self-heal: if v3.7 mutated '(' into '[' in the cache, re-parse original HTML
                                 if (
                                     cachedData.content &&
                                     cachedData.content.includes('[') &&
@@ -887,13 +787,20 @@ async function main() {
     loadDotEnv();
     const schemaMod = await loadMasterSongSchema();
 
-    const configPath = path.join(ROOT_DIR, 'db-origins.yaml');
+    const primaryConfigPath = path.join(ROOT_DIR, 'acordismo-config.yaml');
+    const legacyConfigPath = path.join(ROOT_DIR, 'db-origins.yaml');
+    const configPath = fs.existsSync(primaryConfigPath)
+        ? primaryConfigPath
+        : legacyConfigPath;
+
     if (!fs.existsSync(configPath)) {
-        console.error(`Error: db-origins.yaml not found at ${configPath}`);
+        console.error(
+            `Error: Neither acordismo-config.yaml nor db-origins.yaml found in ${ROOT_DIR}`
+        );
         process.exit(1);
     }
 
-    const config = parseDbOriginsYaml(fs.readFileSync(configPath, 'utf8'));
+    const config = parseAcordismoConfigYaml(fs.readFileSync(configPath, 'utf8'));
     const SQL = await initSqlJs();
 
     const builtDbs = [];
