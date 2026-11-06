@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 /**
  * @file scripts/build-pdf.mjs
- * @version 2.2.0
+ * @version 2.3.0
  * Builds printable LaTeX/PDF songbooks from Acordismo SQLite databases.
  * Features:
- * - Cover page (with acordismo-logo.svg if available)
+ * - Vertically & horizontally centered cover page (with explicit line break below acordismo-logo.svg)
  * - Initial Table of Contents (Band - Song order)
  * - Notepad/App-faithful monospace layout (zero left indent unless spaces exist, natural line height)
  * - Short '-' separator for "Band - Song"
- * - Back-of-book alphabetical Song Index (Song - Band order with clickable page numbers)
+ * - 2-column back-of-book alphabetical Song Index (Song titles + clickable page numbers only)
  * - Defaults to color palette (`SYNTAX_PALETTE.light`), or B/W (`SYNTAX_PALETTE.pdfBw`) with `--bw`.
  */
 import fs from 'node:fs';
@@ -26,7 +26,7 @@ import {
     stripOuterPunctuation,
 } from '../src/shared/crawlerTransposer.js';
 
-export const __version__ = '2.2.0';
+export const __version__ = '2.3.0';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -57,7 +57,7 @@ function loadPdfConfig() {
 /**
  * Escapes special LaTeX characters.
  * When `preserveSpaces` is true, every space (including leading spaces at column 0)
- * is turned into `\hspace*{0.5em}` / `\ ` so monospace alignment matches a plain text editor.
+ * is turned into `\hspace*{0.6em}` so monospace alignment matches a plain text editor.
  */
 export function escapeLatex(str, preserveSpaces = false) {
     const normalized = String(str || '').replace(/\t/g, '    ');
@@ -318,9 +318,9 @@ export function buildLatexPalettePreamble(SYNTAX_PALETTE, useColor = true) {
  */
 function prepareCoverLogoPng(outDir) {
     const candidates = [
+        path.join(ROOT_DIR, 'public', 'favicon.svg'),
         path.join(ROOT_DIR, 'src', 'assets', 'acordismo-logo.svg'),
         path.join(ROOT_DIR, 'acordismo-logo.svg'),
-        path.join(ROOT_DIR, 'public', 'favicon.svg'),
     ];
     const svgPath = candidates.find((p) => fs.existsSync(p));
     if (!svgPath) return null;
@@ -337,7 +337,7 @@ function prepareCoverLogoPng(outDir) {
             .replace(/\s+(?:sodipodi|inkscape):[a-zA-Z0-9_-]+="[^"]*"/gi, '');
         const tmpSvg = path.join(outDir, '_tmp_cover_logo.svg');
         fs.writeFileSync(tmpSvg, rawSvg, 'utf8');
-        const res = spawnSync('rsvg-convert', ['-w', '360', '-h', '360', tmpSvg, '-o', outPng]);
+        const res = spawnSync('rsvg-convert', ['-w', '420', '-h', '420', tmpSvg, '-o', outPng]);
         if (fs.existsSync(tmpSvg)) fs.unlinkSync(tmpSvg);
         if (res.status === 0 && fs.existsSync(outPng)) {
             return 'acordismo-cover-logo.png';
@@ -397,7 +397,7 @@ async function main() {
 
     // 1. Build Song Sections (ordered by Band - Song)
     const songSections = songs.map((s, idx) => {
-        const labelId = `song:${ idx + 1 }`;
+        const labelId = `song:${idx + 1}`;
         const titleStr = `${escapeLatex(s.band_name)} - ${escapeLatex(s.name)}`;
         const bodyLatex = formatSongContentsToLatex(s.contents, transposerMod, {
             semitones: 0,
@@ -419,17 +419,18 @@ ${bodyLatex}
 `.trim();
     });
 
-    // 2. Build Back-of-Book Alphabetical Song Index (ordered by Song - Band)
+    // 2. Build Back-of-Book 2-Column Alphabetical Song Index (Song titles only + page number)
     const songsByTitle = [...songs]
         .map((s, idx) => ({ ...s, labelId: `song:${idx + 1}` }))
-        .sort((a, b) =>
-            a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }) ||
-            a.band_name.localeCompare(b.band_name, undefined, { sensitivity: 'base' })
+        .sort(
+            (a, b) =>
+                a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }) ||
+                a.band_name.localeCompare(b.band_name, undefined, { sensitivity: 'base' })
         );
 
     const songIndexEntries = songsByTitle.map((s) => {
-        const entryText = `${escapeLatex(s.name)} - ${escapeLatex(s.band_name)}`;
-        return `\\noindent\\hyperref[${s.labelId}]{${entryText}}\\dotfill\\pageref{${s.labelId}}\\par`;
+        const songOnlyText = escapeLatex(s.name);
+        return `\\noindent\\hyperref[${s.labelId}]{${songOnlyText}}\\hspace{0.4em}\\pageref{${s.labelId}}\\par`;
     });
 
     const fontSize = pdfCfg.font_size || '10pt';
@@ -437,9 +438,10 @@ ${bodyLatex}
     const margin = pdfCfg.margin || '1.6cm';
     const todayStr = new Date().toISOString().slice(0, 10);
 
+    // Explicit `\par` after `\includegraphics` guarantees a line break so logo and "Acordismo" are both centered on their own lines
     const logoLatexBlock = coverLogoFile
-        ? `\\vspace{1.5cm}\n\\includegraphics[width=4.2cm]{${coverLogoFile}}\n\\vspace{1.2cm}`
-        : `\\vspace{3cm}`;
+        ? `\\includegraphics[width=4.6cm]{${coverLogoFile}}\\par\n    \\vspace{1.2cm}`
+        : '';
 
     const texDocument = `
 \\documentclass[${fontSize},${paperSize}]{article}
@@ -447,6 +449,7 @@ ${bodyLatex}
 \\usepackage[T1]{fontenc}
 \\usepackage[margin=${margin}]{geometry}
 \\usepackage{graphicx}
+\\usepackage{multicol}
 \\usepackage{hyperref}
 ${palettePreamble}
 
@@ -458,20 +461,22 @@ ${palettePreamble}
 
 \\setlength{\\parindent}{0pt}
 \\setlength{\\parskip}{0pt}
+\\setlength{\\columnsep}{1.2cm}
 
 \\begin{document}
 
-% --- COVER PAGE ---
+% --- COVER PAGE (Vertically & Horizontally Centered) ---
 \\begin{titlepage}
     \\centering
+    \\vspace*{\\fill}
     ${logoLatexBlock}
     {\\Huge\\bfseries Acordismo\\par}
     \\vspace{0.5cm}
     {\\Large Songbook \\& Chord Reference\\par}
-    \\vspace{1.5cm}
+    \\vspace{1.2cm}
     {\\large ${songs.length} Songs \\cdot\\ ${bandSet.size} Bands\\par}
-    \\vfill
-    {\\normalsize\\ttfamily Generated on ${escapeLatex(todayStr)}\\par}
+    \\vspace*{\\fill}
+    {\\normalsize\\ttfamily ${escapeLatex(todayStr)}\\par}
 \\end{titlepage}
 
 \\pagenumbering{arabic}
@@ -483,14 +488,15 @@ ${palettePreamble}
 % --- SONG SHEETS ---
 ${songSections.join('\n\n')}
 
-% --- BACK-OF-BOOK ALPHABETICAL SONG INDEX (SONG - BAND) ---
+% --- BACK-OF-BOOK 2-COLUMN ALPHABETICAL SONG INDEX (SONG NAMES ONLY) ---
 \\phantomsection
-\\addcontentsline{toc}{section}{Song Index (A - Z)}
-{\\Large\\bfseries\\noindent Song Index (A - Z)\\par}
+\\addcontentsline{toc}{section}{Song Index}
+{\\Large\\bfseries\\noindent Song Index\\par}
 \\vspace{0.8em}
-{\\normalsize
+\\begin{multicols}{2}
+\\raggedright
 ${songIndexEntries.join('\n')}
-}
+\\end{multicols}
 
 \\end{document}
 `.trim();
