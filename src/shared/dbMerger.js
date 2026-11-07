@@ -1,9 +1,10 @@
 /**
  * @file src/shared/dbMerger.js
- * @version 1.4.0
+ * @version 1.5.0
  */
+import { hasCrawlerSongAndChords } from './crawlerTransposer.js';
 
-export const __version__ = '1.4.0';
+export const __version__ = '1.5.0';
 
 /**
  * Strips diacritics/accents (e.g. "Leãozinho" -> "leaozinho", "Español" -> "espanol")
@@ -20,7 +21,6 @@ export function normalizeSearchText(str) {
 
 /**
  * Splits a user's search query into normalized diacritic-free tokens.
- * Example: "Caetano  Leãozinho" -> ["caetano", "leaozinho"]
  */
 export function tokenizeSearchQuery(queryStr) {
     const norm = normalizeSearchText(queryStr);
@@ -29,8 +29,6 @@ export function tokenizeSearchQuery(queryStr) {
 
 /**
  * Builds a parameterized SQL condition and params array for multi-token accent-free search.
- * When `includeLyrics` is true, each token can match either `normColumn` OR `LOWER(songs.contents)`.
- * Also includes raw lowercase token fallback when `includeLyrics` is true so accented lyrics match too.
  */
 export function buildMultiTokenSearchClause(
     rawQuery,
@@ -98,6 +96,7 @@ CREATE TABLE IF NOT EXISTS songs (
     name TEXT NOT NULL,
     band_id INTEGER NOT NULL,
     origin_id INTEGER NOT NULL,
+    has_chords INTEGER NOT NULL DEFAULT 1,
     search_norm TEXT,
     album TEXT,
     author TEXT,
@@ -143,6 +142,7 @@ CREATE INDEX IF NOT EXISTS idx_playlists_search_norm ON playlists (search_norm);
 CREATE INDEX IF NOT EXISTS idx_songs_name ON songs (name);
 CREATE INDEX IF NOT EXISTS idx_songs_band_id ON songs (band_id);
 CREATE INDEX IF NOT EXISTS idx_songs_hash ON songs (content_hash);
+CREATE INDEX IF NOT EXISTS idx_songs_has_chords ON songs (has_chords);
 CREATE INDEX IF NOT EXISTS idx_songs_search_norm ON songs (search_norm);
 CREATE INDEX IF NOT EXISTS idx_playlists_songs_playlist_id ON playlists_songs (playlist_id);
 CREATE INDEX IF NOT EXISTS idx_playlists_songs_song_id ON playlists_songs (song_id);
@@ -333,17 +333,28 @@ export function mergeDatabasesInPriorityOrder(SQL, sourceDbs, mergedId = 'merged
                 s.search_norm ||
                 normalizeSearchText(`${bandName} ${ftNames.join(' ')} ${s.name} ${s.album || ''}`);
 
+            const originId = s.origin_id ?? 0;
+            const hasChords =
+                s.has_chords !== undefined && s.has_chords !== null
+                    ? Number(s.has_chords)
+                    : originId > 0
+                      ? hasCrawlerSongAndChords(s.contents ?? '')
+                          ? 1
+                          : 0
+                      : 1;
+
             outDb.run(
                 `INSERT INTO songs (
-                    content_hash, name, band_id, origin_id, search_norm, album, author, bpm, capo,
+                    content_hash, name, band_id, origin_id, has_chords, search_norm, album, author, bpm, capo,
                     falsetto, highest, init_note, isrc, key, lang, license, musicians,
                     spotify, time_signature, track, url, writer, contents
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
                 [
                     s.content_hash ?? null,
                     s.name,
                     newBandId,
-                    s.origin_id ?? 0,
+                    originId,
+                    hasChords,
                     songSearchNorm,
                     s.album ?? null,
                     s.author ?? null,

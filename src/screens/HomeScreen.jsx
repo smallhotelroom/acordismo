@@ -1,6 +1,6 @@
 /**
  * @file src/screens/HomeScreen.jsx
- * @version 2.6.2
+ * @version 2.7.0
  */
 import React, { useContext, useEffect, useState } from 'react';
 import { ArrowRight, Menu, MoreVertical, Moon, Search, Sun } from 'lucide-react';
@@ -11,7 +11,7 @@ import executeQuery from '../shared/database';
 import { buildMultiTokenSearchClause } from '../shared/dbMerger';
 import { AppContext } from '../shared/AppContext';
 
-export const __version__ = '2.6.2';
+export const __version__ = '2.7.0';
 
 export default function HomeScreen({ onNavigate }) {
     const {
@@ -27,6 +27,7 @@ export default function HomeScreen({ onNavigate }) {
         setHomeSearchStr,
         homeModalVisible,
         setHomeModalVisible,
+        hideCrawlerTabsEnabled,
         dbRevision,
     } = useContext(AppContext);
 
@@ -63,7 +64,16 @@ export default function HomeScreen({ onNavigate }) {
                 'COALESCE(bands.search_norm, LOWER(bands.name))',
                 false
             );
-            const whereClause = sqlCondition ? ` WHERE ${sqlCondition}` : '';
+            const conditions = [];
+            if (hideCrawlerTabsEnabled) {
+                conditions.push(
+                    '(EXISTS (SELECT 1 FROM songs WHERE songs.band_id = bands.id AND songs.has_chords = 1) OR EXISTS (SELECT 1 FROM songs_ft_bands INNER JOIN songs ON songs_ft_bands.song_id = songs.id WHERE songs_ft_bands.ft_band_id = bands.id AND songs.has_chords = 1))'
+                );
+            }
+            if (sqlCondition) {
+                conditions.push(`(${sqlCondition})`);
+            }
+            const whereClause = conditions.length > 0 ? ` WHERE ${conditions.join(' AND ')}` : '';
             const orderClause =
                 currentOrder === 'ASC'
                     ? ' ORDER BY name ASC'
@@ -82,7 +92,14 @@ export default function HomeScreen({ onNavigate }) {
                 "COALESCE(songs.search_norm, LOWER(bands.name || ' ' || songs.name))",
                 searchInLyrics
             );
-            const whereClause = sqlCondition ? ` WHERE ${sqlCondition}` : '';
+            const conditions = [];
+            if (hideCrawlerTabsEnabled) {
+                conditions.push('songs.has_chords = 1');
+            }
+            if (sqlCondition) {
+                conditions.push(`(${sqlCondition})`);
+            }
+            const whereClause = conditions.length > 0 ? ` WHERE ${conditions.join(' AND ')}` : '';
             const orderClause =
                 currentOrder === 'ASC'
                     ? ' ORDER BY songs.name ASC'
@@ -99,7 +116,7 @@ export default function HomeScreen({ onNavigate }) {
                 })
                 .catch((err) => console.error(err));
         }
-    }, [currentTab, currentOrder, homeSearchStr, searchInLyrics, dbRevision]);
+    }, [currentTab, currentOrder, homeSearchStr, searchInLyrics, hideCrawlerTabsEnabled, dbRevision]);
 
     const handleTabSelect = (tabName) => {
         setCurrentTab(tabName);

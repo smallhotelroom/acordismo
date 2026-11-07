@@ -1,18 +1,20 @@
 /**
  * @file src/screens/BandScreen.jsx
- * @version 2.5.0
+ * @version 2.6.0
  */
-import React, { useEffect, useState } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import { ArrowLeft, ArrowRight, MoreVertical, Search } from 'lucide-react';
 import SongItem from '../components/SongItem';
 import SearchBar from '../components/SearchBar';
 import executeQuery from '../shared/database';
 import { buildMultiTokenSearchClause } from '../shared/dbMerger';
+import { AppContext } from '../shared/AppContext';
 
-export const __version__ = '2.5.0';
+export const __version__ = '2.6.0';
 
 export default function BandScreen({ routeParams, onNavigate, onBack }) {
     const { selectedBandId } = routeParams;
+    const { hideCrawlerTabsEnabled } = useContext(AppContext);
 
     const [bandModalVisible, setBandModalVisible] = useState(false);
     const [bandName, setBandName] = useState('');
@@ -38,11 +40,12 @@ export default function BandScreen({ routeParams, onNavigate, onBack }) {
             'COALESCE(songs.search_norm, LOWER(songs.name))',
             searchInLyrics
         );
+        const hasChordsClause = hideCrawlerTabsEnabled ? ' AND songs.has_chords = 1' : '';
         const searchClause = sqlCondition ? ` AND (${sqlCondition})` : '';
         const queryParams = [selectedBandId, ...searchParams];
 
         const queryStr = 'SELECT id, name FROM songs WHERE band_id = ?';
-        executeQuery(queryStr + searchClause + bandOrderStr + ';', queryParams)
+        executeQuery(queryStr + hasChordsClause + searchClause + bandOrderStr + ';', queryParams)
             .then((data) => {
                 setBandSongs(data.rows._array);
             })
@@ -50,12 +53,12 @@ export default function BandScreen({ routeParams, onNavigate, onBack }) {
 
         const queryFtStr =
             'SELECT songs.id, songs.name, bands.name AS ft_band_name FROM songs INNER JOIN bands ON songs.band_id = bands.id WHERE songs.id IN (SELECT song_id FROM songs_ft_bands WHERE ft_band_id = ?)';
-        executeQuery(queryFtStr + searchClause + bandOrderStr + ';', queryParams)
+        executeQuery(queryFtStr + hasChordsClause + searchClause + bandOrderStr + ';', queryParams)
             .then((data) => {
                 setBandFeaturing(data.rows._array);
             })
             .catch((err) => console.error(err));
-    }, [selectedBandId, bandOrderStr, bandSearchStr, searchInLyrics]);
+    }, [selectedBandId, bandOrderStr, bandSearchStr, searchInLyrics, hideCrawlerTabsEnabled]);
 
     return (
         <>

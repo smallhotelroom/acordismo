@@ -1,10 +1,10 @@
 /**
  * @file src/shared/acordismoConfig.js
- * @version 1.0.0
+ * @version 1.1.0
  * Universal zero-dependency parser for `acordismo-config.yaml` (shared by React App and Node scripts).
  */
 
-export const __version__ = '1.0.0';
+export const __version__ = '1.1.0';
 
 export const FALLBACK_ACORDISMO_CONFIG = {
     app: {
@@ -14,6 +14,7 @@ export const FALLBACK_ACORDISMO_CONFIG = {
         min_font_size: 10,
         max_font_size: 36,
         default_freeze_chords: true,
+        default_hide_crawler_tabs: true,
         default_scroll_speed: 1.0,
         min_scroll_speed: 0.0,
         max_scroll_speed: 3.0,
@@ -51,7 +52,7 @@ function parseScalarValue(rawVal) {
 }
 
 /**
- * Parses `acordismo-config.yaml` (or legacy `db-origins.yaml`) into a structured config object.
+ * Parses `acordismo-config.yaml` into a structured config object.
  */
 export function parseAcordismoConfigYaml(yamlText = '') {
     const config = {

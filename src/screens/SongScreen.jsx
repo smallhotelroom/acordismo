@@ -1,6 +1,6 @@
 /**
  * @file src/screens/SongScreen.jsx
- * @version 2.31.0
+ * @version 2.32.0
  */
 import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Pause, Play } from 'lucide-react';
@@ -21,10 +21,11 @@ import {
     deduceAcordismoSongUseFlats,
     isCrawlerChordLine,
     isStandaloneChordLine,
+    stripCrawlerTabSections,
     stripOuterPunctuation,
 } from '../shared/crawlerTransposer';
 
-export const __version__ = '2.31.0';
+export const __version__ = '2.32.0';
 
 const SCROLL_SPEED_STORAGE_KEY = 'acordismo_scroll_speed';
 const TARGET_DURATION_SECONDS = 210; // 3 minutes 30 seconds at 1.0x
@@ -137,6 +138,7 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
         darkMode,
         topSpaceEnabled,
         freezeChordsEnabled: ctxFreezeChords,
+        hideCrawlerTabsEnabled = true,
         defaultFontSize = 14,
     } = useContext(AppContext);
 
@@ -281,15 +283,24 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
         return () => cancelAnimationFrame(animationFrameId);
     }, [autoScrollActive, scrollSpeed]);
 
+    const effectiveLyrics = useMemo(() => {
+        if (!songData) return '';
+        const raw = songData.contents || '';
+        const isCrawlerOrigin = Number(songData.origin_id || 0) > 0;
+        return isCrawlerOrigin && hideCrawlerTabsEnabled
+            ? stripCrawlerTabSections(raw)
+            : raw;
+    }, [songData, hideCrawlerTabsEnabled]);
+
     const songUseFlats = useMemo(() => {
         if (!songData) return false;
         return deduceAcordismoSongUseFlats(
-            songData.contents || '',
+            effectiveLyrics,
             transposition,
             songData.key,
             songData.origin_id
         );
-    }, [songData, transposition]);
+    }, [songData, effectiveLyrics, transposition]);
 
     // Deduce key guess + confidence % when frontmatter `key` is absent
     const deducedKeyDisplay = useMemo(() => {
@@ -298,7 +309,7 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
         if (songData.key) {
             if (!transposition) return songData.key;
             const shifted = deduceAcordismoSongKey(
-                songData.contents || '',
+                effectiveLyrics,
                 transposition,
                 songData.key,
                 originId
@@ -309,7 +320,7 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
                 : songData.key;
         }
         const guessedOrig = deduceAcordismoSongKeyInfo(
-            songData.contents || '',
+            effectiveLyrics,
             0,
             null,
             originId
@@ -319,7 +330,7 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
             return `${guessedOrig.key} (guessed, ${guessedOrig.confidence}%)`;
         }
         const guessedShifted = deduceAcordismoSongKeyInfo(
-            songData.contents || '',
+            effectiveLyrics,
             transposition,
             null,
             originId
@@ -328,7 +339,7 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
         return guessedShifted && guessedShifted.key !== guessedOrig.key
             ? `${guessedOrig.key} (guessed, ${guessedOrig.confidence}%; ${guessedShifted.key} at ${sign})`
             : `${guessedOrig.key} (guessed, ${guessedOrig.confidence}%)`;
-    }, [songData, transposition]);
+    }, [songData, effectiveLyrics, transposition]);
 
     const songScreenItems = useMemo(() => {
         if (!songData) {
@@ -355,10 +366,9 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
             }
         }
 
-        const lyrics = songData.contents || '';
         const useFlats = songUseFlats;
         const isCrawlerOrigin = Number(songData.origin_id || 0) > 0;
-        const lines = lyrics.split('\n');
+        const lines = effectiveLyrics.split('\n');
         let counter = 0;
 
         lines.forEach((lineText, lineIndex) => {
@@ -366,7 +376,6 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
             let hasChordsOnLine = false;
 
             if (isCrawlerOrigin) {
-                // Crawler songs (OrigenZK / OrigenLK) handled via crawlerTransposer.js
                 if (isCrawlerChordLine(lineText)) {
                     hasChordsOnLine = true;
                     const { nodes, nextKey } = renderCrawlerChordLineNodes(
@@ -545,7 +554,7 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
             ...preChordItems,
             ...sections.map((sec) => <div key={sec.key}>{sec.items}</div>),
         ];
-    }, [songData, transposition, songUseFlats, freezeChordsEnabled, sheetBgColor, palette]);
+    }, [songData, effectiveLyrics, transposition, songUseFlats, freezeChordsEnabled, sheetBgColor, palette]);
 
     // Touch pinch-to-zoom handlers
     const handleTouchStart = (e) => {

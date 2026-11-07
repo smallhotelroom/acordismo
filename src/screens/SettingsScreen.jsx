@@ -1,6 +1,6 @@
 /**
  * @file src/screens/SettingsScreen.jsx
- * @version 3.5.0
+ * @version 3.6.0
  */
 import React, { useContext, useEffect, useRef, useState } from 'react';
 import {
@@ -24,9 +24,10 @@ import {
 } from '../shared/database';
 import { APP_DEFAULTS, AppContext } from '../shared/AppContext';
 
-export const __version__ = '3.5.0';
+export const __version__ = '3.6.0';
 
 export const FREEZE_CHORDS_STORAGE_KEY = 'acordismo_freeze_chords';
+export const HIDE_CRAWLER_TABS_STORAGE_KEY = 'acordismo_hide_crawler_tabs';
 
 export default function SettingsScreen({ onBack }) {
     const {
@@ -38,6 +39,8 @@ export default function SettingsScreen({ onBack }) {
         setTopSpaceEnabled,
         freezeChordsEnabled: ctxFreezeChords,
         setFreezeChordsEnabled: ctxSetFreezeChords,
+        hideCrawlerTabsEnabled,
+        setHideCrawlerTabsEnabled,
         defaultFontSize,
         setDefaultFontSize,
         activeDbLabel,
@@ -268,6 +271,30 @@ export default function SettingsScreen({ onBack }) {
                     </button>
                 </div>
 
+                {/* Hide Crawler Tablatures & Tab-Only Songs Option */}
+                <div
+                    style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: 15,
+                        borderBottom: '1px solid var(--border-color)',
+                    }}>
+                    <div>
+                        <strong>Hide Crawler Tablatures &amp; Tab-Only Songs</strong>
+                        <div style={{ fontSize: '0.88rem', color: 'var(--text-secondary)' }}>
+                            {hideCrawlerTabsEnabled
+                                ? 'Enabled (strips ASCII tab sections & hides chordless crawler tabs)'
+                                : 'Disabled (shows raw ASCII tablatures & all crawler files)'}
+                        </div>
+                    </div>
+                    <button
+                        className="btn-primary"
+                        onClick={() => setHideCrawlerTabsEnabled(!hideCrawlerTabsEnabled)}>
+                        {hideCrawlerTabsEnabled ? 'Disable' : 'Enable'}
+                    </button>
+                </div>
+
                 {/* Merged Top & Bottom System Bars Space + Song Gradient Toggle */}
                 <div
                     style={{
@@ -278,7 +305,7 @@ export default function SettingsScreen({ onBack }) {
                         borderBottom: '1px solid var(--border-color)',
                     }}>
                     <div>
-                        <strong>Top & Bottom System Bars Space</strong>
+                        <strong>Top &amp; Bottom System Bars Space</strong>
                         <div style={{ fontSize: '0.88rem', color: 'var(--text-secondary)' }}>
                             {topSpaceEnabled
                                 ? 'Enabled (top/bottom bars + song bottom fade)'

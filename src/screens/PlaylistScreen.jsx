@@ -1,19 +1,21 @@
 /**
  * @file src/screens/PlaylistScreen.jsx
- * @version 2.5.1
+ * @version 2.6.0
  */
-import React, { useEffect, useState } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import { ArrowLeft, ArrowRight, MoreVertical, Search } from 'lucide-react';
 import VirtualList from '../components/VirtualList';
 import SongItem from '../components/SongItem';
 import SearchBar from '../components/SearchBar';
 import executeQuery from '../shared/database';
 import { buildMultiTokenSearchClause } from '../shared/dbMerger';
+import { AppContext } from '../shared/AppContext';
 
-export const __version__ = '2.5.1';
+export const __version__ = '2.6.0';
 
 export default function PlaylistScreen({ routeParams, onNavigate, onBack }) {
     const { selectedPlaylistId } = routeParams;
+    const { hideCrawlerTabsEnabled } = useContext(AppContext);
 
     const [playlistModalVisible, setPlaylistModalVisible] = useState(false);
     const [playlistName, setPlaylistName] = useState('');
@@ -38,17 +40,18 @@ export default function PlaylistScreen({ routeParams, onNavigate, onBack }) {
             "COALESCE(songs.search_norm, LOWER(bands.name || ' ' || songs.name))",
             searchInLyrics
         );
+        const hasChordsClause = hideCrawlerTabsEnabled ? ' AND songs.has_chords = 1' : '';
         const searchClause = sqlCondition ? ` AND (${sqlCondition})` : '';
         const params = [selectedPlaylistId, ...searchParams];
 
         const queryStr =
             'SELECT songs.id, songs.name, bands.name AS band_name FROM songs INNER JOIN bands ON songs.band_id = bands.id WHERE songs.id IN (SELECT song_id FROM playlists_songs WHERE playlist_id = ?)';
-        executeQuery(queryStr + searchClause + playlistOrderStr + ';', params)
+        executeQuery(queryStr + hasChordsClause + searchClause + playlistOrderStr + ';', params)
             .then((data) => {
                 setPlaylistSongs(data.rows._array);
             })
             .catch((err) => console.error(err));
-    }, [selectedPlaylistId, playlistOrderStr, playlistSearchStr, searchInLyrics]);
+    }, [selectedPlaylistId, playlistOrderStr, playlistSearchStr, searchInLyrics, hideCrawlerTabsEnabled]);
 
     return (
         <>

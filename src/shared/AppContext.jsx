@@ -1,6 +1,6 @@
 /**
  * @file src/shared/AppContext.jsx
- * @version 3.0.0
+ * @version 3.1.0
  */
 import React, { createContext, useEffect, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
@@ -8,7 +8,7 @@ import { getSavedDbLabel, loadExternalDatabaseBytes } from './database';
 import { parseAcordismoConfigYaml } from './acordismoConfig';
 import rawConfigYaml from '../../acordismo-config.yaml?raw';
 
-export const __version__ = '3.0.0';
+export const __version__ = '3.1.0';
 
 export const ACORDISMO_CONFIG = parseAcordismoConfigYaml(rawConfigYaml);
 export const APP_DEFAULTS = ACORDISMO_CONFIG.app;
@@ -20,6 +20,7 @@ const TOP_SPACE_STORAGE_KEY = Capacitor.isNativePlatform()
     : 'acordismo_top_space_web';
 
 const FREEZE_CHORDS_STORAGE_KEY = 'acordismo_freeze_chords';
+const HIDE_CRAWLER_TABS_STORAGE_KEY = 'acordismo_hide_crawler_tabs';
 const DEFAULT_FONT_SIZE_STORAGE_KEY = 'acordismo_default_font_size';
 
 export function AppProvider({ children }) {
@@ -44,6 +45,12 @@ export function AppProvider({ children }) {
         return saved !== null
             ? saved === 'true'
             : Boolean(APP_DEFAULTS.default_freeze_chords);
+    });
+    const [hideCrawlerTabsEnabled, setHideCrawlerTabsEnabled] = useState(() => {
+        const saved = localStorage.getItem(HIDE_CRAWLER_TABS_STORAGE_KEY);
+        return saved !== null
+            ? saved === 'true'
+            : Boolean(APP_DEFAULTS.default_hide_crawler_tabs);
     });
     const [defaultFontSize, setDefaultFontSize] = useState(() => {
         const saved = parseInt(localStorage.getItem(DEFAULT_FONT_SIZE_STORAGE_KEY), 10);
@@ -71,7 +78,6 @@ export function AppProvider({ children }) {
         });
     }, []);
 
-    // Handle external .db files opened via Android "Open with Acordismo" or "Share to Acordismo"
     useEffect(() => {
         const importIncomingDbPayload = async (payload) => {
             if (!payload) {
@@ -144,6 +150,13 @@ export function AppProvider({ children }) {
     }, [freezeChordsEnabled]);
 
     useEffect(() => {
+        localStorage.setItem(
+            HIDE_CRAWLER_TABS_STORAGE_KEY,
+            String(hideCrawlerTabsEnabled)
+        );
+    }, [hideCrawlerTabsEnabled]);
+
+    useEffect(() => {
         localStorage.setItem(DEFAULT_FONT_SIZE_STORAGE_KEY, String(defaultFontSize));
     }, [defaultFontSize]);
 
@@ -160,6 +173,8 @@ export function AppProvider({ children }) {
                 setBottomSpaceEnabled: setTopSpaceEnabled,
                 freezeChordsEnabled,
                 setFreezeChordsEnabled,
+                hideCrawlerTabsEnabled,
+                setHideCrawlerTabsEnabled,
                 defaultFontSize,
                 setDefaultFontSize,
                 currentTab,

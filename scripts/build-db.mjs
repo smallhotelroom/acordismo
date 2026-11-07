@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * @file scripts/build-db.mjs
- * @version 4.3.0
+ * @version 4.4.0
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -17,8 +17,9 @@ import {
     mergeDatabasesInPriorityOrder,
 } from '../src/shared/dbMerger.js';
 import { parseAcordismoConfigYaml } from '../src/shared/acordismoConfig.js';
+import { hasCrawlerSongAndChords } from '../src/shared/crawlerTransposer.js';
 
-export const __version__ = '4.3.0';
+export const __version__ = '4.4.0';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -379,15 +380,16 @@ function buildLayerDatabase(SQL, layerConfig, schemaMod) {
 
                 db.run(
                     `INSERT INTO songs (
-                        content_hash, name, band_id, origin_id, search_norm, album, author, bpm, capo,
+                        content_hash, name, band_id, origin_id, has_chords, search_norm, album, author, bpm, capo,
                         falsetto, highest, init_note, isrc, key, lang, license, musicians,
                         spotify, time_signature, track, url, writer, contents
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
                     [
                         contentHash,
                         songName,
                         bandId,
                         0,
+                        1,
                         searchNorm,
                         album,
                         author,
@@ -540,9 +542,10 @@ function buildLayerDatabase(SQL, layerConfig, schemaMod) {
                             const bandId = getOrCreateBand(bandName);
                             const playlistId = getOrCreatePlaylist(playlistName);
                             const searchNorm = normalizeSearchText(`${bandName} ${songName}`);
+                            const hasChords = hasCrawlerSongAndChords(songContent) ? 1 : 0;
                             db.run(
-                                'INSERT INTO songs (name, band_id, origin_id, search_norm, contents) VALUES (?, ?, ?, ?, ?);',
-                                [songName, bandId, 1, searchNorm, songContent]
+                                'INSERT INTO songs (name, band_id, origin_id, has_chords, search_norm, contents) VALUES (?, ?, ?, ?, ?, ?);',
+                                [songName, bandId, 1, hasChords, searchNorm, songContent]
                             );
                             const songId = queryAll(db, 'SELECT last_insert_rowid() AS id;')[0].id;
                             db.run(
@@ -647,9 +650,10 @@ function buildLayerDatabase(SQL, layerConfig, schemaMod) {
                             const bandId = getOrCreateBand(bandName);
                             const playlistId = getOrCreatePlaylist(playlistName);
                             const searchNorm = normalizeSearchText(`${bandName} ${songName}`);
+                            const hasChords = hasCrawlerSongAndChords(songContent) ? 1 : 0;
                             db.run(
-                                'INSERT INTO songs (name, band_id, origin_id, search_norm, contents) VALUES (?, ?, ?, ?, ?);',
-                                [songName, bandId, 2, searchNorm, songContent]
+                                'INSERT INTO songs (name, band_id, origin_id, has_chords, search_norm, contents) VALUES (?, ?, ?, ?, ?, ?);',
+                                [songName, bandId, 2, hasChords, searchNorm, songContent]
                             );
                             const songId = queryAll(db, 'SELECT last_insert_rowid() AS id;')[0].id;
                             db.run(
