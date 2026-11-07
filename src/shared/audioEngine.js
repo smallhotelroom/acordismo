@@ -1,13 +1,14 @@
 /**
  * @file src/shared/audioEngine.js
- * @version 1.0.0
- * Zero-dependency polyphonic Web Audio engine for Acordismo:
+ * @version 2.0.0
+ * Zero-dependency polyphonic Web Audio engine & persistent global Metronome controller:
  * - Supports 'natural' (warm acoustic string pluck / woodblock) and 'synth' (pure reference tone / digital click)
  * - Polyphonic voice architecture ready for future chord-strumming playback in SongScreen
- * - Hardware-clock lookahead scheduler for drift-free 4/4 Metronome (1/4, 1/8, 1/16)
+ * - Persistent singleton 4/4 Metronome scheduler that continues playing across screen navigation
  */
+import { APP_DEFAULTS } from './AppContext';
 
-export const __version__ = '1.0.0';
+export const __version__ = '2.0.0';
 
 export const GUITAR_STRINGS = [
     { id: 'g-6', label: '6E', note: 'E2', stringNum: 6, freq: 82.41 },
@@ -25,6 +26,11 @@ export const UKULELE_STRINGS = [
     { id: 'u-1', label: '1A', note: 'A4', stringNum: 1, freq: 440.0 },
 ];
 
+const METRONOME_BPM_KEY = 'acordismo_metronome_bpm';
+const METRONOME_SUB_KEY = 'acordismo_metronome_subdivision';
+const METRONOME_SOUND_KEY = 'acordismo_metronome_sound_mode';
+const METRONOME_PERSIST_KEY = 'acordismo_metronome_persistent';
+
 let sharedAudioCtx = null;
 
 export function getAudioContext() {
@@ -40,8 +46,6 @@ export function getAudioContext() {
 
 /**
  * Plays a single musical pitch (polyphonic-ready: multiple calls layer cleanly).
- * @param {number} freq - Frequency in Hz
- * @param {object} options - { mode: 'natural' | 'synth', duration: seconds, startTimeOffset: seconds, gainScale: number }
  */
 export function playNoteFrequency(
     freq,
@@ -54,7 +58,6 @@ export function playNoteFrequency(
     masterGain.connect(ctx.destination);
 
     if (mode === 'synth') {
-        // Pure reference tone: fundamental sine + soft triangle octave warmth
         const osc1 = ctx.createOscillator();
         const osc2 = ctx.createOscillator();
         const osc2Gain = ctx.createGain();
@@ -92,11 +95,13 @@ export function playNoteFrequency(
         };
     }
 
-    // 'natural' mode: Plucked acoustic string synthesis (harmonics + lowpass pluck envelope)
     const filter = ctx.createBiquadFilter();
     filter.type = 'lowpass';
     filter.frequency.setValueAtTime(Math.min(7500, freq * 12), now);
-    filter.frequency.exponentialRampToValueAtTime(Math.max(400, freq * 2.2), now + duration * 0.85);
+    filter.frequency.exponentialRampToValueAtTime(
+        Math.max(400, freq * 2.2),
+        now + duration * 0.85
+    );
     filter.Q.setValueAtTime(1.2, now);
     filter.connect(masterGain);
 
@@ -140,7 +145,10 @@ export function playNoteFrequency(
  * Polyphonic helper for future SongScreen chord playback:
  * Strums an array of frequencies with a natural 22ms pick stagger across strings.
  */
-export function playPolyphonicChord(frequencies = [], { mode = 'natural', duration = 2.4 } = {}) {
+export function playPolyphonicChord(
+    frequencies = [],
+    { mode = 'natural', duration = 2.4 } = {}
+) {
     const scale = Math.min(1, 1.4 / Math.max(1, frequencies.length));
     const stopFns = frequencies.map((freq, idx) =>
         playNoteFrequency(freq, {
@@ -155,12 +163,13 @@ export function playPolyphonicChord(frequencies = [], { mode = 'natural', durati
 
 /**
  * Schedules a single metronome click at hardware `time`.
- * @param {AudioContext} ctx
- * @param {number} time - Web Audio hardware timestamp
- * @param {'accent' | 'quarter' | 'sub'} beatType
- * @param {'natural' | 'synth'} mode
  */
-export function scheduleMetronomeClick(ctx, time, beatType = 'quarter', mode = 'natural') {
+export function scheduleMetronomeClick(
+    ctx,
+    time,
+    beatType = 'quarter',
+    mode = 'natural'
+) {
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
 
@@ -185,7 +194,6 @@ export function scheduleMetronomeClick(ctx, time, beatType = 'quarter', mode = '
         return;
     }
 
-    // 'natural' woodblock percussive click (pitch-drop sine + bandpass resonance)
     const startFreq =
         beatType === 'accent' ? 1150 : beatType === 'quarter' ? 840 : 620;
     const endFreq = startFreq * 0.52;
@@ -205,4 +213,179 @@ export function scheduleMetronomeClick(ctx, time, beatType = 'quarter', mode = '
     gain.connect(ctx.destination);
     osc.start(time);
     osc.stop(time + clickDur + 0.005);
+}
+
+// --- GLOBAL PERSISTENT METRONOME CONTROLLER ---
+
+function loadInitialBpm() {
+    const saved = parseInt(localStorage.getItem(METRONOME_BPM_KEY), 10);
+    if (!Number.isNaN(saved) && saved >= 30 && saved <= 260) {
+        return saved;
+    }
+    return APP_DEFAULTS?.default_metronome_bpm || 120;
+}
+
+function loadInitialSubdivision() {
+    const saved = parseInt(localStorage.getItem(METRONOME_SUB_KEY), 10);
+    if ([1, 2, 4].includes(saved)) {
+        return saved;
+    }
+    return APP_DEFAULTS?.default_metronome_subdivision || 1;
+}
+
+function loadInitialSoundMode() {
+    return (
+        localStorage.getItem(METRONOME_SOUND_KEY) ||
+        APP_DEFAULTS?.default_metronome_sound ||
+        'natural'
+    );
+}
+
+function loadInitialPersistent() {
+    const saved = localStorage.getItem(METRONOME_PERSIST_KEY);
+    if (saved !== null) {
+        return saved === 'true';
+    }
+    return APP_DEFAULTS?.default_metronome_persistent ?? true;
+}
+
+const metronomeState = {
+    isPlaying: false,
+    bpm: loadInitialBpm(),
+    subdivision: loadInitialSubdivision(),
+    soundMode: loadInitialSoundMode(),
+    persistent: loadInitialPersistent(),
+    currentBeat: 0,
+};
+
+let metronomeTimerId = null;
+let nextNoteTime = 0;
+let currentSubStep = 0;
+const stateListeners = new Set();
+const beatListeners = new Set();
+
+function notifyStateListeners() {
+    const snapshot = { ...metronomeState };
+    stateListeners.forEach((fn) => fn(snapshot));
+}
+
+function notifyBeatListeners(beatIdx) {
+    metronomeState.currentBeat = beatIdx;
+    beatListeners.forEach((fn) => fn(beatIdx));
+}
+
+function startSchedulerLoop() {
+    if (metronomeTimerId) {
+        clearInterval(metronomeTimerId);
+    }
+    const ctx = getAudioContext();
+    nextNoteTime = ctx.currentTime + 0.04;
+    currentSubStep = 0;
+
+    const scheduleAheadTime = 0.1; // 100ms lookahead
+    const lookaheadIntervalMs = 25;
+
+    metronomeTimerId = setInterval(() => {
+        if (!metronomeState.isPlaying) return;
+        while (nextNoteTime < ctx.currentTime + scheduleAheadTime) {
+            const sub = metronomeState.subdivision;
+            const totalStepsInBar = 4 * sub;
+            const stepIndex = currentSubStep % totalStepsInBar;
+            const isMainBeat = stepIndex % sub === 0;
+            const beatNumber = Math.floor(stepIndex / sub);
+
+            const beatType =
+                stepIndex === 0 ? 'accent' : isMainBeat ? 'quarter' : 'sub';
+
+            scheduleMetronomeClick(
+                ctx,
+                nextNoteTime,
+                beatType,
+                metronomeState.soundMode
+            );
+
+            if (isMainBeat) {
+                const delayMs = Math.max(0, (nextNoteTime - ctx.currentTime) * 1000);
+                const scheduledBeat = beatNumber;
+                setTimeout(() => {
+                    if (metronomeState.isPlaying) {
+                        notifyBeatListeners(scheduledBeat);
+                    }
+                }, delayMs);
+            }
+
+            const secondsPerQuarter = 60.0 / metronomeState.bpm;
+            const secondsPerSubStep = secondsPerQuarter / sub;
+            nextNoteTime += secondsPerSubStep;
+            currentSubStep = (stepIndex + 1) % totalStepsInBar;
+        }
+    }, lookaheadIntervalMs);
+}
+
+export function getMetronomeState() {
+    return { ...metronomeState };
+}
+
+export function setMetronomePlaying(nextPlaying) {
+    const target = Boolean(nextPlaying);
+    if (metronomeState.isPlaying === target) return;
+    metronomeState.isPlaying = target;
+    if (target) {
+        startSchedulerLoop();
+    } else {
+        if (metronomeTimerId) {
+            clearInterval(metronomeTimerId);
+            metronomeTimerId = null;
+        }
+        notifyBeatListeners(0);
+    }
+    notifyStateListeners();
+}
+
+export function toggleMetronomePlaying() {
+    setMetronomePlaying(!metronomeState.isPlaying);
+}
+
+export function setMetronomeBpm(nextBpm) {
+    const clamped = Math.max(30, Math.min(260, Math.round(Number(nextBpm) || 120)));
+    metronomeState.bpm = clamped;
+    localStorage.setItem(METRONOME_BPM_KEY, String(clamped));
+    notifyStateListeners();
+}
+
+export function setMetronomeSubdivision(nextSub) {
+    const valid = [1, 2, 4].includes(Number(nextSub)) ? Number(nextSub) : 1;
+    metronomeState.subdivision = valid;
+    localStorage.setItem(METRONOME_SUB_KEY, String(valid));
+    notifyStateListeners();
+}
+
+export function setMetronomeSoundMode(nextMode) {
+    const valid = nextMode === 'synth' ? 'synth' : 'natural';
+    metronomeState.soundMode = valid;
+    localStorage.setItem(METRONOME_SOUND_KEY, valid);
+    notifyStateListeners();
+}
+
+export function setMetronomePersistent(nextPersist) {
+    const valid = Boolean(nextPersist);
+    metronomeState.persistent = valid;
+    localStorage.setItem(METRONOME_PERSIST_KEY, String(valid));
+    notifyStateListeners();
+}
+
+/**
+ * Subscribes to configuration/playing state changes (does NOT fire on every beat).
+ */
+export function subscribeMetronomeState(listener) {
+    stateListeners.add(listener);
+    return () => stateListeners.delete(listener);
+}
+
+/**
+ * Subscribes to quarter-note beat ticks (0..3) — used only by MetronomeScreen's LEDs.
+ */
+export function subscribeMetronomeBeat(listener) {
+    beatListeners.add(listener);
+    return () => beatListeners.delete(listener);
 }

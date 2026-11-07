@@ -1,12 +1,19 @@
 /**
  * @file src/screens/SongScreen.jsx
- * @version 2.32.0
+ * @version 2.33.0
  */
 import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Pause, Play } from 'lucide-react';
 import executeQuery from '../shared/database';
 import { AppContext } from '../shared/AppContext';
 import { FREEZE_CHORDS_STORAGE_KEY } from './SettingsScreen';
+import { MetronomeIcon } from './HomeScreen';
+import {
+    getMetronomeState,
+    setMetronomeBpm,
+    setMetronomePlaying,
+    subscribeMetronomeState,
+} from '../shared/audioEngine';
 import {
     CHORD_GROUP_DELIMITER_REGEX,
     DIRECTIVE_PAREN_REGEX,
@@ -25,7 +32,7 @@ import {
     stripOuterPunctuation,
 } from '../shared/crawlerTransposer';
 
-export const __version__ = '2.32.0';
+export const __version__ = '2.33.0';
 
 const SCROLL_SPEED_STORAGE_KEY = 'acordismo_scroll_speed';
 const TARGET_DURATION_SECONDS = 210; // 3 minutes 30 seconds at 1.0x
@@ -157,6 +164,11 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
     const [bandName, setBandName] = useState('');
     const [featuringBands, setFeaturingBands] = useState([]);
     const [sheetBgColor, setSheetBgColor] = useState('var(--bg-primary, #f3f4f6)');
+    const [metroState, setMetroState] = useState(() => getMetronomeState());
+
+    useEffect(() => {
+        return subscribeMetronomeState((st) => setMetroState(st));
+    }, []);
 
     // Pinch-to-zoom and double-tap reset state initialized to defaultFontSize from Settings
     const [fontSize, setFontSize] = useState(defaultFontSize);
@@ -598,6 +610,30 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
                     <h1 className="header-title">{headerTitle}</h1>
                 </div>
                 <div className="header-actions">
+                    {/* Only appears when the persistent Metronome is actively ticking in the background */}
+                    {metroState.isPlaying && (
+                        <button
+                            type="button"
+                            title="Stop Metronome"
+                            onClick={() => setMetronomePlaying(false)}
+                            style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 4,
+                                padding: '5px 8px',
+                                borderRadius: 8,
+                                border: '1px solid #f59e0b',
+                                background: 'rgba(245, 158, 11, 0.16)',
+                                color: '#f59e0b',
+                                fontWeight: 800,
+                                fontSize: '0.78rem',
+                                cursor: 'pointer',
+                            }}>
+                            <MetronomeIcon size={15} />
+                            {metroState.bpm}
+                        </button>
+                    )}
+
                     <div className="autoscroll-anchor">
                         <div className={`autoscroll-pill ${autoScrollActive ? 'active' : ''}`}>
                             <button
@@ -747,7 +783,47 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
                             {songData.writer && songData.writer !== songData.author && (
                                 <div>Writer: {songData.writer}</div>
                             )}
-                            {songData.bpm && <div>Bpm: {songData.bpm}</div>}
+                            {songData.bpm && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                    <span>Bpm: {songData.bpm}</span>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setMetronomeBpm(Number(songData.bpm));
+                                            if (
+                                                metroState.isPlaying &&
+                                                metroState.bpm === Number(songData.bpm)
+                                            ) {
+                                                setMetronomePlaying(false);
+                                            } else {
+                                                setMetronomePlaying(true);
+                                            }
+                                        }}
+                                        style={{
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: 4,
+                                            padding: '2px 8px',
+                                            fontSize: '0.75rem',
+                                            fontWeight: 700,
+                                            borderRadius: 6,
+                                            border: '1px solid var(--border-color)',
+                                            background:
+                                                metroState.isPlaying &&
+                                                metroState.bpm === Number(songData.bpm)
+                                                    ? '#dc2626'
+                                                    : '#2563eb',
+                                            color: '#ffffff',
+                                            cursor: 'pointer',
+                                        }}>
+                                        <MetronomeIcon size={12} />
+                                        {metroState.isPlaying &&
+                                        metroState.bpm === Number(songData.bpm)
+                                            ? 'Stop'
+                                            : 'Metronome'}
+                                    </button>
+                                </div>
+                            )}
                             {songData.capo ? (
                                 songData.capo < 1 ? (
                                     <div>Drop: {-songData.capo}</div>

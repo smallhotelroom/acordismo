@@ -1,22 +1,28 @@
 /**
  * @file src/screens/MetronomeScreen.jsx
- * @version 1.0.0
- * 4/4 Precision Web Audio Metronome with:
+ * @version 2.0.0
+ * 4/4 Precision Web Audio Metronome connected to the persistent global scheduler:
+ * - Continues playing across screens when 'Persist Across Screens' is ON (default: true)
  * - Adjustable BPM (30 - 260 BPM) + Tap Tempo
  * - Subdivision selector: Quarter (1/4), Eighth (1/8), Sixteenth (1/16)
  * - Sound selector: Natural (Woodblock) vs Synth (Digital Click)
- * - Visual 4-beat LED indicator
  */
 import React, { useContext, useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Moon, Pause, Play, Sun, Volume2 } from 'lucide-react';
+import { ArrowLeft, Moon, Pause, Pin, Play, Sun, Volume2 } from 'lucide-react';
 import { AppContext } from '../shared/AppContext';
-import { getAudioContext, scheduleMetronomeClick } from '../shared/audioEngine';
+import {
+    getMetronomeState,
+    setMetronomeBpm,
+    setMetronomePersistent,
+    setMetronomePlaying,
+    setMetronomeSoundMode,
+    setMetronomeSubdivision,
+    subscribeMetronomeBeat,
+    subscribeMetronomeState,
+    toggleMetronomePlaying,
+} from '../shared/audioEngine';
 
-export const __version__ = '1.0.0';
-
-const METRONOME_BPM_KEY = 'acordismo_metronome_bpm';
-const METRONOME_SUB_KEY = 'acordismo_metronome_subdivision';
-const METRONOME_SOUND_KEY = 'acordismo_metronome_sound_mode';
+export const __version__ = '2.0.0';
 
 const SUBDIVISIONS = [
     { value: 1, label: '1/4', desc: 'Quarter' },
@@ -27,109 +33,28 @@ const SUBDIVISIONS = [
 export default function MetronomeScreen({ onBack }) {
     const { darkMode, setDarkMode } = useContext(AppContext);
 
-    const [bpm, setBpm] = useState(() => {
-        const saved = parseInt(localStorage.getItem(METRONOME_BPM_KEY), 10);
-        return !Number.isNaN(saved) && saved >= 30 && saved <= 260 ? saved : 120;
-    });
-    const [subdivision, setSubdivision] = useState(() => {
-        const saved = parseInt(localStorage.getItem(METRONOME_SUB_KEY), 10);
-        return [1, 2, 4].includes(saved) ? saved : 1;
-    });
-    const [soundMode, setSoundMode] = useState(() => {
-        return localStorage.getItem(METRONOME_SOUND_KEY) || 'natural';
-    });
-    const [isPlaying, setIsPlaying] = useState(false);
-    const [currentBeat, setCurrentBeat] = useState(0); // 0..3 for the 4 quarter beats
-
-    // Refs for real-time Web Audio lookahead scheduler
-    const bpmRef = useRef(bpm);
-    const subRef = useRef(subdivision);
-    const soundModeRef = useRef(soundMode);
-    const nextNoteTimeRef = useRef(0);
-    const currentSubStepRef = useRef(0);
-    const timerIdRef = useRef(null);
+    const [metro, setMetro] = useState(() => getMetronomeState());
+    const [currentBeat, setCurrentBeat] = useState(() => getMetronomeState().currentBeat);
     const tapTimesRef = useRef([]);
 
     useEffect(() => {
-        bpmRef.current = bpm;
-        localStorage.setItem(METRONOME_BPM_KEY, String(bpm));
-    }, [bpm]);
+        const unsubState = subscribeMetronomeState((nextState) => {
+            setMetro(nextState);
+        });
+        const unsubBeat = subscribeMetronomeBeat((beatIdx) => {
+            setCurrentBeat(beatIdx);
+        });
 
-    useEffect(() => {
-        subRef.current = subdivision;
-        localStorage.setItem(METRONOME_SUB_KEY, String(subdivision));
-    }, [subdivision]);
-
-    useEffect(() => {
-        soundModeRef.current = soundMode;
-        localStorage.setItem(METRONOME_SOUND_KEY, soundMode);
-    }, [soundMode]);
-
-    useEffect(() => {
-        if (!isPlaying) {
-            if (timerIdRef.current) {
-                clearInterval(timerIdRef.current);
-                timerIdRef.current = null;
-            }
-            return;
-        }
-
-        const ctx = getAudioContext();
-        nextNoteTimeRef.current = ctx.currentTime + 0.04;
-        currentSubStepRef.current = 0;
-
-        const scheduleAheadTime = 0.1; // 100ms lookahead window
-        const lookaheadIntervalMs = 25;
-
-        const scheduler = () => {
-            while (nextNoteTimeRef.current < ctx.currentTime + scheduleAheadTime) {
-                const sub = subRef.current;
-                const totalStepsInBar = 4 * sub;
-                const stepIndex = currentSubStepRef.current % totalStepsInBar;
-                const isMainBeat = stepIndex % sub === 0;
-                const beatNumber = Math.floor(stepIndex / sub); // 0, 1, 2, 3
-
-                const beatType =
-                    stepIndex === 0 ? 'accent' : isMainBeat ? 'quarter' : 'sub';
-
-                scheduleMetronomeClick(
-                    ctx,
-                    nextNoteTimeRef.current,
-                    beatType,
-                    soundModeRef.current
-                );
-
-                if (isMainBeat) {
-                    const delayMs = Math.max(
-                        0,
-                        (nextNoteTimeRef.current - ctx.currentTime) * 1000
-                    );
-                    const scheduledBeat = beatNumber;
-                    setTimeout(() => {
-                        setCurrentBeat(scheduledBeat);
-                    }, delayMs);
-                }
-
-                const secondsPerQuarter = 60.0 / bpmRef.current;
-                const secondsPerSubStep = secondsPerQuarter / sub;
-                nextNoteTimeRef.current += secondsPerSubStep;
-                currentSubStepRef.current = (stepIndex + 1) % totalStepsInBar;
-            }
-        };
-
-        timerIdRef.current = setInterval(scheduler, lookaheadIntervalMs);
         return () => {
-            if (timerIdRef.current) {
-                clearInterval(timerIdRef.current);
-                timerIdRef.current = null;
+            unsubState();
+            unsubBeat();
+            // Only stop on unmount if the user explicitly disabled persistence!
+            const latest = getMetronomeState();
+            if (!latest.persistent && latest.isPlaying) {
+                setMetronomePlaying(false);
             }
         };
-    }, [isPlaying]);
-
-    const updateBpm = (val) => {
-        const clamped = Math.max(30, Math.min(260, Math.round(val)));
-        setBpm(clamped);
-    };
+    }, []);
 
     const handleTapTempo = () => {
         const now = performance.now();
@@ -144,9 +69,11 @@ export default function MetronomeScreen({ onBack }) {
             }
             const avgMs = totalIntervals / (taps.length - 1);
             const tappedBpm = Math.round(60000 / avgMs);
-            updateBpm(tappedBpm);
+            setMetronomeBpm(tappedBpm);
         }
     };
+
+    const { isPlaying, bpm, subdivision, soundMode, persistent } = metro;
 
     return (
         <>
@@ -168,12 +95,14 @@ export default function MetronomeScreen({ onBack }) {
             </header>
 
             <main className="content-scroll" style={{ padding: 16 }}>
-                {/* Sound Mode Bar */}
+                {/* Sound Mode & Persistence Bar */}
                 <div
                     style={{
                         display: 'flex',
+                        flexWrap: 'wrap',
                         alignItems: 'center',
                         justifyContent: 'space-between',
+                        gap: 10,
                         padding: '12px 14px',
                         borderRadius: 10,
                         border: '1px solid var(--border-color)',
@@ -182,36 +111,59 @@ export default function MetronomeScreen({ onBack }) {
                     }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <Volume2 size={18} />
-                        <span style={{ fontWeight: 700, fontSize: '0.9rem' }}>Click Sound:</span>
+                        <span style={{ fontWeight: 700, fontSize: '0.9rem' }}>Click:</span>
+                        <div style={{ display: 'inline-flex', gap: 6 }}>
+                            {['natural', 'synth'].map((m) => (
+                                <button
+                                    key={m}
+                                    type="button"
+                                    onClick={() => setMetronomeSoundMode(m)}
+                                    style={{
+                                        padding: '5px 12px',
+                                        borderRadius: 999,
+                                        fontWeight: 700,
+                                        fontSize: '0.82rem',
+                                        textTransform: 'capitalize',
+                                        border:
+                                            soundMode === m
+                                                ? '1px solid #2563eb'
+                                                : '1px solid var(--border-color)',
+                                        background:
+                                            soundMode === m ? '#2563eb' : 'transparent',
+                                        color:
+                                            soundMode === m
+                                                ? '#ffffff'
+                                                : 'var(--text-primary)',
+                                        cursor: 'pointer',
+                                    }}>
+                                    {m}
+                                </button>
+                            ))}
+                        </div>
                     </div>
-                    <div style={{ display: 'inline-flex', gap: 6 }}>
-                        {['natural', 'synth'].map((m) => (
-                            <button
-                                key={m}
-                                type="button"
-                                onClick={() => setSoundMode(m)}
-                                style={{
-                                    padding: '5px 14px',
-                                    borderRadius: 999,
-                                    fontWeight: 700,
-                                    fontSize: '0.82rem',
-                                    textTransform: 'capitalize',
-                                    border:
-                                        soundMode === m
-                                            ? '1px solid #2563eb'
-                                            : '1px solid var(--border-color)',
-                                    background:
-                                        soundMode === m ? '#2563eb' : 'transparent',
-                                    color:
-                                        soundMode === m
-                                            ? '#ffffff'
-                                            : 'var(--text-primary)',
-                                    cursor: 'pointer',
-                                }}>
-                                {m}
-                            </button>
-                        ))}
-                    </div>
+
+                    <button
+                        type="button"
+                        title="Keep metronome playing when you navigate to songs"
+                        onClick={() => setMetronomePersistent(!persistent)}
+                        style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            padding: '6px 12px',
+                            borderRadius: 999,
+                            fontWeight: 700,
+                            fontSize: '0.82rem',
+                            border: persistent
+                                ? '1px solid #2563eb'
+                                : '1px solid var(--border-color)',
+                            background: persistent ? '#2563eb' : 'transparent',
+                            color: persistent ? '#ffffff' : 'var(--text-primary)',
+                            cursor: 'pointer',
+                        }}>
+                        <Pin size={14} />
+                        {persistent ? 'Persist in Songs: ON' : 'Persist in Songs: OFF'}
+                    </button>
                 </div>
 
                 {/* 4/4 Visual Beat Indicator */}
@@ -287,7 +239,7 @@ export default function MetronomeScreen({ onBack }) {
                         max="260"
                         step="1"
                         value={bpm}
-                        onChange={(e) => updateBpm(Number(e.target.value))}
+                        onChange={(e) => setMetronomeBpm(Number(e.target.value))}
                         style={{
                             width: '100%',
                             margin: '14px 0',
@@ -304,12 +256,12 @@ export default function MetronomeScreen({ onBack }) {
                         }}>
                         <button
                             className="btn-primary"
-                            onClick={() => updateBpm(bpm - 5)}>
+                            onClick={() => setMetronomeBpm(bpm - 5)}>
                             -5
                         </button>
                         <button
                             className="btn-primary"
-                            onClick={() => updateBpm(bpm - 1)}>
+                            onClick={() => setMetronomeBpm(bpm - 1)}>
                             -1
                         </button>
                         <button
@@ -320,12 +272,12 @@ export default function MetronomeScreen({ onBack }) {
                         </button>
                         <button
                             className="btn-primary"
-                            onClick={() => updateBpm(bpm + 1)}>
+                            onClick={() => setMetronomeBpm(bpm + 1)}>
                             +1
                         </button>
                         <button
                             className="btn-primary"
-                            onClick={() => updateBpm(bpm + 5)}>
+                            onClick={() => setMetronomeBpm(bpm + 5)}>
                             +5
                         </button>
                     </div>
@@ -353,7 +305,7 @@ export default function MetronomeScreen({ onBack }) {
                                 <button
                                     key={sub.value}
                                     type="button"
-                                    onClick={() => setSubdivision(sub.value)}
+                                    onClick={() => setMetronomeSubdivision(sub.value)}
                                     style={{
                                         padding: '12px 8px',
                                         borderRadius: 10,
@@ -394,7 +346,7 @@ export default function MetronomeScreen({ onBack }) {
                 <button
                     type="button"
                     className="btn-primary"
-                    onClick={() => setIsPlaying((prev) => !prev)}
+                    onClick={() => toggleMetronomePlaying()}
                     style={{
                         width: '100%',
                         padding: '14px',

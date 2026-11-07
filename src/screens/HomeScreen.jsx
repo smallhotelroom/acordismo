@@ -1,6 +1,6 @@
 /**
  * @file src/screens/HomeScreen.jsx
- * @version 2.9.0
+ * @version 2.10.0
  */
 import React, { useContext, useEffect, useState } from 'react';
 import { ArrowRight, Menu, MoreVertical, Moon, Search, Sun } from 'lucide-react';
@@ -10,13 +10,14 @@ import SearchBar from '../components/SearchBar';
 import executeQuery from '../shared/database';
 import { buildMultiTokenSearchClause } from '../shared/dbMerger';
 import { AppContext } from '../shared/AppContext';
+import { getMetronomeState, subscribeMetronomeState } from '../shared/audioEngine';
 
-export const __version__ = '2.9.0';
+export const __version__ = '2.10.0';
 
 /**
  * Clean 20x20 stroke SVG icon for the Metronome (matches Lucide 2px stroke aesthetic).
  */
-function MetronomeIcon({ size = 20 }) {
+export function MetronomeIcon({ size = 20 }) {
     return (
         <svg
             width={size}
@@ -37,7 +38,7 @@ function MetronomeIcon({ size = 20 }) {
 /**
  * Clean 20x20 stroke SVG icon for the Tuning Fork / Tuner (matches Lucide 2px stroke aesthetic).
  */
-function TuningForkIcon({ size = 20 }) {
+export function TuningForkIcon({ size = 20 }) {
     return (
         <svg
             width={size}
@@ -76,6 +77,11 @@ export default function HomeScreen({ onNavigate }) {
     const [bands, setBands] = useState([]);
     const [songs, setSongs] = useState([]);
     const [searchInLyrics, setSearchInLyrics] = useState(false);
+    const [metroActive, setMetroActive] = useState(() => getMetronomeState().isPlaying);
+
+    useEffect(() => {
+        return subscribeMetronomeState((st) => setMetroActive(st.isPlaying));
+    }, []);
 
     const currentOrder = tabOrders[currentTab];
 
@@ -183,7 +189,16 @@ export default function HomeScreen({ onNavigate }) {
                 <div className="header-actions">
                     <button
                         className="icon-btn"
-                        title="Metronome"
+                        title={metroActive ? 'Metronome (Playing)' : 'Metronome'}
+                        style={
+                            metroActive
+                                ? {
+                                      color: '#f59e0b',
+                                      background: 'rgba(245, 158, 11, 0.15)',
+                                      borderRadius: 8,
+                                  }
+                                : undefined
+                        }
                         onClick={() => onNavigate({ screen: 'Metronome' })}>
                         <MetronomeIcon size={20} />
                     </button>
