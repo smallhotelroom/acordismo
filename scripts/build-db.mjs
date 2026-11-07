@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * @file scripts/build-db.mjs
- * @version 4.5.0
+ * @version 4.6.0
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -20,7 +20,7 @@ import {
 import { parseAcordismoConfigYaml } from '../src/shared/acordismoConfig.js';
 import { hasCrawlerSongAndChords } from '../src/shared/crawlerTransposer.js';
 
-export const __version__ = '4.5.0';
+export const __version__ = '4.6.0';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -188,14 +188,67 @@ function serializeField(val) {
     return String(val);
 }
 
+const NAMED_HTML_ENTITIES = {
+    '&amp;': '&',
+    '&lt;': '<',
+    '&gt;': '>',
+    '&quot;': '"',
+    '&apos;': "'",
+    '&nbsp;': ' ',
+    '&lsquo;': "'",
+    '&rsquo;': "'",
+    '&sbquo;': "'",
+    '&ldquo;': '"',
+    '&rdquo;': '"',
+    '&ndash;': '-',
+    '&mdash;': '-',
+    '&hellip;': '...',
+    '&aacute;': 'á',
+    '&eacute;': 'é',
+    '&iacute;': 'í',
+    '&oacute;': 'ó',
+    '&uacute;': 'ú',
+    '&Aacute;': 'Á',
+    '&Eacute;': 'É',
+    '&Iacute;': 'Í',
+    '&Oacute;': 'Ó',
+    '&Uacute;': 'Ú',
+    '&ntilde;': 'ñ',
+    '&Ntilde;': 'Ñ',
+    '&uuml;': 'ü',
+    '&Uuml;': 'Ü',
+    '&iexcl;': '¡',
+    '&iquest;': '¿',
+};
+
+/**
+ * Decodes named HTML entities, arbitrary decimal entities (e.g. `&#039;`, `&#39;`),
+ * and hex entities (`&#x27;`), and normalizes curly apostrophes to standard ASCII `'`.
+ */
 function decodeHtmlEntities(str) {
-    return str
-        .replace(/&amp;/g, '&')
-        .replace(/&lt;/g, '<')
-        .replace(/&gt;/g, '>')
-        .replace(/&quot;/g, '"')
-        .replace(/&#39;/g, "'")
-        .replace(/&nbsp;/g, ' ');
+    if (!str || typeof str !== 'string') {
+        return '';
+    }
+    // Unwrap double-escaped `&amp;#` or `&amp;apos;` first if present
+    let out = str.replace(/&amp;(#?[a-zA-Z0-9]+;)/g, '&$1');
+
+    // Decode decimal numeric entities like &#039;, &#39;, &#8217;
+    out = out.replace(/&#0*(\d+);/g, (full, dec) => {
+        const code = parseInt(dec, 10);
+        return code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : full;
+    });
+
+    // Decode hex numeric entities like &#x27;, &#x0027;
+    out = out.replace(/&#[xX]0*([0-9a-fA-F]+);/g, (full, hex) => {
+        const code = parseInt(hex, 16);
+        return code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : full;
+    });
+
+    // Decode named HTML entities
+    out = out.replace(/&[a-zA-Z]+;/g, (entity) => NAMED_HTML_ENTITIES[entity] ?? entity);
+
+    // Normalize curly apostrophes to standard ASCII `'`
+    return out.replace(/[\u2018\u2019\u201B\u2032]/g, "'");
 }
 
 function stripHtmlTags(html) {
@@ -493,8 +546,8 @@ function buildLayerDatabase(SQL, layerConfig, schemaMod) {
 
                         if (useCache) {
                             const cachedData = JSON.parse(fs.readFileSync(cacheFilePath, 'utf8'));
-                            songName = cachedData.name;
-                            songContent = cleanSongContents(cachedData.content);
+                            songName = decodeHtmlEntities(cachedData.name);
+                            songContent = cleanSongContents(decodeHtmlEntities(cachedData.content));
                             console.log(`** (cached) ${bandName} - ${songName}`);
                         } else {
                             const html = fs.readFileSync(fullFileName, 'utf8');
@@ -589,8 +642,8 @@ function buildLayerDatabase(SQL, layerConfig, schemaMod) {
 
                         if (useCache) {
                             const cachedData = JSON.parse(fs.readFileSync(cacheFilePath, 'utf8'));
-                            songName = cachedData.name;
-                            songContent = cleanSongContents(cachedData.content);
+                            songName = decodeHtmlEntities(cachedData.name);
+                            songContent = cleanSongContents(decodeHtmlEntities(cachedData.content));
                             console.log(`** (cached) ${bandName} - ${songName}`);
                         } else {
                             const htmlContent = fs.readFileSync(fullFileName, 'utf8');
