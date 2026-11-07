@@ -1,5 +1,5 @@
 /* File: src/index.css */
-/* Version: 2.8.4 */
+/* Version: 2.9.0 */
 :root {
   --bg-surface: #ffffff;
   --bg-primary: #f2f2f2;
@@ -333,6 +333,21 @@ html, body, #root {
 
 .song-lyrics-monospace strong {
   color: var(--chord-color);
+}
+
+/* Portrait bottom scroll clearance inside SongScreen when System Bars Space is enabled */
+.song-lyrics-portrait-pad {
+  padding-bottom: 90px !important;
+}
+
+/* Automatically hide the bottom system bar spacer and SongScreen bottom gradient in landscape mode */
+@media (orientation: landscape) {
+  .portrait-only-bottom-bar {
+    display: none !important;
+  }
+  .song-lyrics-portrait-pad {
+    padding-bottom: 15px !important;
+  }
 }
 
 .modal-backdrop {
