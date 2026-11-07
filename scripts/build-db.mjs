@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * @file scripts/build-db.mjs
- * @version 4.4.0
+ * @version 4.5.0
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -12,6 +12,7 @@ import initSqlJs from 'sql.js';
 import {
     SCHEMA_SQL,
     INDEX_SQL,
+    UPDATE_BANDS_HAS_CHORDS_SQL,
     normalizeSearchText,
     wildcardToRegExp,
     mergeDatabasesInPriorityOrder,
@@ -19,7 +20,7 @@ import {
 import { parseAcordismoConfigYaml } from '../src/shared/acordismoConfig.js';
 import { hasCrawlerSongAndChords } from '../src/shared/crawlerTransposer.js';
 
-export const __version__ = '4.4.0';
+export const __version__ = '4.5.0';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -252,7 +253,7 @@ function buildLayerDatabase(SQL, layerConfig, schemaMod) {
         if (bandCache.has(clean)) {
             return bandCache.get(clean);
         }
-        db.run('INSERT INTO bands (name, search_norm) VALUES (?, ?);', [
+        db.run('INSERT INTO bands (name, has_chords, search_norm) VALUES (?, 1, ?);', [
             clean,
             normalizeSearchText(clean),
         ]);
@@ -749,6 +750,7 @@ function buildLayerDatabase(SQL, layerConfig, schemaMod) {
     ]);
 
     db.run(INDEX_SQL);
+    db.run(UPDATE_BANDS_HAS_CHORDS_SQL);
     db.run('COMMIT;');
 
     if (insertedSongsCount === 0) {

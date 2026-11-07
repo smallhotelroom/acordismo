@@ -1,6 +1,6 @@
 /**
  * @file src/screens/HomeScreen.jsx
- * @version 2.7.0
+ * @version 2.8.0
  */
 import React, { useContext, useEffect, useState } from 'react';
 import { ArrowRight, Menu, MoreVertical, Moon, Search, Sun } from 'lucide-react';
@@ -11,7 +11,7 @@ import executeQuery from '../shared/database';
 import { buildMultiTokenSearchClause } from '../shared/dbMerger';
 import { AppContext } from '../shared/AppContext';
 
-export const __version__ = '2.7.0';
+export const __version__ = '2.8.0';
 
 export default function HomeScreen({ onNavigate }) {
     const {
@@ -42,7 +42,7 @@ export default function HomeScreen({ onNavigate }) {
         if (currentTab === 'Playlists') {
             const { sqlCondition, params } = buildMultiTokenSearchClause(
                 homeSearchStr,
-                'COALESCE(playlists.search_norm, LOWER(playlists.name))',
+                'playlists.search_norm',
                 false
             );
             const whereClause = sqlCondition ? ` WHERE ${sqlCondition}` : '';
@@ -53,7 +53,7 @@ export default function HomeScreen({ onNavigate }) {
                       ? ' ORDER BY name DESC'
                       : '';
 
-            executeQuery(`SELECT * FROM playlists${whereClause}${orderClause};`, params)
+            executeQuery(`SELECT id, name FROM playlists${whereClause}${orderClause};`, params)
                 .then((data) => {
                     setPlaylists(data.rows._array);
                 })
@@ -61,14 +61,12 @@ export default function HomeScreen({ onNavigate }) {
         } else if (currentTab === 'Bands') {
             const { sqlCondition, params } = buildMultiTokenSearchClause(
                 homeSearchStr,
-                'COALESCE(bands.search_norm, LOWER(bands.name))',
+                'bands.search_norm',
                 false
             );
             const conditions = [];
             if (hideCrawlerTabsEnabled) {
-                conditions.push(
-                    '(EXISTS (SELECT 1 FROM songs WHERE songs.band_id = bands.id AND songs.has_chords = 1) OR EXISTS (SELECT 1 FROM songs_ft_bands INNER JOIN songs ON songs_ft_bands.song_id = songs.id WHERE songs_ft_bands.ft_band_id = bands.id AND songs.has_chords = 1))'
-                );
+                conditions.push('bands.has_chords = 1');
             }
             if (sqlCondition) {
                 conditions.push(`(${sqlCondition})`);
@@ -81,7 +79,7 @@ export default function HomeScreen({ onNavigate }) {
                       ? ' ORDER BY name DESC'
                       : '';
 
-            executeQuery(`SELECT * FROM bands${whereClause}${orderClause};`, params)
+            executeQuery(`SELECT id, name FROM bands${whereClause}${orderClause};`, params)
                 .then((data) => {
                     setBands(data.rows._array);
                 })
@@ -89,7 +87,7 @@ export default function HomeScreen({ onNavigate }) {
         } else if (currentTab === 'Songs') {
             const { sqlCondition, params } = buildMultiTokenSearchClause(
                 homeSearchStr,
-                "COALESCE(songs.search_norm, LOWER(bands.name || ' ' || songs.name))",
+                'songs.search_norm',
                 searchInLyrics
             );
             const conditions = [];

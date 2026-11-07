@@ -1,6 +1,6 @@
 /**
  * @file src/screens/BandScreen.jsx
- * @version 2.6.0
+ * @version 2.7.0
  */
 import React, { useContext, useEffect, useState } from 'react';
 import { ArrowLeft, ArrowRight, MoreVertical, Search } from 'lucide-react';
@@ -10,7 +10,7 @@ import executeQuery from '../shared/database';
 import { buildMultiTokenSearchClause } from '../shared/dbMerger';
 import { AppContext } from '../shared/AppContext';
 
-export const __version__ = '2.6.0';
+export const __version__ = '2.7.0';
 
 export default function BandScreen({ routeParams, onNavigate, onBack }) {
     const { selectedBandId } = routeParams;
@@ -37,7 +37,7 @@ export default function BandScreen({ routeParams, onNavigate, onBack }) {
 
         const { sqlCondition, params: searchParams } = buildMultiTokenSearchClause(
             bandSearchStr,
-            'COALESCE(songs.search_norm, LOWER(songs.name))',
+            'songs.search_norm',
             searchInLyrics
         );
         const hasChordsClause = hideCrawlerTabsEnabled ? ' AND songs.has_chords = 1' : '';
@@ -52,7 +52,7 @@ export default function BandScreen({ routeParams, onNavigate, onBack }) {
             .catch((err) => console.error(err));
 
         const queryFtStr =
-            'SELECT songs.id, songs.name, bands.name AS ft_band_name FROM songs INNER JOIN bands ON songs.band_id = bands.id WHERE songs.id IN (SELECT song_id FROM songs_ft_bands WHERE ft_band_id = ?)';
+            'SELECT songs.id, songs.name, bands.name AS ft_band_name FROM songs_ft_bands INNER JOIN songs ON songs_ft_bands.song_id = songs.id INNER JOIN bands ON songs.band_id = bands.id WHERE songs_ft_bands.ft_band_id = ?';
         executeQuery(queryFtStr + hasChordsClause + searchClause + bandOrderStr + ';', queryParams)
             .then((data) => {
                 setBandFeaturing(data.rows._array);

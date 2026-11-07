@@ -1,11 +1,11 @@
 /**
  * @file src/components/SearchBar.jsx
- * @version 1.0.0
- * Shared accent-insensitive multi-token search bar with optional '+ Lyrics' toggle pill.
+ * @version 1.1.0
+ * Shared accent-insensitive multi-token search bar with 120ms input debounce and '+ Lyrics' toggle pill.
  */
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 
-export const __version__ = '1.0.0';
+export const __version__ = '1.1.0';
 
 export default function SearchBar({
     value,
@@ -16,14 +16,44 @@ export default function SearchBar({
     searchInLyrics = false,
     onToggleLyrics = null,
 }) {
+    const [localValue, setLocalValue] = useState(value);
+
+    useEffect(() => {
+        setLocalValue(value);
+    }, [value]);
+
+    useEffect(() => {
+        if (localValue === value) {
+            return;
+        }
+        // Clear immediately when emptied, otherwise debounce 120ms for smooth 60fps typing
+        if (localValue === '') {
+            onChange('');
+            return;
+        }
+        const timer = setTimeout(() => {
+            onChange(localValue);
+        }, 120);
+        return () => clearTimeout(timer);
+    }, [localValue, value, onChange]);
+
+    const handleClear = () => {
+        setLocalValue('');
+        if (onClear) {
+            onClear();
+        } else {
+            onChange('');
+        }
+    };
+
     return (
         <div className="search-bar" style={{ gap: 8 }}>
             <input
                 className="search-input"
                 autoFocus
                 placeholder={placeholder}
-                value={value}
-                onChange={(e) => onChange(e.target.value)}
+                value={localValue}
+                onChange={(e) => setLocalValue(e.target.value)}
             />
             {showLyricsToggle && onToggleLyrics && (
                 <button
@@ -47,7 +77,7 @@ export default function SearchBar({
                     + Lyrics
                 </button>
             )}
-            <button className="icon-btn" title="Clear search" onClick={onClear}>
+            <button className="icon-btn" title="Clear search" onClick={handleClear}>
                 x
             </button>
         </div>

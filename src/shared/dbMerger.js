@@ -1,10 +1,10 @@
 /**
  * @file src/shared/dbMerger.js
- * @version 1.5.0
+ * @version 1.6.0
  */
 import { hasCrawlerSongAndChords } from './crawlerTransposer.js';
 
-export const __version__ = '1.5.0';
+export const __version__ = '1.6.0';
 
 /**
  * Strips diacritics/accents (e.g. "Leãozinho" -> "leaozinho", "Español" -> "espanol")
@@ -78,6 +78,7 @@ CREATE TABLE IF NOT EXISTS meta (
 CREATE TABLE IF NOT EXISTS bands (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
+    has_chords INTEGER NOT NULL DEFAULT 1,
     search_norm TEXT
 );
 CREATE TABLE IF NOT EXISTS playlists (
@@ -136,6 +137,7 @@ CREATE TABLE IF NOT EXISTS playlists_songs (
 
 export const INDEX_SQL = `
 CREATE INDEX IF NOT EXISTS idx_bands_name ON bands (name);
+CREATE INDEX IF NOT EXISTS idx_bands_has_chords ON bands (has_chords);
 CREATE INDEX IF NOT EXISTS idx_bands_search_norm ON bands (search_norm);
 CREATE INDEX IF NOT EXISTS idx_playlists_name ON playlists (name);
 CREATE INDEX IF NOT EXISTS idx_playlists_search_norm ON playlists (search_norm);
@@ -148,6 +150,23 @@ CREATE INDEX IF NOT EXISTS idx_playlists_songs_playlist_id ON playlists_songs (p
 CREATE INDEX IF NOT EXISTS idx_playlists_songs_song_id ON playlists_songs (song_id);
 CREATE INDEX IF NOT EXISTS idx_songs_ft_bands_song_id ON songs_ft_bands (song_id);
 CREATE INDEX IF NOT EXISTS idx_songs_ft_bands_ft_band_id ON songs_ft_bands (ft_band_id);
+`;
+
+/**
+ * Updates `bands.has_chords` in a single fast SQL pass so the Bands tab never needs correlated subqueries.
+ */
+export const UPDATE_BANDS_HAS_CHORDS_SQL = `
+UPDATE bands SET has_chords = CASE
+    WHEN id IN (SELECT band_id FROM songs WHERE has_chords = 1)
+      OR id IN (
+          SELECT songs_ft_bands.ft_band_id
+          FROM songs_ft_bands
+          INNER JOIN songs ON songs_ft_bands.song_id = songs.id
+          WHERE songs.has_chords = 1
+      )
+    THEN 1
+    ELSE 0
+END;
 `;
 
 function queryObjects(db, sql, params = []) {
@@ -208,7 +227,7 @@ export function mergeDatabasesInPriorityOrder(SQL, sourceDbs, mergedId = 'merged
         if (bandNameToId.has(key)) {
             return bandNameToId.get(key);
         }
-        outDb.run('INSERT INTO bands (name, search_norm) VALUES (?, ?);', [
+        outDb.run('INSERT INTO bands (name, has_chords, search_norm) VALUES (?, 1, ?);', [
             clean,
             normalizeSearchText(clean),
         ]);
@@ -424,6 +443,7 @@ export function mergeDatabasesInPriorityOrder(SQL, sourceDbs, mergedId = 'merged
         new Date().toISOString(),
     ]);
     outDb.run(INDEX_SQL);
+    outDb.run(UPDATE_BANDS_HAS_CHORDS_SQL);
     outDb.run('COMMIT;');
 
     return outDb;

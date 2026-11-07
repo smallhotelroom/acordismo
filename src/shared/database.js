@@ -1,16 +1,17 @@
 /**
  * @file src/shared/database.js
- * @version 3.4.0
+ * @version 3.5.0
  */
 import * as sqlJsModule from 'sql.js';
 import sqlWasmUrl from 'sql.js/dist/sql-wasm.wasm?url';
 import {
+    INDEX_SQL,
+    UPDATE_BANDS_HAS_CHORDS_SQL,
     inspectDatabase,
     mergeDatabasesInPriorityOrder,
-    normalizeSearchText,
 } from './dbMerger';
 
-export const __version__ = '3.4.0';
+export const __version__ = '3.5.0';
 
 const initSqlJs = sqlJsModule.default || sqlJsModule;
 
@@ -19,9 +20,6 @@ const IDB_STORE = 'db_packs';
 const IDB_KEY_STACK = 'db_layer_stack_v1';
 const IDB_KEY_MERGED_CACHE = 'db_merged_cache_v1';
 const IDB_KEY_ACTIVE_LABEL = 'db_active_label_v1';
-
-const LEGACY_KEY_BYTES = 'custom_db_bytes';
-const LEGACY_KEY_LABEL = 'custom_db_label';
 
 let sqlPromise = null;
 let dbInstance = null;
@@ -61,7 +59,7 @@ async function idbSet(key, value) {
             const tx = db.transaction(IDB_STORE, 'readwrite');
             tx.objectStore(IDB_STORE).put(value, key);
             tx.oncomplete = () => resolve();
-            req.onerror = () => reject(tx.error);
+            req.onerror = () => reject(req.error);
         });
     } catch (err) {
         console.error('IndexedDB write error:', err);
@@ -75,7 +73,7 @@ async function idbDelete(key) {
             const tx = db.transaction(IDB_STORE, 'readwrite');
             tx.objectStore(IDB_STORE).delete(key);
             tx.oncomplete = () => resolve();
-            tx.onerror = () => reject(tx.error);
+            tx.onerror = () => reject(req.error);
         });
     } catch (err) {
         console.error('IndexedDB delete error:', err);
@@ -89,7 +87,7 @@ async function idbClear() {
             const tx = db.transaction(IDB_STORE, 'readwrite');
             tx.objectStore(IDB_STORE).clear();
             tx.oncomplete = () => resolve();
-            tx.onerror = () => reject(tx.error);
+            req.onerror = () => reject(tx.error);
         });
     } catch (err) {
         console.error('IndexedDB clear error:', err);
@@ -119,58 +117,35 @@ async function fetchDefaultDbBytes() {
 }
 
 /**
- * Ensures any opened SQL.Database has `search_norm` columns on bands, playlists, and songs.
- * If an older .db pack without `search_norm` is loaded directly, backfills it in memory.
+ * Ensures opened databases have `bands.has_chords` and `songs.has_chords` indexed and populated.
  */
-function ensureSearchNormPopulated(db) {
+function ensureSchemaColumns(db) {
     if (!db) return db;
     try {
-        db.run('SELECT search_norm FROM songs LIMIT 1;');
+        db.run('SELECT has_chords, search_norm FROM bands LIMIT 1;');
+        db.run('SELECT has_chords, search_norm FROM songs LIMIT 1;');
     } catch {
         db.run('BEGIN TRANSACTION;');
         try {
+            db.run('ALTER TABLE songs ADD COLUMN has_chords INTEGER NOT NULL DEFAULT 1;');
+        } catch {}
+        try {
+            db.run('ALTER TABLE bands ADD COLUMN has_chords INTEGER NOT NULL DEFAULT 1;');
+        } catch {}
+        try {
             db.run('ALTER TABLE bands ADD COLUMN search_norm TEXT;');
+            db.run('UPDATE bands SET search_norm = LOWER(name) WHERE search_norm IS NULL;');
         } catch {}
         try {
             db.run('ALTER TABLE playlists ADD COLUMN search_norm TEXT;');
+            db.run('UPDATE playlists SET search_norm = LOWER(name) WHERE search_norm IS NULL;');
         } catch {}
         try {
             db.run('ALTER TABLE songs ADD COLUMN search_norm TEXT;');
+            db.run('UPDATE songs SET search_norm = LOWER(name) WHERE search_norm IS NULL;');
         } catch {}
-
-        const bandMap = new Map();
-        const bStmt = db.prepare('SELECT id, name FROM bands;');
-        while (bStmt.step()) {
-            const b = bStmt.getAsObject();
-            bandMap.set(b.id, b.name);
-            db.run('UPDATE bands SET search_norm = ? WHERE id = ?;', [
-                normalizeSearchText(b.name),
-                b.id,
-            ]);
-        }
-        bStmt.free();
-
-        const pStmt = db.prepare('SELECT id, name FROM playlists;');
-        while (pStmt.step()) {
-            const p = pStmt.getAsObject();
-            db.run('UPDATE playlists SET search_norm = ? WHERE id = ?;', [
-                normalizeSearchText(p.name),
-                p.id,
-            ]);
-        }
-        pStmt.free();
-
-        const sStmt = db.prepare('SELECT id, name, band_id, album FROM songs;');
-        while (sStmt.step()) {
-            const s = sStmt.getAsObject();
-            const bName = bandMap.get(s.band_id) || '';
-            db.run('UPDATE songs SET search_norm = ? WHERE id = ?;', [
-                normalizeSearchText(`${bName} ${s.name} ${s.album || ''}`),
-                s.id,
-            ]);
-        }
-        sStmt.free();
-        db.run('CREATE INDEX IF NOT EXISTS idx_songs_search_norm ON songs (search_norm);');
+        db.run(INDEX_SQL);
+        db.run(UPDATE_BANDS_HAS_CHORDS_SQL);
         db.run('COMMIT;');
     }
     return db;
@@ -209,23 +184,6 @@ export async function getDatabaseLayerStack() {
             },
         ];
 
-        const legacyBytes = await idbGet(LEGACY_KEY_BYTES);
-        const legacyLabel = await idbGet(LEGACY_KEY_LABEL);
-        if (legacyBytes && legacyBytes instanceof Uint8Array) {
-            const legacyDb = new SQL.Database(legacyBytes);
-            const lStats = inspectDatabase(legacyDb, legacyLabel || 'Custom Pack');
-            legacyDb.close();
-            stack.push({
-                id: `layer-${Date.now()}`,
-                name: legacyLabel || 'Custom Pack',
-                builtin: false,
-                enabled: true,
-                songCount: lStats.songCount,
-                bandCount: lStats.bandCount,
-                bytes: legacyBytes,
-            });
-        }
-
         await idbSet(IDB_KEY_STACK, stack);
         await idbSet(IDB_KEY_ACTIVE_LABEL, computeStackLabel(stack));
     }
@@ -259,13 +217,13 @@ export async function rebuildMergedDatabase(providedStack = null) {
     if (enabledLayers.length === 1 && enabledLayers[0].builtin) {
         await idbDelete(IDB_KEY_MERGED_CACHE);
         const defaultBytes = await fetchDefaultDbBytes();
-        dbInstance = ensureSearchNormPopulated(new SQL.Database(defaultBytes));
+        dbInstance = ensureSchemaColumns(new SQL.Database(defaultBytes));
         return dbInstance;
     }
 
     if (enabledLayers.length === 1 && !enabledLayers[0].builtin && enabledLayers[0].bytes) {
         const singleBytes = enabledLayers[0].bytes;
-        dbInstance = ensureSearchNormPopulated(new SQL.Database(singleBytes));
+        dbInstance = ensureSchemaColumns(new SQL.Database(singleBytes));
         await idbSet(IDB_KEY_MERGED_CACHE, dbInstance.export());
         return dbInstance;
     }
@@ -297,7 +255,7 @@ export async function initDatabase(customUint8Array = null) {
         if (dbInstance) {
             dbInstance.close();
         }
-        dbInstance = ensureSearchNormPopulated(new SQL.Database(customUint8Array));
+        dbInstance = ensureSchemaColumns(new SQL.Database(customUint8Array));
         return dbInstance;
     }
 
@@ -309,7 +267,7 @@ export async function initDatabase(customUint8Array = null) {
         initPromise = (async () => {
             const cachedMergedBytes = await idbGet(IDB_KEY_MERGED_CACHE);
             if (cachedMergedBytes && cachedMergedBytes instanceof Uint8Array) {
-                dbInstance = ensureSearchNormPopulated(new SQL.Database(cachedMergedBytes));
+                dbInstance = ensureSchemaColumns(new SQL.Database(cachedMergedBytes));
                 return dbInstance;
             }
 
@@ -318,14 +276,14 @@ export async function initDatabase(customUint8Array = null) {
                 const enabled = stack.filter((l) => l.enabled);
                 if (enabled.length === 1 && enabled[0].builtin) {
                     const defaultBytes = await fetchDefaultDbBytes();
-                    dbInstance = ensureSearchNormPopulated(new SQL.Database(defaultBytes));
+                    dbInstance = ensureSchemaColumns(new SQL.Database(defaultBytes));
                     return dbInstance;
                 }
                 return await rebuildMergedDatabase(stack);
             }
 
             const defaultBytes = await fetchDefaultDbBytes();
-            dbInstance = ensureSearchNormPopulated(new SQL.Database(defaultBytes));
+            dbInstance = ensureSchemaColumns(new SQL.Database(defaultBytes));
             return dbInstance;
         })().finally(() => {
             initPromise = null;

@@ -1,6 +1,6 @@
 /**
  * @file src/screens/PlaylistScreen.jsx
- * @version 2.6.0
+ * @version 2.7.0
  */
 import React, { useContext, useEffect, useState } from 'react';
 import { ArrowLeft, ArrowRight, MoreVertical, Search } from 'lucide-react';
@@ -11,7 +11,7 @@ import executeQuery from '../shared/database';
 import { buildMultiTokenSearchClause } from '../shared/dbMerger';
 import { AppContext } from '../shared/AppContext';
 
-export const __version__ = '2.6.0';
+export const __version__ = '2.7.0';
 
 export default function PlaylistScreen({ routeParams, onNavigate, onBack }) {
     const { selectedPlaylistId } = routeParams;
@@ -37,7 +37,7 @@ export default function PlaylistScreen({ routeParams, onNavigate, onBack }) {
 
         const { sqlCondition, params: searchParams } = buildMultiTokenSearchClause(
             playlistSearchStr,
-            "COALESCE(songs.search_norm, LOWER(bands.name || ' ' || songs.name))",
+            'songs.search_norm',
             searchInLyrics
         );
         const hasChordsClause = hideCrawlerTabsEnabled ? ' AND songs.has_chords = 1' : '';
@@ -45,7 +45,7 @@ export default function PlaylistScreen({ routeParams, onNavigate, onBack }) {
         const params = [selectedPlaylistId, ...searchParams];
 
         const queryStr =
-            'SELECT songs.id, songs.name, bands.name AS band_name FROM songs INNER JOIN bands ON songs.band_id = bands.id WHERE songs.id IN (SELECT song_id FROM playlists_songs WHERE playlist_id = ?)';
+            'SELECT songs.id, songs.name, bands.name AS band_name FROM playlists_songs INNER JOIN songs ON playlists_songs.song_id = songs.id INNER JOIN bands ON songs.band_id = bands.id WHERE playlists_songs.playlist_id = ?';
         executeQuery(queryStr + hasChordsClause + searchClause + playlistOrderStr + ';', params)
             .then((data) => {
                 setPlaylistSongs(data.rows._array);
