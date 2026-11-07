@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "db:build": "node scripts/build-db.mjs",
+    "db:build:clean": "node scripts/build-db.mjs --no-cache",
     "pdf:build": "node scripts/build-pdf.mjs",
     "pdf:build:bw": "node scripts/build-pdf.mjs --bw",
     "icon:build": "node scripts/build-icons.mjs",

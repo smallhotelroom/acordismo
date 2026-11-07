@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * @file scripts/build-db.mjs
- * @version 4.6.0
+ * @version 4.7.0
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -20,7 +20,7 @@ import {
 import { parseAcordismoConfigYaml } from '../src/shared/acordismoConfig.js';
 import { hasCrawlerSongAndChords } from '../src/shared/crawlerTransposer.js';
 
-export const __version__ = '4.6.0';
+export const __version__ = '4.7.0';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -287,7 +287,7 @@ function queryAll(db, sql, params = []) {
     return out;
 }
 
-function buildLayerDatabase(SQL, layerConfig, schemaMod) {
+function buildLayerDatabase(SQL, layerConfig, schemaMod, { noCache = false } = {}) {
     console.log(`\n========================================`);
     console.log(`Building Layer: ${layerConfig.id}`);
     console.log(`========================================`);
@@ -504,6 +504,11 @@ function buildLayerDatabase(SQL, layerConfig, schemaMod) {
             }
 
             const cacheTypeDir = cacheRoot ? path.join(cacheRoot, subDirName) : null;
+            if (noCache && cacheTypeDir && fs.existsSync(cacheTypeDir)) {
+                console.log(`🧹 [--no-cache] Removing cached directory: ${cacheTypeDir}`);
+                fs.rmSync(cacheTypeDir, { recursive: true, force: true });
+            }
+
             const playlistName =
                 src.playlist || (srcType === 'dataset_zk' ? 'OrigenZK' : 'OrigenLK');
             const maxErrors = Number(src.max_errors || 5);
@@ -539,6 +544,7 @@ function buildLayerDatabase(SQL, layerConfig, schemaMod) {
                             : null;
 
                         const useCache =
+                            !noCache &&
                             cacheFilePath &&
                             fs.existsSync(cacheFilePath) &&
                             fs.statSync(cacheFilePath).mtimeMs >=
@@ -546,8 +552,8 @@ function buildLayerDatabase(SQL, layerConfig, schemaMod) {
 
                         if (useCache) {
                             const cachedData = JSON.parse(fs.readFileSync(cacheFilePath, 'utf8'));
-                            songName = decodeHtmlEntities(cachedData.name);
-                            songContent = cleanSongContents(decodeHtmlEntities(cachedData.content));
+                            songName = cachedData.name;
+                            songContent = cleanSongContents(cachedData.content);
                             console.log(`** (cached) ${bandName} - ${songName}`);
                         } else {
                             const html = fs.readFileSync(fullFileName, 'utf8');
@@ -635,6 +641,7 @@ function buildLayerDatabase(SQL, layerConfig, schemaMod) {
                             : null;
 
                         const useCache =
+                            !noCache &&
                             cacheFilePath &&
                             fs.existsSync(cacheFilePath) &&
                             fs.statSync(cacheFilePath).mtimeMs >=
@@ -642,8 +649,8 @@ function buildLayerDatabase(SQL, layerConfig, schemaMod) {
 
                         if (useCache) {
                             const cachedData = JSON.parse(fs.readFileSync(cacheFilePath, 'utf8'));
-                            songName = decodeHtmlEntities(cachedData.name);
-                            songContent = cleanSongContents(decodeHtmlEntities(cachedData.content));
+                            songName = cachedData.name;
+                            songContent = cleanSongContents(cachedData.content);
                             console.log(`** (cached) ${bandName} - ${songName}`);
                         } else {
                             const htmlContent = fs.readFileSync(fullFileName, 'utf8');
@@ -831,6 +838,9 @@ function buildLayerDatabase(SQL, layerConfig, schemaMod) {
 
 async function main() {
     loadDotEnv();
+    const args = process.argv.slice(2);
+    const noCache = args.includes('--no-cache') || args.includes('--clean-cache');
+
     const schemaMod = await loadMasterSongSchema();
 
     const configPath = path.join(ROOT_DIR, 'acordismo-config.yaml');
@@ -844,7 +854,7 @@ async function main() {
 
     const builtDbs = [];
     for (const layer of config.layers) {
-        const db = buildLayerDatabase(SQL, layer, schemaMod);
+        const db = buildLayerDatabase(SQL, layer, schemaMod, { noCache });
         if (db) {
             builtDbs.push(db);
         }
