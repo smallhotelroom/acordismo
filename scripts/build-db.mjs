@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 /**
  * @file scripts/build-db.mjs
- * @version 4.7.0
+ * @version 4.8.0
  */
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import crypto from 'node:crypto';
+import { spawnSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import initSqlJs from 'sql.js';
 import {
@@ -15,12 +16,13 @@ import {
     UPDATE_BANDS_HAS_CHORDS_SQL,
     normalizeSearchText,
     wildcardToRegExp,
+    populateDatabaseMeta,
     mergeDatabasesInPriorityOrder,
 } from '../src/shared/dbMerger.js';
 import { parseAcordismoConfigYaml } from '../src/shared/acordismoConfig.js';
 import { hasCrawlerSongAndChords } from '../src/shared/crawlerTransposer.js';
 
-export const __version__ = '4.7.0';
+export const __version__ = '4.8.0';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -38,6 +40,19 @@ export async function loadMasterSongSchema() {
         );
     }
     return await import(pathToFileURL(EXTERNAL_SCHEMA_PATH).href);
+}
+
+function getGitShortCommit() {
+    try {
+        const res = spawnSync('git', ['rev-parse', '--short', 'HEAD'], {
+            cwd: ROOT_DIR,
+            encoding: 'utf8',
+        });
+        if (res.status === 0 && res.stdout) {
+            return res.stdout.trim();
+        }
+    } catch {}
+    return null;
 }
 
 /**
@@ -229,25 +244,20 @@ function decodeHtmlEntities(str) {
     if (!str || typeof str !== 'string') {
         return '';
     }
-    // Unwrap double-escaped `&amp;#` or `&amp;apos;` first if present
     let out = str.replace(/&amp;(#?[a-zA-Z0-9]+;)/g, '&$1');
 
-    // Decode decimal numeric entities like &#039;, &#39;, &#8217;
     out = out.replace(/&#0*(\d+);/g, (full, dec) => {
         const code = parseInt(dec, 10);
         return code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : full;
     });
 
-    // Decode hex numeric entities like &#x27;, &#x0027;
     out = out.replace(/&#[xX]0*([0-9a-fA-F]+);/g, (full, hex) => {
         const code = parseInt(hex, 16);
         return code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : full;
     });
 
-    // Decode named HTML entities
     out = out.replace(/&[a-zA-Z]+;/g, (entity) => NAMED_HTML_ENTITIES[entity] ?? entity);
 
-    // Normalize curly apostrophes to standard ASCII `'`
     return out.replace(/[\u2018\u2019\u201B\u2032]/g, "'");
 }
 
@@ -287,7 +297,12 @@ function queryAll(db, sql, params = []) {
     return out;
 }
 
-function buildLayerDatabase(SQL, layerConfig, schemaMod, { noCache = false } = {}) {
+function buildLayerDatabase(
+    SQL,
+    layerConfig,
+    schemaMod,
+    { noCache = false, gitCommit = null } = {}
+) {
     console.log(`\n========================================`);
     console.log(`Building Layer: ${layerConfig.id}`);
     console.log(`========================================`);
@@ -800,17 +815,13 @@ function buildLayerDatabase(SQL, layerConfig, schemaMod, { noCache = false } = {
         }
     }
 
-    db.run('INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?);', [
-        'layer_id',
-        layerConfig.id,
-    ]);
-    db.run('INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?);', [
-        'generated_at',
-        new Date().toISOString(),
-    ]);
-
     db.run(INDEX_SQL);
     db.run(UPDATE_BANDS_HAS_CHORDS_SQL);
+    populateDatabaseMeta(db, {
+        layerId: layerConfig.id,
+        packName: layerConfig.id,
+        gitCommit,
+    });
     db.run('COMMIT;');
 
     if (insertedSongsCount === 0) {
@@ -840,6 +851,7 @@ async function main() {
     loadDotEnv();
     const args = process.argv.slice(2);
     const noCache = args.includes('--no-cache') || args.includes('--clean-cache');
+    const gitCommit = getGitShortCommit();
 
     const schemaMod = await loadMasterSongSchema();
 
@@ -854,7 +866,7 @@ async function main() {
 
     const builtDbs = [];
     for (const layer of config.layers) {
-        const db = buildLayerDatabase(SQL, layer, schemaMod, { noCache });
+        const db = buildLayerDatabase(SQL, layer, schemaMod, { noCache, gitCommit });
         if (db) {
             builtDbs.push(db);
         }
@@ -865,6 +877,12 @@ async function main() {
         console.log(`Merging ${builtDbs.length} active layers in priority order...`);
         console.log(`========================================`);
         const mergedDb = mergeDatabasesInPriorityOrder(SQL, builtDbs, 'merged-all');
+        if (gitCommit) {
+            mergedDb.run('INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?);', [
+                'git_commit',
+                gitCommit,
+            ]);
+        }
         const totalSongs = queryAll(mergedDb, 'SELECT COUNT(*) AS c FROM songs;')[0].c;
         const totalBands = queryAll(mergedDb, 'SELECT COUNT(*) AS c FROM bands;')[0].c;
         const fullMergedPath = path.resolve(ROOT_DIR, config.merged_output);

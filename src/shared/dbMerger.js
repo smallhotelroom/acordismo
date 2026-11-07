@@ -1,26 +1,30 @@
 /**
  * @file src/shared/dbMerger.js
- * @version 1.6.0
+ * @version 1.7.0
  */
 import { hasCrawlerSongAndChords } from './crawlerTransposer.js';
 
-export const __version__ = '1.6.0';
+export const __version__ = '1.7.0';
+
+export const DB_SCHEMA_VERSION = '2';
 
 /**
- * Strips diacritics/accents (e.g. "Leãozinho" -> "leaozinho", "Español" -> "espanol")
- * and normalizes whitespace to lowercase for instant accent-insensitive multi-token search.
+ * Strips diacritics/accents (e.g. "Leãozinho" -> "leaozinho", "Español" -> "espanol"),
+ * removes apostrophes ("Don't" -> "dont"), and normalizes whitespace to lowercase
+ * for instant accent- and apostrophe-insensitive multi-token search.
  */
 export function normalizeSearchText(str) {
     return String(str || '')
         .normalize('NFD')
         .replace(/[\u0300-\u036f]/g, '')
+        .replace(/['’‘`ʼ\u2018\u2019\u201B\u2032]/g, '')
         .toLowerCase()
         .replace(/\s+/g, ' ')
         .trim();
 }
 
 /**
- * Splits a user's search query into normalized diacritic-free tokens.
+ * Splits a user's search query into normalized diacritic-free, apostrophe-free tokens.
  */
 export function tokenizeSearchQuery(queryStr) {
     const norm = normalizeSearchText(queryStr);
@@ -28,7 +32,7 @@ export function tokenizeSearchQuery(queryStr) {
 }
 
 /**
- * Builds a parameterized SQL condition and params array for multi-token accent-free search.
+ * Builds a parameterized SQL condition and params array for multi-token accent- & apostrophe-free search.
  */
 export function buildMultiTokenSearchClause(
     rawQuery,
@@ -55,7 +59,7 @@ export function buildMultiTokenSearchClause(
 
         if (includeLyrics) {
             clauses.push(
-                `(${normColumn} LIKE ? OR LOWER(songs.contents) LIKE ? OR LOWER(songs.contents) LIKE ?)`
+                `(${normColumn} LIKE ? OR REPLACE(LOWER(songs.contents), '''', '') LIKE ? OR LOWER(songs.contents) LIKE ?)`
             );
             params.push(normLike, normLike, rawLike);
         } else {
@@ -189,25 +193,100 @@ export function wildcardToRegExp(pattern) {
     return new RegExp(`^${escaped}$`, 'i');
 }
 
+/**
+ * Populates the `meta` table with rich pack diagnostics and schema version.
+ */
+export function populateDatabaseMeta(
+    db,
+    {
+        layerId = 'custom',
+        packName = null,
+        gitCommit = null,
+        generatedAt = new Date().toISOString(),
+    } = {}
+) {
+    const songCount = queryObjects(db, 'SELECT COUNT(*) AS c FROM songs;')[0]?.c || 0;
+    const chordSongCount =
+        queryObjects(db, 'SELECT COUNT(*) AS c FROM songs WHERE has_chords = 1;')[0]?.c || 0;
+    const bandCount = queryObjects(db, 'SELECT COUNT(*) AS c FROM bands;')[0]?.c || 0;
+    const chordBandCount =
+        queryObjects(db, 'SELECT COUNT(*) AS c FROM bands WHERE has_chords = 1;')[0]?.c || 0;
+
+    const entries = [
+        ['schema_version', DB_SCHEMA_VERSION],
+        ['layer_id', layerId],
+        ['pack_name', packName || layerId],
+        ['generated_at', generatedAt],
+        ['song_count', String(songCount)],
+        ['chord_song_count', String(chordSongCount)],
+        ['band_count', String(bandCount)],
+        ['chord_band_count', String(chordBandCount)],
+    ];
+    if (gitCommit) {
+        entries.push(['git_commit', gitCommit]);
+    }
+
+    for (const [k, v] of entries) {
+        db.run('INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?);', [k, String(v)]);
+    }
+}
+
+/**
+ * Reads embedded metadata from `meta` in O(1) time (falling back to COUNT queries only for legacy DBs).
+ */
 export function inspectDatabase(db, fallbackName = 'custom') {
-    let layerId = fallbackName;
-    let songCount = 0;
-    let bandCount = 0;
+    const metaMap = {};
     try {
-        const metaRows = queryObjects(db, "SELECT value FROM meta WHERE key = 'layer_id';");
-        if (metaRows.length > 0 && metaRows[0].value) {
-            layerId = metaRows[0].value;
+        const metaRows = queryObjects(db, 'SELECT key, value FROM meta;');
+        for (const r of metaRows) {
+            if (r.key) {
+                metaMap[r.key] = r.value;
+            }
         }
     } catch {
         // Older DB without meta table
     }
-    try {
-        songCount = queryObjects(db, 'SELECT COUNT(*) AS c FROM songs;')[0]?.c || 0;
-        bandCount = queryObjects(db, 'SELECT COUNT(*) AS c FROM bands;')[0]?.c || 0;
-    } catch {
-        // Ignore
+
+    const layerId = metaMap.layer_id || fallbackName;
+    const packName = metaMap.pack_name || layerId;
+    const schemaVersion = metaMap.schema_version || '1';
+    const generatedAt = metaMap.generated_at || null;
+    const gitCommit = metaMap.git_commit || null;
+
+    let songCount = metaMap.song_count !== undefined ? Number(metaMap.song_count) : null;
+    let chordSongCount =
+        metaMap.chord_song_count !== undefined ? Number(metaMap.chord_song_count) : null;
+    let bandCount = metaMap.band_count !== undefined ? Number(metaMap.band_count) : null;
+    let chordBandCount =
+        metaMap.chord_band_count !== undefined ? Number(metaMap.chord_band_count) : null;
+
+    if (songCount === null || bandCount === null) {
+        try {
+            songCount = queryObjects(db, 'SELECT COUNT(*) AS c FROM songs;')[0]?.c || 0;
+            bandCount = queryObjects(db, 'SELECT COUNT(*) AS c FROM bands;')[0]?.c || 0;
+        } catch {
+            songCount = 0;
+            bandCount = 0;
+        }
     }
-    return { layerId, songCount, bandCount };
+    if (chordSongCount === null) {
+        chordSongCount = songCount;
+    }
+    if (chordBandCount === null) {
+        chordBandCount = bandCount;
+    }
+
+    return {
+        layerId,
+        packName,
+        schemaVersion,
+        generatedAt,
+        gitCommit,
+        songCount,
+        chordSongCount,
+        bandCount,
+        chordBandCount,
+    };
 }
 
 export function mergeDatabasesInPriorityOrder(SQL, sourceDbs, mergedId = 'merged') {
@@ -348,9 +427,9 @@ export function mergeDatabasesInPriorityOrder(SQL, sourceDbs, mergedId = 'merged
 
             const newBandId = getOrCreateBandId(bandName);
             const ftNames = songIdToFtBandNames.get(s.id) || [];
-            const songSearchNorm =
-                s.search_norm ||
-                normalizeSearchText(`${bandName} ${ftNames.join(' ')} ${s.name} ${s.album || ''}`);
+            const songSearchNorm = normalizeSearchText(
+                `${bandName} ${ftNames.join(' ')} ${s.name} ${s.album || ''}`
+            );
 
             const originId = s.origin_id ?? 0;
             const hasChords =
@@ -434,16 +513,9 @@ export function mergeDatabasesInPriorityOrder(SQL, sourceDbs, mergedId = 'merged
         }
     }
 
-    outDb.run('INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?);', [
-        'layer_id',
-        mergedId,
-    ]);
-    outDb.run('INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?);', [
-        'generated_at',
-        new Date().toISOString(),
-    ]);
     outDb.run(INDEX_SQL);
     outDb.run(UPDATE_BANDS_HAS_CHORDS_SQL);
+    populateDatabaseMeta(outDb, { layerId: mergedId, packName: mergedId });
     outDb.run('COMMIT;');
 
     return outDb;

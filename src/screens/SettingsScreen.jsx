@@ -1,6 +1,6 @@
 /**
  * @file src/screens/SettingsScreen.jsx
- * @version 3.6.0
+ * @version 3.7.0
  */
 import React, { useContext, useEffect, useRef, useState } from 'react';
 import {
@@ -24,10 +24,43 @@ import {
 } from '../shared/database';
 import { APP_DEFAULTS, AppContext } from '../shared/AppContext';
 
-export const __version__ = '3.6.0';
+export const __version__ = '3.7.0';
 
 export const FREEZE_CHORDS_STORAGE_KEY = 'acordismo_freeze_chords';
 export const HIDE_CRAWLER_TABS_STORAGE_KEY = 'acordismo_hide_crawler_tabs';
+
+function formatLayerSubtitle(layer, hideCrawlerTabsEnabled) {
+    const hasFilteredSongs =
+        hideCrawlerTabsEnabled &&
+        layer.chordSongCount !== undefined &&
+        layer.chordSongCount !== layer.songCount;
+    const songsPart = hasFilteredSongs
+        ? `${layer.chordSongCount} songs (${layer.songCount} total)`
+        : `${layer.songCount} songs`;
+
+    const hasFilteredBands =
+        hideCrawlerTabsEnabled &&
+        layer.chordBandCount !== undefined &&
+        layer.chordBandCount !== layer.bandCount;
+    const bandsPart = hasFilteredBands
+        ? `${layer.chordBandCount} bands`
+        : `${layer.bandCount} bands`;
+
+    const parts = [songsPart, bandsPart];
+    if (layer.generatedAt) {
+        parts.push(`Built ${String(layer.generatedAt).slice(0, 10)}`);
+    }
+    if (layer.gitCommit) {
+        parts.push(`#${layer.gitCommit}`);
+    }
+    if (layer.schemaVersion) {
+        parts.push(`v${layer.schemaVersion}`);
+    }
+    if (layer.builtin) {
+        parts.push('Built-in');
+    }
+    return parts.join(' · ');
+}
 
 export default function SettingsScreen({ onBack }) {
     const {
@@ -379,8 +412,7 @@ export default function SettingsScreen({ onBack }) {
                                                 fontSize: '0.8rem',
                                                 color: 'var(--text-secondary)',
                                             }}>
-                                            {layer.songCount} songs · {layer.bandCount} bands
-                                            {layer.builtin ? ' · Built-in' : ''}
+                                            {formatLayerSubtitle(layer, hideCrawlerTabsEnabled)}
                                         </div>
                                     </div>
                                 </label>

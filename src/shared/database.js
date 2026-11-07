@@ -1,17 +1,19 @@
 /**
  * @file src/shared/database.js
- * @version 3.5.0
+ * @version 3.6.0
  */
 import * as sqlJsModule from 'sql.js';
 import sqlWasmUrl from 'sql.js/dist/sql-wasm.wasm?url';
 import {
+    DB_SCHEMA_VERSION,
     INDEX_SQL,
     UPDATE_BANDS_HAS_CHORDS_SQL,
     inspectDatabase,
     mergeDatabasesInPriorityOrder,
+    populateDatabaseMeta,
 } from './dbMerger';
 
-export const __version__ = '3.5.0';
+export const __version__ = '3.6.0';
 
 const initSqlJs = sqlJsModule.default || sqlJsModule;
 
@@ -73,7 +75,7 @@ async function idbDelete(key) {
             const tx = db.transaction(IDB_STORE, 'readwrite');
             tx.objectStore(IDB_STORE).delete(key);
             tx.oncomplete = () => resolve();
-            tx.onerror = () => reject(req.error);
+            req.onerror = () => reject(req.error);
         });
     } catch (err) {
         console.error('IndexedDB delete error:', err);
@@ -87,7 +89,7 @@ async function idbClear() {
             const tx = db.transaction(IDB_STORE, 'readwrite');
             tx.objectStore(IDB_STORE).clear();
             tx.oncomplete = () => resolve();
-            req.onerror = () => reject(tx.error);
+            req.onerror = () => reject(req.error);
         });
     } catch (err) {
         console.error('IndexedDB clear error:', err);
@@ -117,37 +119,55 @@ async function fetchDefaultDbBytes() {
 }
 
 /**
- * Ensures opened databases have `bands.has_chords` and `songs.has_chords` indexed and populated.
+ * Checks `meta.schema_version === DB_SCHEMA_VERSION` in O(1) time.
+ * If an older v1 DB is loaded, upgrades its columns, strips apostrophes from `search_norm`,
+ * and stamps `schema_version = 2` so it never needs upgrading again.
  */
 function ensureSchemaColumns(db) {
     if (!db) return db;
     try {
-        db.run('SELECT has_chords, search_norm FROM bands LIMIT 1;');
-        db.run('SELECT has_chords, search_norm FROM songs LIMIT 1;');
-    } catch {
-        db.run('BEGIN TRANSACTION;');
-        try {
-            db.run('ALTER TABLE songs ADD COLUMN has_chords INTEGER NOT NULL DEFAULT 1;');
-        } catch {}
-        try {
-            db.run('ALTER TABLE bands ADD COLUMN has_chords INTEGER NOT NULL DEFAULT 1;');
-        } catch {}
-        try {
-            db.run('ALTER TABLE bands ADD COLUMN search_norm TEXT;');
-            db.run('UPDATE bands SET search_norm = LOWER(name) WHERE search_norm IS NULL;');
-        } catch {}
-        try {
-            db.run('ALTER TABLE playlists ADD COLUMN search_norm TEXT;');
-            db.run('UPDATE playlists SET search_norm = LOWER(name) WHERE search_norm IS NULL;');
-        } catch {}
-        try {
-            db.run('ALTER TABLE songs ADD COLUMN search_norm TEXT;');
-            db.run('UPDATE songs SET search_norm = LOWER(name) WHERE search_norm IS NULL;');
-        } catch {}
-        db.run(INDEX_SQL);
-        db.run(UPDATE_BANDS_HAS_CHORDS_SQL);
-        db.run('COMMIT;');
-    }
+        const stmt = db.prepare("SELECT value FROM meta WHERE key = 'schema_version';");
+        const isCurrent = stmt.step() && stmt.getAsObject().value === DB_SCHEMA_VERSION;
+        stmt.free();
+        if (isCurrent) {
+            return db;
+        }
+    } catch {}
+
+    db.run('BEGIN TRANSACTION;');
+    try {
+        db.run('CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);');
+    } catch {}
+    try {
+        db.run('ALTER TABLE songs ADD COLUMN has_chords INTEGER NOT NULL DEFAULT 1;');
+    } catch {}
+    try {
+        db.run('ALTER TABLE bands ADD COLUMN has_chords INTEGER NOT NULL DEFAULT 1;');
+    } catch {}
+    try {
+        db.run('ALTER TABLE bands ADD COLUMN search_norm TEXT;');
+    } catch {}
+    try {
+        db.run('ALTER TABLE playlists ADD COLUMN search_norm TEXT;');
+    } catch {}
+    try {
+        db.run('ALTER TABLE songs ADD COLUMN search_norm TEXT;');
+    } catch {}
+
+    db.run(
+        "UPDATE bands SET search_norm = REPLACE(LOWER(COALESCE(search_norm, name)), '''', '');"
+    );
+    db.run(
+        "UPDATE playlists SET search_norm = REPLACE(LOWER(COALESCE(search_norm, name)), '''', '');"
+    );
+    db.run(
+        "UPDATE songs SET search_norm = REPLACE(LOWER(COALESCE(search_norm, name)), '''', '');"
+    );
+
+    db.run(INDEX_SQL);
+    db.run(UPDATE_BANDS_HAS_CHORDS_SQL);
+    populateDatabaseMeta(db);
+    db.run('COMMIT;');
     return db;
 }
 
@@ -179,13 +199,36 @@ export async function getDatabaseLayerStack() {
                 builtin: true,
                 enabled: true,
                 songCount: stats.songCount,
+                chordSongCount: stats.chordSongCount,
                 bandCount: stats.bandCount,
+                chordBandCount: stats.chordBandCount,
+                generatedAt: stats.generatedAt,
+                gitCommit: stats.gitCommit,
+                schemaVersion: stats.schemaVersion,
                 bytes: null,
             },
         ];
 
         await idbSet(IDB_KEY_STACK, stack);
         await idbSet(IDB_KEY_ACTIVE_LABEL, computeStackLabel(stack));
+    } else if (stack[0]?.builtin && !stack[0]?.generatedAt) {
+        // Refresh built-in layer metadata if it was saved before meta fields were added
+        const SQL = await getSqlEngine();
+        const defaultBytes = await fetchDefaultDbBytes();
+        const tmpDb = new SQL.Database(defaultBytes);
+        const stats = inspectDatabase(tmpDb, 'official');
+        tmpDb.close();
+        stack[0] = {
+            ...stack[0],
+            songCount: stats.songCount,
+            chordSongCount: stats.chordSongCount,
+            bandCount: stats.bandCount,
+            chordBandCount: stats.chordBandCount,
+            generatedAt: stats.generatedAt,
+            gitCommit: stats.gitCommit,
+            schemaVersion: stats.schemaVersion,
+        };
+        await idbSet(IDB_KEY_STACK, stack);
     }
 
     return stack;
@@ -295,8 +338,9 @@ export async function initDatabase(customUint8Array = null) {
 
 export async function loadExternalDatabaseBytes(bytes, fileName = 'shared-pack.db') {
     const SQL = await getSqlEngine();
-    const testDb = new SQL.Database(bytes);
+    const testDb = ensureSchemaColumns(new SQL.Database(bytes));
     const stats = inspectDatabase(testDb, fileName);
+    const upgradedBytes = testDb.export();
     testDb.close();
 
     const stack = await getDatabaseLayerStack();
@@ -311,8 +355,13 @@ export async function loadExternalDatabaseBytes(bytes, fileName = 'shared-pack.d
         builtin: false,
         enabled: true,
         songCount: stats.songCount,
+        chordSongCount: stats.chordSongCount,
         bandCount: stats.bandCount,
-        bytes,
+        chordBandCount: stats.chordBandCount,
+        generatedAt: stats.generatedAt,
+        gitCommit: stats.gitCommit,
+        schemaVersion: stats.schemaVersion,
+        bytes: upgradedBytes,
     };
 
     if (existingIdx !== -1) {
