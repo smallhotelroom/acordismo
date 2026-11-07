@@ -1,6 +1,6 @@
 /**
  * @file src/screens/HomeScreen.jsx
- * @version 2.8.0
+ * @version 2.9.0
  */
 import React, { useContext, useEffect, useState } from 'react';
 import { ArrowRight, Menu, MoreVertical, Moon, Search, Sun } from 'lucide-react';
@@ -11,7 +11,48 @@ import executeQuery from '../shared/database';
 import { buildMultiTokenSearchClause } from '../shared/dbMerger';
 import { AppContext } from '../shared/AppContext';
 
-export const __version__ = '2.8.0';
+export const __version__ = '2.9.0';
+
+/**
+ * Clean 20x20 stroke SVG icon for the Metronome (matches Lucide 2px stroke aesthetic).
+ */
+function MetronomeIcon({ size = 20 }) {
+    return (
+        <svg
+            width={size}
+            height={size}
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round">
+            <path d="M6 21L10 3h4l4 18H6z" />
+            <path d="M12 18L19 7" />
+            <line x1="8" y1="15" x2="16" y2="15" />
+        </svg>
+    );
+}
+
+/**
+ * Clean 20x20 stroke SVG icon for the Tuning Fork / Tuner (matches Lucide 2px stroke aesthetic).
+ */
+function TuningForkIcon({ size = 20 }) {
+    return (
+        <svg
+            width={size}
+            height={size}
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round">
+            <path d="M8 3v7a4 4 0 0 0 8 0V3" />
+            <line x1="12" y1="14" x2="12" y2="21" />
+        </svg>
+    );
+}
 
 export default function HomeScreen({ onNavigate }) {
     const {
@@ -140,6 +181,18 @@ export default function HomeScreen({ onNavigate }) {
                     <h1 className="header-title">Acordismo</h1>
                 </div>
                 <div className="header-actions">
+                    <button
+                        className="icon-btn"
+                        title="Metronome"
+                        onClick={() => onNavigate({ screen: 'Metronome' })}>
+                        <MetronomeIcon size={20} />
+                    </button>
+                    <button
+                        className="icon-btn"
+                        title="Tuner"
+                        onClick={() => onNavigate({ screen: 'Tuner' })}>
+                        <TuningForkIcon size={20} />
+                    </button>
                     <button
                         className="icon-btn"
                         title="Toggle Dark Mode"

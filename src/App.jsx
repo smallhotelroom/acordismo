@@ -1,113 +1,83 @@
 /**
  * @file src/App.jsx
- * @version 2.12.0
+ * @version 2.2.0
  */
-import React, { useContext, useEffect, useRef, useState } from 'react';
-import { App as CapacitorApp } from '@capacitor/app';
-import { AppContext, AppProvider } from './shared/AppContext';
+import React, { useEffect, useState } from 'react';
+import { App as CapApp } from '@capacitor/app';
+import { AppProvider } from './shared/AppContext';
 import HomeScreen from './screens/HomeScreen';
-import BandScreen from './screens/BandScreen';
 import PlaylistScreen from './screens/PlaylistScreen';
+import BandScreen from './screens/BandScreen';
 import SongScreen from './screens/SongScreen';
 import SettingsScreen from './screens/SettingsScreen';
+import TunerScreen from './screens/TunerScreen';
+import MetronomeScreen from './screens/MetronomeScreen';
 
-export const __version__ = '2.12.0';
+export const __version__ = '2.2.0';
 
-function MainNavigator() {
-    const { topSpaceEnabled } = useContext(AppContext);
-    const [history, setHistory] = useState([{ screen: 'Home', params: {} }]);
-    const historyRef = useRef(history);
+export default function App() {
+    const [navStack, setNavStack] = useState([{ screen: 'Home', params: {} }]);
 
-    useEffect(() => {
-        historyRef.current = history;
-    }, [history]);
-
-    const currentRoute = history[history.length - 1];
-    const isSongScreen = currentRoute.screen === 'Song';
-
-    const navigate = (nextRoute) => {
-        setHistory((prev) => [...prev, nextRoute]);
+    const navigate = ({ screen, params = {} }) => {
+        setNavStack((prev) => [...prev, { screen, params }]);
     };
 
     const goBack = () => {
-        setHistory((prev) => (prev.length > 1 ? prev.slice(0, -1) : prev));
+        setNavStack((prev) => (prev.length > 1 ? prev.slice(0, -1) : prev));
     };
 
     useEffect(() => {
-        const listenerPromise = CapacitorApp.addListener('backButton', () => {
-            if (historyRef.current.length > 1) {
-                setHistory((prev) => (prev.length > 1 ? prev.slice(0, -1) : prev));
-            } else {
-                CapacitorApp.minimizeApp();
-            }
+        let listenerHandle = null;
+        CapApp.addListener('backButton', () => {
+            setNavStack((prev) => {
+                if (prev.length > 1) {
+                    return prev.slice(0, -1);
+                }
+                CapApp.exitApp();
+                return prev;
+            });
+        }).then((handle) => {
+            listenerHandle = handle;
         });
 
         return () => {
-            listenerPromise.then((handle) => handle.remove());
+            if (listenerHandle) {
+                listenerHandle.remove();
+            }
         };
     }, []);
 
-    return (
-        <div className="app-shell" style={{ position: 'relative' }}>
-            <style>{`
-                .portrait-only-bottom-bar {
-                    display: none;
-                }
-                @media (orientation: portrait) {
-                    .portrait-only-bottom-bar {
-                        display: block;
-                    }
-                    .song-lyrics-portrait-pad {
-                        padding-bottom: 76px !important;
-                    }
-                }
-            `}</style>
+    const currentRoute = navStack[navStack.length - 1];
 
-            {currentRoute.screen === 'Home' && <HomeScreen onNavigate={navigate} />}
-            {currentRoute.screen === 'Band' && (
-                <BandScreen
-                    routeParams={currentRoute.params}
-                    onNavigate={navigate}
-                    onBack={goBack}
-                />
-            )}
-            {currentRoute.screen === 'Playlist' && (
-                <PlaylistScreen
-                    routeParams={currentRoute.params}
-                    onNavigate={navigate}
-                    onBack={goBack}
-                />
-            )}
-            {currentRoute.screen === 'Song' && (
-                <SongScreen
-                    routeParams={currentRoute.params}
-                    onNavigate={navigate}
-                    onBack={goBack}
-                />
-            )}
-            {currentRoute.screen === 'Settings' && <SettingsScreen onBack={goBack} />}
-
-            {/* Clickable Screens (Home, Band, Playlist, Settings): 48px Opaque Surface Bar in Portrait Mode Only */}
-            {topSpaceEnabled && !isSongScreen && (
-                <div
-                    className="portrait-only-bottom-bar"
-                    style={{
-                        flexShrink: 0,
-                        height: '48px',
-                        backgroundColor: 'var(--bg-surface)',
-                        borderTop: '1px solid var(--border-color)',
-                        zIndex: 90,
-                    }}
-                />
-            )}
-        </div>
-    );
-}
-
-export default function App() {
     return (
         <AppProvider>
-            <MainNavigator />
+            <div className="app-shell">
+                {currentRoute.screen === 'Home' && <HomeScreen onNavigate={navigate} />}
+                {currentRoute.screen === 'Playlist' && (
+                    <PlaylistScreen
+                        routeParams={currentRoute.params}
+                        onNavigate={navigate}
+                        onBack={goBack}
+                    />
+                )}
+                {currentRoute.screen === 'Band' && (
+                    <BandScreen
+                        routeParams={currentRoute.params}
+                        onNavigate={navigate}
+                        onBack={goBack}
+                    />
+                )}
+                {currentRoute.screen === 'Song' && (
+                    <SongScreen
+                        routeParams={currentRoute.params}
+                        onNavigate={navigate}
+                        onBack={goBack}
+                    />
+                )}
+                {currentRoute.screen === 'Settings' && <SettingsScreen onBack={goBack} />}
+                {currentRoute.screen === 'Tuner' && <TunerScreen onBack={goBack} />}
+                {currentRoute.screen === 'Metronome' && <MetronomeScreen onBack={goBack} />}
+            </div>
         </AppProvider>
     );
 }
