@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * @file scripts/build-db.mjs
- * @version 4.8.0
+ * @version 4.9.0
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -22,7 +22,7 @@ import {
 import { parseAcordismoConfigYaml } from '../src/shared/acordismoConfig.js';
 import { hasCrawlerSongAndChords } from '../src/shared/crawlerTransposer.js';
 
-export const __version__ = '4.8.0';
+export const __version__ = '4.9.0';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -70,9 +70,11 @@ function formatClickableLocation(fullPath, line = 1, col = 1) {
     return `"${fullPath}:${line}:${col}" ( vscode://file${encodedPath}:${line}:${col} )`;
 }
 
-function validateSongFrontmatter(
+function validateSongFrontmatterAndSections(
     frontmatterData,
     keyLines,
+    bodyContent,
+    bodyStartLine,
     rawFileName,
     fullPath,
     schemaMod,
@@ -80,31 +82,42 @@ function validateSongFrontmatter(
 ) {
     const errors = [];
     const keys = Object.keys(frontmatterData);
-    if (keys.length === 0 && !isOfficialLayer) {
-        return errors;
-    }
 
-    if (isOfficialLayer) {
-        const missing = schemaMod.getMissingKeys(frontmatterData, rawFileName);
-        if (missing.length > 0) {
-            errors.push(
-                `${formatClickableLocation(fullPath, 1, 1)} — Missing required keys: ${missing.join(', ')}`
-            );
+    if (keys.length > 0 || isOfficialLayer) {
+        if (isOfficialLayer) {
+            const missing = schemaMod.getMissingKeys(frontmatterData, rawFileName);
+            if (missing.length > 0) {
+                errors.push(
+                    `${formatClickableLocation(fullPath, 1, 1)} — Missing required keys: ${missing.join(', ')}`
+                );
+            }
+        }
+
+        const { isValid, expected } = schemaMod.validateAlphabeticalOrder(keys);
+        if (!isValid) {
+            for (let i = 0; i < keys.length; i++) {
+                if (keys[i] !== expected[i]) {
+                    const offendingKey = keys[i];
+                    const expectedKey = expected[i];
+                    const lineNum = keyLines[expectedKey] || keyLines[offendingKey] || 1;
+                    errors.push(
+                        `${formatClickableLocation(fullPath, lineNum, 1)} — Frontmatter keys are not in alphabetical order: found '${offendingKey}' where '${expectedKey}' was expected.\n    Found order:    [${keys.join(', ')}]\n    Expected order: [${expected.join(', ')}]`
+                    );
+                    break;
+                }
+            }
         }
     }
 
-    const { isValid, expected } = schemaMod.validateAlphabeticalOrder(keys);
-    if (!isValid) {
-        for (let i = 0; i < keys.length; i++) {
-            if (keys[i] !== expected[i]) {
-                const offendingKey = keys[i];
-                const expectedKey = expected[i];
-                const lineNum = keyLines[expectedKey] || keyLines[offendingKey] || 1;
-                errors.push(
-                    `${formatClickableLocation(fullPath, lineNum, 1)} — Frontmatter keys are not in alphabetical order: found '${offendingKey}' where '${expectedKey}' was expected.\n    Found order:    [${keys.join(', ')}]\n    Expected order: [${expected.join(', ')}]`
-                );
-                break;
-            }
+    if (typeof schemaMod.validateMarkdownSections === 'function') {
+        const secDiagnostics = schemaMod.validateMarkdownSections(
+            bodyContent,
+            bodyStartLine
+        );
+        for (const diag of secDiagnostics) {
+            errors.push(
+                `${formatClickableLocation(fullPath, diag.line, 1)} — ${diag.message}`
+            );
         }
     }
 
@@ -236,10 +249,6 @@ const NAMED_HTML_ENTITIES = {
     '&iquest;': '¿',
 };
 
-/**
- * Decodes named HTML entities, arbitrary decimal entities (e.g. `&#039;`, `&#39;`),
- * and hex entities (`&#x27;`), and normalizes curly apostrophes to standard ASCII `'`.
- */
 function decodeHtmlEntities(str) {
     if (!str || typeof str !== 'string') {
         return '';
@@ -381,13 +390,19 @@ function buildLayerDatabase(
                 const songName = baseName.slice(splitIdx + 3);
 
                 const rawText = fs.readFileSync(fullPath, 'utf8');
-                const { data: song, keyLines, content: rawContent } =
-                    schemaMod.parseFrontmatterFile(rawText);
+                const {
+                    data: song,
+                    keyLines,
+                    bodyStartLine,
+                    content: rawContent,
+                } = schemaMod.parseFrontmatterFile(rawText);
                 const content = cleanSongContents(rawContent);
 
-                const schemaErrors = validateSongFrontmatter(
+                const schemaErrors = validateSongFrontmatterAndSections(
                     song,
                     keyLines,
+                    content,
+                    bodyStartLine || 1,
                     baseName,
                     fullPath,
                     schemaMod,

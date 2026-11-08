@@ -1,6 +1,6 @@
 /**
  * @file src/screens/SongScreen.jsx
- * @version 2.35.0
+ * @version 2.36.0
  */
 import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Pause, Play } from 'lucide-react';
@@ -9,7 +9,10 @@ import { AppContext } from '../shared/AppContext';
 import { FREEZE_CHORDS_STORAGE_KEY } from './SettingsScreen';
 import { MetronomeIcon } from './HomeScreen';
 import ChordDiagramPopover from '../components/ChordDiagramPopover';
-import { parseSongSections } from '../shared/songSections';
+import {
+    buildTransposedCustomVoicings,
+    parseSongSections,
+} from '../shared/songSections';
 import {
     getMetronomeState,
     setMetronomeBpm,
@@ -34,7 +37,7 @@ import {
     stripOuterPunctuation,
 } from '../shared/crawlerTransposer';
 
-export const __version__ = '2.35.0';
+export const __version__ = '2.36.0';
 
 const SCROLL_SPEED_STORAGE_KEY = 'acordismo_scroll_speed';
 const TARGET_DURATION_SECONDS = 210; // 3 minutes 30 seconds at 1.0x
@@ -324,7 +327,7 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
         return () => cancelAnimationFrame(animationFrameId);
     }, [autoScrollActive, scrollSpeed]);
 
-    // Parse `##` sections (separating main chord sheet, language translations, and future fingerings)
+    // Parse `##` sections (separating main chord sheet, language translations, and song-specific fingerings)
     const parsedSections = useMemo(() => {
         if (!songData) {
             return {
@@ -332,6 +335,7 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
                 mainContent: '',
                 translations: [],
                 fingerings: [],
+                customVoicings: { guitar: {}, ukulele: {} },
                 otherSections: [],
             };
         }
@@ -371,6 +375,17 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
             songData.origin_id
         );
     }, [songData, mainSheetLyrics, transposition]);
+
+    // Shift song-specific `## Chords` / `## Fingerings` postures if transposition !== 0
+    const transposedCustomVoicings = useMemo(
+        () =>
+            buildTransposedCustomVoicings(
+                parsedSections.customVoicings,
+                transposition,
+                songUseFlats
+            ),
+        [parsedSections.customVoicings, transposition, songUseFlats]
+    );
 
     // Deduce key guess + confidence % when frontmatter `key` is absent
     const deducedKeyDisplay = useMemo(() => {
@@ -882,6 +897,7 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
                 <ChordDiagramPopover
                     chordStr={selectedDiagramChord}
                     instrument={chordInstrument}
+                    customVoicings={transposedCustomVoicings}
                     onSelectInstrument={setChordInstrument}
                     onClose={() => setSelectedDiagramChord(null)}
                 />

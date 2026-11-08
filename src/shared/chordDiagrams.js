@@ -1,28 +1,22 @@
 /**
  * @file src/shared/chordDiagrams.js
- * @version 1.0.0
+ * @version 1.1.0
  * Guitar (6-string) and Ukulele (4-string) chord voicing generator for Acordismo.
- * Combines curated idiomatic open shapes, movable barre templates (E-shape & A-shape),
- * slash-bass voicing adaptation (e.g. D/F#, C/G), and exact string frequency calculation.
+ * Supports song-specific `## Chords` / `## Fingerings` overrides first, then falls back
+ * to curated open shapes, movable barre templates, and slash-bass adaptation.
  */
 import { parseChordToken } from '../../../smallhotelroom.github.io/src/shared/chordTransposer.js';
 
-export const __version__ = '1.0.0';
+export const __version__ = '1.1.0';
 
-// Standard Guitar open string MIDI & Pitch Classes: E2(40), A2(45), D3(50), G3(55), B3(59), E4(64)
 const GUITAR_OPEN_MIDI = [40, 45, 50, 55, 59, 64];
 const GUITAR_OPEN_PC = [4, 9, 2, 7, 11, 4];
 export const GUITAR_STRING_NAMES = ['E', 'A', 'D', 'G', 'B', 'e'];
 
-// Standard Ukulele open string MIDI & Pitch Classes: G4(67), C4(60), E4(64), A4(69)
 const UKE_OPEN_MIDI = [67, 60, 64, 69];
 const UKE_OPEN_PC = [7, 0, 4, 9];
 export const UKE_STRING_NAMES = ['G', 'C', 'E', 'A'];
 
-/**
- * Normalizes a chord quality suffix (e.g. 'maj7', 'M7', 'min7', '+', 'dim', '9sus4')
- * into a canonical lookup key.
- */
 export function normalizeQualityKey(rawQuality = '') {
     const q = String(rawQuality || '').trim();
     if (!q) return 'maj';
@@ -53,7 +47,6 @@ export function normalizeQualityKey(rawQuality = '') {
     if (/^(M9|maj9)$/i.test(clean)) return 'maj9';
     if (clean === '5') return '5';
 
-    // Fallback approximations for high extensions (11, 13, etc.)
     if (/^m(in)?(11|13)/i.test(clean)) return 'm7';
     if (/^(M|maj)(11|13)/i.test(clean)) return 'maj7';
     if (/^(11|13)/.test(clean)) return '7';
@@ -61,10 +54,7 @@ export function normalizeQualityKey(rawQuality = '') {
     return 'maj';
 }
 
-// --- UKULELE IDIOMATIC CHORD DICTIONARY (4 strings: G C E A) ---
-// Keyed by root semitone (0=C .. 11=B), then normalized quality key.
 const UKULELE_SHAPES_BY_ROOT = {
-    // 0: C
     0: {
         maj: [0, 0, 0, 3],
         m: [0, 3, 3, 3],
@@ -90,7 +80,6 @@ const UKULELE_SHAPES_BY_ROOT = {
         maj9: [0, 2, 0, 2],
         5: [0, 0, 3, 3],
     },
-    // 1: C# / Db
     1: {
         maj: [1, 1, 1, 4],
         m: [1, 1, 0, 4],
@@ -114,7 +103,6 @@ const UKULELE_SHAPES_BY_ROOT = {
         maj9: [1, 3, 1, 3],
         5: [1, 1, 4, 4],
     },
-    // 2: D
     2: {
         maj: [2, 2, 2, 0],
         m: [2, 2, 1, 0],
@@ -138,7 +126,6 @@ const UKULELE_SHAPES_BY_ROOT = {
         maj9: [2, 4, 2, 4],
         5: [2, 2, 5, 5],
     },
-    // 3: Eb / D#
     3: {
         maj: [0, 3, 3, 1],
         m: [3, 3, 2, 1],
@@ -162,7 +149,6 @@ const UKULELE_SHAPES_BY_ROOT = {
         maj9: [0, 2, 1, 1],
         5: [3, 3, 6, 6],
     },
-    // 4: E
     4: {
         maj: [1, 4, 0, 2],
         m: [0, 4, 3, 2],
@@ -186,7 +172,6 @@ const UKULELE_SHAPES_BY_ROOT = {
         maj9: [1, 3, 2, 2],
         5: [4, 4, 0, 2],
     },
-    // 5: F
     5: {
         maj: [2, 0, 1, 0],
         m: [1, 0, 1, 3],
@@ -210,7 +195,6 @@ const UKULELE_SHAPES_BY_ROOT = {
         maj9: [0, 0, 0, 0],
         5: [5, 5, 1, 3],
     },
-    // 6: F# / Gb
     6: {
         maj: [3, 1, 2, 1],
         m: [2, 1, 2, 0],
@@ -234,7 +218,6 @@ const UKULELE_SHAPES_BY_ROOT = {
         maj9: [1, 1, 1, 1],
         5: [2, 1, 2, 4],
     },
-    // 7: G
     7: {
         maj: [0, 2, 3, 2],
         m: [0, 2, 3, 1],
@@ -258,7 +241,6 @@ const UKULELE_SHAPES_BY_ROOT = {
         maj9: [2, 2, 2, 2],
         5: [0, 2, 3, 5],
     },
-    // 8: Ab / G#
     8: {
         maj: [5, 3, 4, 3],
         m: [4, 3, 4, 2],
@@ -282,7 +264,6 @@ const UKULELE_SHAPES_BY_ROOT = {
         maj9: [3, 3, 3, 3],
         5: [1, 3, 4, 6],
     },
-    // 9: A
     9: {
         maj: [2, 1, 0, 0],
         m: [2, 0, 0, 0],
@@ -306,7 +287,6 @@ const UKULELE_SHAPES_BY_ROOT = {
         maj9: [1, 1, 0, 2],
         5: [2, 4, 0, 0],
     },
-    // 10: Bb / A#
     10: {
         maj: [3, 2, 1, 1],
         m: [3, 1, 1, 1],
@@ -330,7 +310,6 @@ const UKULELE_SHAPES_BY_ROOT = {
         maj9: [2, 2, 1, 3],
         5: [3, 5, 1, 1],
     },
-    // 11: B
     11: {
         maj: [4, 3, 2, 2],
         m: [4, 2, 2, 2],
@@ -356,16 +335,13 @@ const UKULELE_SHAPES_BY_ROOT = {
     },
 };
 
-// --- GUITAR IDIOMATIC OPEN VOICING OVERRIDES (6 strings: E A D G B e) ---
 const GUITAR_OPEN_OVERRIDES = {
-    // 0: C
     '0:maj': [-1, 3, 2, 0, 1, 0],
     '0:7': [-1, 3, 2, 3, 1, 0],
     '0:maj7': [-1, 3, 2, 0, 0, 0],
     '0:add9': [-1, 3, 2, 0, 3, 0],
     '0:sus2': [-1, 3, 0, 0, 1, 3],
     '0:sus4': [-1, 3, 3, 0, 1, 1],
-    // 2: D
     '2:maj': [-1, -1, 0, 2, 3, 2],
     '2:m': [-1, -1, 0, 2, 3, 1],
     '2:7': [-1, -1, 0, 2, 1, 2],
@@ -377,7 +353,6 @@ const GUITAR_OPEN_OVERRIDES = {
     '2:6': [-1, -1, 0, 2, 0, 2],
     '2:m6': [-1, -1, 0, 2, 0, 1],
     '2:add9': [-1, -1, 0, 2, 3, 0],
-    // 4: E
     '4:maj': [0, 2, 2, 1, 0, 0],
     '4:m': [0, 2, 2, 0, 0, 0],
     '4:7': [0, 2, 0, 1, 0, 0],
@@ -389,9 +364,7 @@ const GUITAR_OPEN_OVERRIDES = {
     '4:6': [0, 2, 2, 1, 2, 0],
     '4:m6': [0, 2, 2, 0, 2, 0],
     '4:add9': [0, 2, 4, 1, 0, 0],
-    // 5: F
     '5:maj7': [-1, -1, 3, 2, 1, 0],
-    // 7: G
     '7:maj': [3, 2, 0, 0, 0, 3],
     '7:7': [3, 2, 0, 0, 0, 1],
     '7:maj7': [3, 2, 0, 0, 0, 2],
@@ -399,7 +372,6 @@ const GUITAR_OPEN_OVERRIDES = {
     '7:sus4': [3, 3, 0, 0, 1, 3],
     '7:6': [3, 2, 0, 0, 0, 0],
     '7:add9': [3, 0, 0, 2, 0, 3],
-    // 9: A
     '9:maj': [-1, 0, 2, 2, 2, 0],
     '9:m': [-1, 0, 2, 2, 1, 0],
     '9:7': [-1, 0, 2, 0, 2, 0],
@@ -411,11 +383,9 @@ const GUITAR_OPEN_OVERRIDES = {
     '9:6': [-1, 0, 2, 2, 2, 2],
     '9:m6': [-1, 0, 2, 2, 1, 2],
     '9:add9': [-1, 0, 2, 4, 2, 0],
-    // 11: B
     '11:7': [-1, 2, 1, 2, 0, 2],
 };
 
-// Movable 6th-string root (E-shape) offsets relative to root fret `f`
 const GUITAR_E_SHAPE_OFFSETS = {
     maj: [0, 2, 2, 1, 0, 0],
     m: [0, 2, 2, 0, 0, 0],
@@ -427,7 +397,7 @@ const GUITAR_E_SHAPE_OFFSETS = {
     sus4: [0, 2, 2, 2, 0, 0],
     '7sus4': [0, 2, 0, 2, 0, 0],
     dim: [0, 1, 2, 0, -1, -1],
-    dim7: [0, -1, -1, 0, -1, -1], // handled specially below
+    dim7: [0, -1, -1, 0, -1, -1],
     m7b5: [0, -1, 0, 0, -1, -1],
     aug: [0, -1, 2, 1, 1, -1],
     '7#5': [0, -1, 0, 1, 1, -1],
@@ -441,7 +411,6 @@ const GUITAR_E_SHAPE_OFFSETS = {
     5: [0, 2, 2, -1, -1, -1],
 };
 
-// Movable 5th-string root (A-shape) offsets relative to root fret `f` on 5th string
 const GUITAR_A_SHAPE_OFFSETS = {
     maj: [-1, 0, 2, 2, 2, 0],
     m: [-1, 0, 2, 2, 1, 0],
@@ -461,7 +430,7 @@ const GUITAR_A_SHAPE_OFFSETS = {
     6: [-1, 0, 2, 2, 2, 2],
     m6: [-1, 0, 2, 2, 1, 2],
     add9: [-1, 0, 2, 4, 2, 0],
-    9: [-1, 0, -1, 0, 0, 0], // adjusted in builder
+    9: [-1, 0, -1, 0, 0, 0],
     m9: [-1, 0, -2, 0, 0, -1],
     maj9: [-1, 0, -1, 1, 0, -1],
     5: [-1, 0, 2, 2, -1, -1],
@@ -473,10 +442,9 @@ function buildGuitarShape(rootSemitone, qKey) {
         return [...GUITAR_OPEN_OVERRIDES[overrideKey]];
     }
 
-    const fretOnE = (rootSemitone - 4 + 12) % 12; // E = 4
-    const fretOnA = (rootSemitone - 9 + 12) % 12; // A = 9
+    const fretOnE = (rootSemitone - 4 + 12) % 12;
+    const fretOnA = (rootSemitone - 9 + 12) % 12;
 
-    // Special compact jazz shapes for dim7, m7b5, 9, m9, maj9
     if (qKey === 'dim7') {
         if (fretOnA >= 1 && fretOnA <= 6) {
             return [-1, fretOnA, fretOnA + 1, fretOnA - 1, fretOnA + 1, -1];
@@ -500,7 +468,6 @@ function buildGuitarShape(rootSemitone, qKey) {
         return [-1, fretOnA, fretOnA - 2, fretOnA, fretOnA, -1];
     }
 
-    // Choose whichever barre position sits lower and more comfortably on the neck (frets 1..7)
     const useAShape =
         fretOnA > 0 && fretOnA <= 5 && (fretOnE === 0 || fretOnA < fretOnE);
 
@@ -514,9 +481,6 @@ function buildGuitarShape(rootSemitone, qKey) {
     return offsets.map((off) => (off === -1 ? -1 : fretOnE + off));
 }
 
-/**
- * Adapts a Guitar or Ukulele chord voicing when a slash bass note (e.g. D/F#, C/G, Am/G) is present.
- */
 function applySlashBassToVoicing(frets, bassSemitone, instrument) {
     if (bassSemitone === null || bassSemitone === undefined) {
         return frets;
@@ -525,7 +489,6 @@ function applySlashBassToVoicing(frets, bassSemitone, instrument) {
     const openPcs = instrument === 'ukulele' ? UKE_OPEN_PC : GUITAR_OPEN_PC;
 
     if (instrument === 'guitar') {
-        // Check if 6th string or 5th string can play the requested bass note within 0..4 frets (or near existing frets)
         const activeFrets = nextFrets.filter((f) => f > 0);
         const minFret = activeFrets.length > 0 ? Math.min(...activeFrets) : 1;
         const maxFret = activeFrets.length > 0 ? Math.max(...activeFrets) : 4;
@@ -551,9 +514,6 @@ function applySlashBassToVoicing(frets, bassSemitone, instrument) {
     return nextFrets;
 }
 
-/**
- * Computes the 4-fret display window (`baseFret`) and any horizontal barre bar for a fret array.
- */
 function analyzeFretWindow(frets) {
     const positiveFrets = frets.filter((f) => f > 0);
     if (positiveFrets.length === 0) {
@@ -564,7 +524,6 @@ function analyzeFretWindow(frets) {
     const maxFret = Math.max(...positiveFrets);
     const baseFret = maxFret <= 4 ? 1 : minFret;
 
-    // Detect barre on minFret if 2+ strings share minFret and no open string (0) sits between them
     let barre = null;
     if (minFret >= 1) {
         const indicesAtMin = [];
@@ -590,16 +549,10 @@ function analyzeFretWindow(frets) {
     return { baseFret, barre };
 }
 
-/**
- * Converts a MIDI note number to frequency in Hz ($A4 = 69 \rightarrow 440\text{ Hz}$).
- */
 function midiToFreq(midi) {
     return 440 * Math.pow(2, (midi - 69) / 12);
 }
 
-/**
- * Computes the exact frequencies (in Hz) for each sounded string in a voicing.
- */
 export function getVoicingFrequencies(frets, instrument = 'guitar') {
     const openMidis = instrument === 'ukulele' ? UKE_OPEN_MIDI : GUITAR_OPEN_MIDI;
     const freqs = [];
@@ -613,27 +566,42 @@ export function getVoicingFrequencies(frets, instrument = 'guitar') {
 }
 
 /**
- * Main entry point: resolves any chord string (e.g. "F#m7", "G7sus4", "Caug", "D/F#")
- * into a complete diagram descriptor for 'guitar' or 'ukulele'.
+ * Resolves any chord string (e.g. "F#m7", "G7sus4", "Caug", "D/F#") into a complete diagram
+ * descriptor for 'guitar' or 'ukulele', checking song-specific `customVoicings` first.
  */
-export function getChordDiagramData(chordStr, instrument = 'guitar') {
-    const parsed = parseChordToken(String(chordStr || '').trim());
+export function getChordDiagramData(
+    chordStr,
+    instrument = 'guitar',
+    customVoicings = null
+) {
+    const cleanChord = String(chordStr || '').trim();
+    const parsed = parseChordToken(cleanChord);
     if (!parsed) {
         return null;
     }
 
-    const qKey = normalizeQualityKey(parsed.quality);
+    const customEntry = customVoicings?.[instrument]?.[cleanChord] || null;
     let frets;
+    let customLabel = null;
+    let isSongSpecific = false;
 
-    if (instrument === 'ukulele') {
-        const rootTable = UKULELE_SHAPES_BY_ROOT[parsed.rootSemitone] || UKULELE_SHAPES_BY_ROOT[0];
-        frets = [...(rootTable[qKey] || rootTable.maj)];
+    if (customEntry && Array.isArray(customEntry.frets)) {
+        frets = [...customEntry.frets];
+        customLabel = customEntry.label || 'Song-specific posture';
+        isSongSpecific = true;
     } else {
-        frets = buildGuitarShape(parsed.rootSemitone, qKey);
-    }
+        const qKey = normalizeQualityKey(parsed.quality);
+        if (instrument === 'ukulele') {
+            const rootTable =
+                UKULELE_SHAPES_BY_ROOT[parsed.rootSemitone] || UKULELE_SHAPES_BY_ROOT[0];
+            frets = [...(rootTable[qKey] || rootTable.maj)];
+        } else {
+            frets = buildGuitarShape(parsed.rootSemitone, qKey);
+        }
 
-    if (parsed.bassSemitone !== null) {
-        frets = applySlashBassToVoicing(frets, parsed.bassSemitone, instrument);
+        if (parsed.bassSemitone !== null) {
+            frets = applySlashBassToVoicing(frets, parsed.bassSemitone, instrument);
+        }
     }
 
     const { baseFret, barre } = analyzeFretWindow(frets);
@@ -641,12 +609,14 @@ export function getChordDiagramData(chordStr, instrument = 'guitar') {
     const stringNames = instrument === 'ukulele' ? UKE_STRING_NAMES : GUITAR_STRING_NAMES;
 
     return {
-        chordName: String(chordStr).trim(),
+        chordName: cleanChord,
         instrument,
         frets,
         baseFret,
         barre,
         stringNames,
         frequencies,
+        isSongSpecific,
+        customLabel,
     };
 }

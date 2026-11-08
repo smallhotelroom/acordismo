@@ -1,33 +1,42 @@
 /**
  * @file src/components/ChordDiagramPopover.jsx
- * @version 1.0.0
+ * @version 1.1.0
  * Floating fretboard neck diagram overlay for Guitar (6 strings) and Ukulele (4 strings).
- * Includes an instant Guitar/Ukulele toggle and a Strum button to audition the chord voicing.
+ * Supports song-specific `## Chords` / `## Fingerings` postures, Guitar/Ukulele toggle, and Strum button.
  */
 import React, { useMemo } from 'react';
 import { Volume2, X } from 'lucide-react';
 import { getChordDiagramData } from '../shared/chordDiagrams';
 import { playPolyphonicChord } from '../shared/audioEngine';
 
-export const __version__ = '1.0.0';
+export const __version__ = '1.1.0';
 
 export default function ChordDiagramPopover({
     chordStr,
     instrument = 'guitar',
+    customVoicings = null,
     onSelectInstrument,
     onClose,
 }) {
     const diagram = useMemo(
-        () => getChordDiagramData(chordStr, instrument),
-        [chordStr, instrument]
+        () => getChordDiagramData(chordStr, instrument, customVoicings),
+        [chordStr, instrument, customVoicings]
     );
 
     if (!diagram) {
         return null;
     }
 
-    const { frets, baseFret, barre, stringNames, frequencies } = diagram;
-    const numStrings = frets.length; // 6 for guitar, 4 for ukulele
+    const {
+        frets,
+        baseFret,
+        barre,
+        stringNames,
+        frequencies,
+        isSongSpecific,
+        customLabel,
+    } = diagram;
+    const numStrings = frets.length;
     const numFrets = 4;
 
     const svgWidth = numStrings === 6 ? 190 : 154;
@@ -71,7 +80,7 @@ export default function ChordDiagramPopover({
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'space-between',
-                        marginBottom: 10,
+                        marginBottom: isSongSpecific ? 4 : 10,
                     }}>
                     <div
                         style={{
@@ -90,6 +99,19 @@ export default function ChordDiagramPopover({
                         <X size={20} />
                     </button>
                 </div>
+
+                {isSongSpecific && (
+                    <div
+                        style={{
+                            fontSize: '0.76rem',
+                            fontWeight: 700,
+                            color: '#f59e0b',
+                            marginBottom: 8,
+                            textAlign: 'left',
+                        }}>
+                        ★ {customLabel}
+                    </div>
+                )}
 
                 {/* Instrument Switcher: Guitar | Ukulele */}
                 <div
