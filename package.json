@@ -8,6 +8,7 @@
     "db:build:clean": "node scripts/build-db.mjs --no-cache",
     "pdf:build": "node scripts/build-pdf.mjs",
     "pdf:build:bw": "node scripts/build-pdf.mjs --bw",
+    "pdf:build:no-translations": "node scripts/build-pdf.mjs --no-translations",
     "icon:build": "node scripts/build-icons.mjs",
     "linter:install": "node scripts/install-linter.mjs",
     "tauri": "tauri",

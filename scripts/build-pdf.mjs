@@ -1,13 +1,14 @@
 #!/usr/bin/env node
 /**
  * @file scripts/build-pdf.mjs
- * @version 2.6.0
+ * @version 2.7.0
  * Builds printable LaTeX/PDF songbooks from Acordismo SQLite databases.
  * Features:
  * - Vertically & horizontally centered cover page (with explicit line break below acordismo-logo.svg)
  * - Initial Table of Contents (Band - Song order)
  * - Notepad/App-faithful monospace layout (zero left indent unless spaces exist, natural line height)
- * - Strips trailing `##` sections (translations/fingerings) and blank lines so songs like "Mountain" and "Arrest" fit cleanly
+ * - Optional unindexed translation subsections (`Band - Song (Lang)`) rendered right after the song
+ *   (default ON via `pdf.include_translations: true`, disable with `--no-translations`)
  * - Short '-' separator for "Band - Song"
  * - 2-column back-of-book alphabetical Song Index (Song titles + clickable page numbers only)
  * - Defaults to color palette (`SYNTAX_PALETTE.light`), or B/W (`SYNTAX_PALETTE.pdfBw`) with `--bw`.
@@ -28,7 +29,7 @@ import {
 } from '../src/shared/crawlerTransposer.js';
 import { parseSongSections } from '../src/shared/songSections.js';
 
-export const __version__ = '2.6.0';
+export const __version__ = '2.7.0';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -139,17 +140,22 @@ function formatCrawlerChordLineLatex(lineText, transposerMod, semitones, useFlat
 }
 
 /**
- * Converts a single song's contents into notepad-faithful monospace LaTeX lines:
- * - Extracts `mainContent` via `parseSongSections` so `##` translation/fingering blocks aren't appended raw
- * - Strips trailing blank lines at the end of the song to prevent blank overflow pages
+ * Converts a single song's (or section's) text into notepad-faithful monospace LaTeX lines:
  * - Zero left indentation unless spaces are actually present in the line
+ * - Strips trailing blank lines at the end to prevent blank overflow pages
  * - Exact single-line blank spacing on internal empty lines
  * - Syntax highlighting matching SongScreen
  */
 export function formatSongContentsToLatex(
     contents,
     transposerMod,
-    { semitones = 0, frontmatterCapo = 0, songKeyHint = null, originId = 0 } = {}
+    {
+        semitones = 0,
+        frontmatterCapo = 0,
+        songKeyHint = null,
+        originId = 0,
+        isRawSection = false,
+    } = {}
 ) {
     const {
         CHORD_GROUP_DELIMITER_REGEX,
@@ -159,8 +165,8 @@ export function formatSongContentsToLatex(
         transposeChordToken,
     } = transposerMod;
 
-    const { mainContent } = parseSongSections(contents);
-    const trimmedContents = String(mainContent || '')
+    const targetText = isRawSection ? contents : parseSongSections(contents).mainContent;
+    const trimmedContents = String(targetText || '')
         .replace(/\r\n/g, '\n')
         .replace(/[\s\n]+$/, '');
     const useFlats = deduceSongUseFlats(trimmedContents, semitones, songKeyHint);
@@ -330,6 +336,16 @@ async function main() {
           ? true
           : String(pdfCfg.default_palette || 'color').toLowerCase() !== 'bw';
 
+    const forceNoTranslations =
+        args.includes('--no-translations') || args.includes('--no-translation');
+    const forceTranslations =
+        args.includes('--translations') || args.includes('--translation');
+    const includeTranslations = forceNoTranslations
+        ? false
+        : forceTranslations
+          ? true
+          : pdfCfg.include_translations !== false;
+
     const dbArg = args.find((a) => !a.startsWith('-')) || pdfCfg.default_db || 'public/songs.db';
     const dbPath = path.resolve(ROOT_DIR, dbArg);
 
@@ -347,6 +363,7 @@ async function main() {
         SELECT songs.*, bands.name AS band_name
         FROM songs
         INNER JOIN bands ON songs.band_id = bands.id
+        WHERE COALESCE(songs.has_chords, 1) = 1
         ORDER BY LOWER(bands.name) ASC, LOWER(songs.name) ASC;
     `);
 
@@ -367,18 +384,23 @@ async function main() {
     const coverLogoFile = prepareCoverLogoPng(outDir);
     const palettePreamble = buildLatexPalettePreamble(SYNTAX_PALETTE, useColor);
 
-    // 1. Build Song Sections (ordered by Band - Song)
+    // 1. Build Song Sections (ordered by Band - Song) + Optional Unindexed Translation Subsections
+    let translationPageCount = 0;
     const songSections = songs.map((s, idx) => {
         const labelId = `song:${idx + 1}`;
         const titleStr = `${escapeLatex(s.band_name)} - ${escapeLatex(s.name)}`;
-        const bodyLatex = formatSongContentsToLatex(s.contents, transposerMod, {
+        const parsed = parseSongSections(s.contents, s.lang || 'Original');
+
+        const bodyLatex = formatSongContentsToLatex(parsed.mainContent, transposerMod, {
             semitones: 0,
             frontmatterCapo: s.capo || 0,
             songKeyHint: s.key || null,
             originId: s.origin_id || 0,
+            isRawSection: true,
         });
 
-        return `
+        const blocks = [
+            `
 \\phantomsection
 \\label{${labelId}}
 \\addcontentsline{toc}{section}{${titleStr}}
@@ -388,7 +410,40 @@ async function main() {
 ${bodyLatex}
 }
 \\clearpage
-`.trim();
+`.trim(),
+        ];
+
+        if (includeTranslations && parsed.translations.length > 0) {
+            for (const tr of parsed.translations) {
+                translationPageCount++;
+                const trTitleStr = `${titleStr} (${escapeLatex(tr.lang)})`;
+                const trBodyLatex = formatSongContentsToLatex(
+                    tr.content,
+                    transposerMod,
+                    {
+                        semitones: 0,
+                        frontmatterCapo: 0,
+                        songKeyHint: s.key || null,
+                        originId: s.origin_id || 0,
+                        isRawSection: true,
+                    }
+                );
+
+                // Deliberately no \addcontentsline and slightly smaller \large header
+                blocks.push(
+                    `
+{\\large\\bfseries\\noindent ${trTitleStr}\\par}
+\\vspace{0.6em}
+{\\ttfamily\\small\\linespread{1.05}\\selectfont
+${trBodyLatex}
+}
+\\clearpage
+`.trim()
+                );
+            }
+        }
+
+        return blocks.join('\n\n');
     });
 
     // 2. Build Back-of-Book 2-Column Alphabetical Song Index (Song titles only + page number)
@@ -475,7 +530,7 @@ ${songIndexEntries.join('\n')}
     const texPath = path.join(outDir, `acordismo-songbook-${modeSuffix}.tex`);
     fs.writeFileSync(texPath, texDocument, 'utf8');
     console.log(
-        `✅ Wrote LaTeX source (${useColor ? 'COLOR' : 'B/W'} palette): ${texPath} (${songs.length} songs)`
+        `✅ Wrote LaTeX source (${useColor ? 'COLOR' : 'B/W'} palette, translations: ${includeTranslations ? `ON [${translationPageCount}]` : 'OFF'}): ${texPath} (${songs.length} songs)`
     );
 
     const pdflatexCheck = spawnSync('pdflatex', ['--version'], { stdio: 'ignore' });
