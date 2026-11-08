@@ -1,14 +1,16 @@
 /**
  * @file src/shared/acordismoConfig.js
- * @version 1.5.0
+ * @version 1.6.0
  * Universal zero-dependency parser for `acordismo-config.yaml` (shared by React App and Node scripts).
  */
 
-export const __version__ = '1.5.0';
+export const __version__ = '1.6.0';
 
 export const FALLBACK_ACORDISMO_CONFIG = {
     app: {
         default_transposition: 0,
+        default_compensate_capo: false,
+        default_fake_uke: false,
         default_dark_mode: false,
         default_font_size: 14,
         min_font_size: 10,

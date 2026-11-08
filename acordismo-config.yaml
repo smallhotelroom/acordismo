@@ -1,9 +1,11 @@
 # File: acordismo-config.yaml
-# Version: 1.7.0
+# Version: 1.8.0
 # Single Source of Truth for Acordismo App Defaults, PDF Generation, and Database Layers.
 
 app:
   default_transposition: 0
+  default_compensate_capo: false
+  default_fake_uke: false
   default_dark_mode: false
   default_font_size: 14
   min_font_size: 10

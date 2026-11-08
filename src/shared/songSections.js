@@ -1,6 +1,6 @@
 /**
  * @file src/shared/songSections.js
- * @version 1.2.0
+ * @version 1.3.0
  * Parses Markdown `## Section` blocks inside song contents into:
  * - `mainContent`: Primary chord & lyric sheet (before the first `##` header)
  * - `translations`: Array of `{ lang, content }` for language translations (e.g. `## Español`)
@@ -14,12 +14,8 @@ import {
 } from '../../../smallhotelroom.github.io/src/shared/songSchema.js';
 import { transposeChordToken } from '../../../smallhotelroom.github.io/src/shared/chordTransposer.js';
 
-export const __version__ = '1.2.0';
+export const __version__ = '1.3.0';
 
-/**
- * Permissive runtime parser for a `Chord: frets` line so `SongScreen` always renders
- * whatever custom posture was written in `## Chords` (even while you are experimenting with voicings).
- */
 function parseRuntimeFingeringLine(rawLine = '') {
     const trimmed = String(rawLine || '').replace(/\s+#.*$/, '').trim();
     if (!trimmed || trimmed.startsWith('#')) return null;
@@ -121,6 +117,8 @@ export function parseSongSections(rawContents = '', primaryLang = 'Original') {
                 if (parsed) {
                     customVoicings[parsed.instrument][parsed.chordName] = {
                         frets: parsed.frets,
+                        originalFrets: parsed.frets,
+                        originalChordName: parsed.chordName,
                         label: parsed.label || null,
                     };
                 }
@@ -143,17 +141,18 @@ export function parseSongSections(rawContents = '', primaryLang = 'Original') {
 }
 
 /**
- * Maps a song's `customVoicings` to the currently displayed (possibly transposed) chord names.
+ * Maps a song's `customVoicings` to the currently displayed (possibly shifted) chord names,
+ * while retaining `originalFrets` so concert-pitch strumming always plays the exact original posture + capo/tuning!
  */
 export function buildTransposedCustomVoicings(
     customVoicings,
-    transposition = 0,
+    visualOffset = 0,
     useFlats = false
 ) {
     if (!customVoicings) {
         return { guitar: {}, ukulele: {} };
     }
-    if (!transposition) {
+    if (!visualOffset) {
         return customVoicings;
     }
 
@@ -161,20 +160,28 @@ export function buildTransposedCustomVoicings(
     for (const inst of ['guitar', 'ukulele']) {
         const srcMap = customVoicings[inst] || {};
         for (const [origChord, def] of Object.entries(srcMap)) {
-            const shiftedChord = transposeChordToken(origChord, transposition, useFlats);
+            const shiftedChord = transposeChordToken(origChord, visualOffset, useFlats);
             const canShiftDirectly = def.frets.every(
-                (f) => f === -1 || (f + transposition >= 0 && f + transposition <= 22)
+                (f) => f === -1 || (f + visualOffset >= 0 && f + visualOffset <= 22)
             );
             if (canShiftDirectly) {
                 out[inst][shiftedChord] = {
-                    frets: def.frets.map((f) => (f === -1 ? -1 : f + transposition)),
+                    frets: def.frets.map((f) => (f === -1 ? -1 : f + visualOffset)),
+                    originalFrets: def.frets,
+                    originalChordName: origChord,
                     label: def.label
                         ? `${def.label} (shifted from ${origChord})`
                         : `Song posture (shifted from ${origChord})`,
                 };
             } else {
-                // Keep original custom posture available under its original chord name too
-                out[inst][origChord] = def;
+                out[inst][shiftedChord] = {
+                    frets: def.frets,
+                    originalFrets: def.frets,
+                    originalChordName: origChord,
+                    label: def.label
+                        ? `${def.label} (${origChord} posture)`
+                        : `Original ${origChord} posture`,
+                };
             }
         }
     }
