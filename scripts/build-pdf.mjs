@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 /**
  * @file scripts/build-pdf.mjs
- * @version 2.5.0
+ * @version 2.6.0
  * Builds printable LaTeX/PDF songbooks from Acordismo SQLite databases.
  * Features:
  * - Vertically & horizontally centered cover page (with explicit line break below acordismo-logo.svg)
  * - Initial Table of Contents (Band - Song order)
  * - Notepad/App-faithful monospace layout (zero left indent unless spaces exist, natural line height)
- * - Strips trailing blank lines so full-page songs like "Arrest" never overflow into a blank page
+ * - Strips trailing `##` sections (translations/fingerings) and blank lines so songs like "Mountain" and "Arrest" fit cleanly
  * - Short '-' separator for "Band - Song"
  * - 2-column back-of-book alphabetical Song Index (Song titles + clickable page numbers only)
  * - Defaults to color palette (`SYNTAX_PALETTE.light`), or B/W (`SYNTAX_PALETTE.pdfBw`) with `--bw`.
@@ -26,8 +26,9 @@ import {
     isStandaloneChordLine,
     stripOuterPunctuation,
 } from '../src/shared/crawlerTransposer.js';
+import { parseSongSections } from '../src/shared/songSections.js';
 
-export const __version__ = '2.5.0';
+export const __version__ = '2.6.0';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -139,6 +140,7 @@ function formatCrawlerChordLineLatex(lineText, transposerMod, semitones, useFlat
 
 /**
  * Converts a single song's contents into notepad-faithful monospace LaTeX lines:
+ * - Extracts `mainContent` via `parseSongSections` so `##` translation/fingering blocks aren't appended raw
  * - Strips trailing blank lines at the end of the song to prevent blank overflow pages
  * - Zero left indentation unless spaces are actually present in the line
  * - Exact single-line blank spacing on internal empty lines
@@ -157,7 +159,8 @@ export function formatSongContentsToLatex(
         transposeChordToken,
     } = transposerMod;
 
-    const trimmedContents = String(contents || '')
+    const { mainContent } = parseSongSections(contents);
+    const trimmedContents = String(mainContent || '')
         .replace(/\r\n/g, '\n')
         .replace(/[\s\n]+$/, '');
     const useFlats = deduceSongUseFlats(trimmedContents, semitones, songKeyHint);

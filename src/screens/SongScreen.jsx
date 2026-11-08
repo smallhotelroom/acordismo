@@ -1,6 +1,6 @@
 /**
  * @file src/screens/SongScreen.jsx
- * @version 2.34.0
+ * @version 2.35.0
  */
 import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Pause, Play } from 'lucide-react';
@@ -9,6 +9,7 @@ import { AppContext } from '../shared/AppContext';
 import { FREEZE_CHORDS_STORAGE_KEY } from './SettingsScreen';
 import { MetronomeIcon } from './HomeScreen';
 import ChordDiagramPopover from '../components/ChordDiagramPopover';
+import { parseSongSections } from '../shared/songSections';
 import {
     getMetronomeState,
     setMetronomeBpm,
@@ -33,7 +34,7 @@ import {
     stripOuterPunctuation,
 } from '../shared/crawlerTransposer';
 
-export const __version__ = '2.34.0';
+export const __version__ = '2.35.0';
 
 const SCROLL_SPEED_STORAGE_KEY = 'acordismo_scroll_speed';
 const TARGET_DURATION_SECONDS = 210; // 3 minutes 30 seconds at 1.0x
@@ -186,6 +187,7 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
 
     const [songModalVisible, setSongModalVisible] = useState(false);
     const [selectedDiagramChord, setSelectedDiagramChord] = useState(null);
+    const [activeTranslationLang, setActiveTranslationLang] = useState(null);
     const [songData, setSongData] = useState(null);
     const [bandName, setBandName] = useState('');
     const [featuringBands, setFeaturingBands] = useState([]);
@@ -238,6 +240,7 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
 
     useEffect(() => {
         let isMounted = true;
+        setActiveTranslationLang(null);
 
         async function loadSong() {
             try {
@@ -321,24 +324,53 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
         return () => cancelAnimationFrame(animationFrameId);
     }, [autoScrollActive, scrollSpeed]);
 
-    const effectiveLyrics = useMemo(() => {
+    // Parse `##` sections (separating main chord sheet, language translations, and future fingerings)
+    const parsedSections = useMemo(() => {
+        if (!songData) {
+            return {
+                primaryLang: 'Original',
+                mainContent: '',
+                translations: [],
+                fingerings: [],
+                otherSections: [],
+            };
+        }
+        return parseSongSections(songData.contents || '', songData.lang || 'Original');
+    }, [songData]);
+
+    const activeTranslationObj = useMemo(() => {
+        if (!activeTranslationLang) return null;
+        return (
+            parsedSections.translations.find((t) => t.lang === activeTranslationLang) ||
+            null
+        );
+    }, [parsedSections, activeTranslationLang]);
+
+    const mainSheetLyrics = useMemo(() => {
         if (!songData) return '';
-        const raw = songData.contents || '';
+        const baseText = parsedSections.mainContent;
         const isCrawlerOrigin = Number(songData.origin_id || 0) > 0;
         return isCrawlerOrigin && hideCrawlerTabsEnabled
-            ? stripCrawlerTabSections(raw)
-            : raw;
-    }, [songData, hideCrawlerTabsEnabled]);
+            ? stripCrawlerTabSections(baseText)
+            : baseText;
+    }, [songData, parsedSections, hideCrawlerTabsEnabled]);
+
+    const displayedLyrics = useMemo(() => {
+        if (activeTranslationObj) {
+            return activeTranslationObj.content;
+        }
+        return mainSheetLyrics;
+    }, [activeTranslationObj, mainSheetLyrics]);
 
     const songUseFlats = useMemo(() => {
         if (!songData) return false;
         return deduceAcordismoSongUseFlats(
-            effectiveLyrics,
+            mainSheetLyrics,
             transposition,
             songData.key,
             songData.origin_id
         );
-    }, [songData, effectiveLyrics, transposition]);
+    }, [songData, mainSheetLyrics, transposition]);
 
     // Deduce key guess + confidence % when frontmatter `key` is absent
     const deducedKeyDisplay = useMemo(() => {
@@ -347,7 +379,7 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
         if (songData.key) {
             if (!transposition) return songData.key;
             const shifted = deduceAcordismoSongKey(
-                effectiveLyrics,
+                mainSheetLyrics,
                 transposition,
                 songData.key,
                 originId
@@ -358,7 +390,7 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
                 : songData.key;
         }
         const guessedOrig = deduceAcordismoSongKeyInfo(
-            effectiveLyrics,
+            mainSheetLyrics,
             0,
             null,
             originId
@@ -368,7 +400,7 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
             return `${guessedOrig.key} (guessed, ${guessedOrig.confidence}%)`;
         }
         const guessedShifted = deduceAcordismoSongKeyInfo(
-            effectiveLyrics,
+            mainSheetLyrics,
             transposition,
             null,
             originId
@@ -377,7 +409,7 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
         return guessedShifted && guessedShifted.key !== guessedOrig.key
             ? `${guessedOrig.key} (guessed, ${guessedOrig.confidence}%; ${guessedShifted.key} at ${sign})`
             : `${guessedOrig.key} (guessed, ${guessedOrig.confidence}%)`;
-    }, [songData, effectiveLyrics, transposition]);
+    }, [songData, mainSheetLyrics, transposition]);
 
     const songScreenItems = useMemo(() => {
         if (!songData) {
@@ -392,7 +424,7 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
         const sections = [];
         let currentSection = null;
 
-        if (songData.capo) {
+        if (!activeTranslationObj && songData.capo) {
             if (songData.capo < 1) {
                 preChordItems.push(
                     <strong key="drop" style={{ color: palette.directive }}>
@@ -410,7 +442,7 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
 
         const useFlats = songUseFlats;
         const isCrawlerOrigin = Number(songData.origin_id || 0) > 0;
-        const lines = effectiveLyrics.split('\n');
+        const lines = displayedLyrics.split('\n');
         let counter = 0;
 
         lines.forEach((lineText, lineIndex) => {
@@ -530,7 +562,7 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
                                     <span
                                         key={`mod-${tokIdx++}`}
                                         style={{ color: palette.modifier }}>
-                                            {delimStr}
+                                        {delimStr}
                                     </span>
                                 );
                                 continue;
@@ -632,7 +664,8 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
         ];
     }, [
         songData,
-        effectiveLyrics,
+        displayedLyrics,
+        activeTranslationObj,
         transposition,
         songUseFlats,
         freezeChordsEnabled,
@@ -671,6 +704,14 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
     // 76px bottom gradient scoped directly to SongScreen (only visible in portrait mode)
     const rgb = darkMode ? '18, 18, 18' : '243, 244, 246';
     const bottomNavGradient = `linear-gradient(to top, rgba(${rgb}, 0.92) 0%, rgba(${rgb}, 0.78) 45%, rgba(${rgb}, 0.35) 78%, rgba(${rgb}, 0) 100%)`;
+
+    const selectLanguageView = (langKey) => {
+        setActiveTranslationLang(langKey);
+        setSongModalVisible(false);
+        if (scrollContainerRef.current) {
+            scrollContainerRef.current.scrollTop = 0;
+        }
+    };
 
     return (
         <>
@@ -931,7 +972,64 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
                             )}
                             {songData.falsetto && <div>Falsetto: {songData.falsetto}</div>}
                             {songData.highest && <div>Highest: {songData.highest}</div>}
-                            {songData.lang && <div>Lang: {songData.lang}</div>}
+                            {(songData.lang || parsedSections.translations.length > 0) && (
+                                <div>
+                                    Lang:{' '}
+                                    {parsedSections.translations.length === 0 ? (
+                                        songData.lang
+                                    ) : (
+                                        <>
+                                            <span
+                                                onClick={() => selectLanguageView(null)}
+                                                style={{
+                                                    cursor: 'pointer',
+                                                    fontWeight:
+                                                        activeTranslationLang === null ? 700 : 400,
+                                                    color:
+                                                        activeTranslationLang === null
+                                                            ? 'var(--accent-color)'
+                                                            : 'var(--text-secondary)',
+                                                    textDecoration:
+                                                        activeTranslationLang === null
+                                                            ? 'underline'
+                                                            : 'none',
+                                                }}>
+                                                {parsedSections.primaryLang}
+                                            </span>
+                                            {parsedSections.translations.map((tr) => {
+                                                const isSelected =
+                                                    activeTranslationLang === tr.lang;
+                                                return (
+                                                    <React.Fragment key={tr.lang}>
+                                                        <span
+                                                            style={{
+                                                                color: 'var(--text-secondary)',
+                                                            }}>
+                                                            {' / '}
+                                                        </span>
+                                                        <span
+                                                            onClick={() =>
+                                                                selectLanguageView(tr.lang)
+                                                            }
+                                                            style={{
+                                                                cursor: 'pointer',
+                                                                fontWeight: isSelected ? 700 : 400,
+                                                                color: isSelected
+                                                                    ? 'var(--accent-color)'
+                                                                    : 'var(--text-secondary)',
+                                                                textDecoration: isSelected
+                                                                    ? 'underline'
+                                                                    : 'none',
+                                                            }}>
+                                                            {tr.lang}
+                                                        </span>
+                                                    </React.Fragment>
+                                                );
+                                            })}
+                                        </>
+                                    )}
+                                </div>
+                            )}
                             {songData.license && <div>License: {songData.license}</div>}
                             {songData.isrc && <div>ISRC: {songData.isrc}</div>}
                             {songData.url && (
