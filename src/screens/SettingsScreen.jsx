@@ -1,6 +1,6 @@
 /**
  * @file src/screens/SettingsScreen.jsx
- * @version 3.7.0
+ * @version 3.8.0
  */
 import React, { useContext, useEffect, useRef, useState } from 'react';
 import {
@@ -24,7 +24,7 @@ import {
 } from '../shared/database';
 import { APP_DEFAULTS, AppContext } from '../shared/AppContext';
 
-export const __version__ = '3.7.0';
+export const __version__ = '3.8.0';
 
 export const FREEZE_CHORDS_STORAGE_KEY = 'acordismo_freeze_chords';
 export const HIDE_CRAWLER_TABS_STORAGE_KEY = 'acordismo_hide_crawler_tabs';
@@ -74,6 +74,10 @@ export default function SettingsScreen({ onBack }) {
         setFreezeChordsEnabled: ctxSetFreezeChords,
         hideCrawlerTabsEnabled,
         setHideCrawlerTabsEnabled,
+        chordDiagramsEnabled,
+        setChordDiagramsEnabled,
+        chordInstrument,
+        setChordInstrument,
         defaultFontSize,
         setDefaultFontSize,
         activeDbLabel,
@@ -278,6 +282,45 @@ export default function SettingsScreen({ onBack }) {
                         }>
                         RESET
                     </button>
+                </div>
+
+                {/* Chord Diagrams on Tap Option */}
+                <div
+                    style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: 15,
+                        gap: 10,
+                        borderBottom: '1px solid var(--border-color)',
+                    }}>
+                    <div>
+                        <strong>Chord Diagrams on Tap</strong>
+                        <div style={{ fontSize: '0.88rem', color: 'var(--text-secondary)' }}>
+                            {chordDiagramsEnabled
+                                ? `Enabled (tap any chord in a song for ${chordInstrument === 'ukulele' ? 'Ukulele' : 'Guitar'} neck diagram)`
+                                : 'Disabled'}
+                        </div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        {chordDiagramsEnabled && (
+                            <button
+                                className="btn-primary"
+                                style={{ background: '#4b5563' }}
+                                onClick={() =>
+                                    setChordInstrument(
+                                        chordInstrument === 'guitar' ? 'ukulele' : 'guitar'
+                                    )
+                                }>
+                                {chordInstrument === 'guitar' ? 'Guitar' : 'Ukulele'}
+                            </button>
+                        )}
+                        <button
+                            className="btn-primary"
+                            onClick={() => setChordDiagramsEnabled(!chordDiagramsEnabled)}>
+                            {chordDiagramsEnabled ? 'Disable' : 'Enable'}
+                        </button>
+                    </div>
                 </div>
 
                 {/* Freeze Top Chord Row Option */}

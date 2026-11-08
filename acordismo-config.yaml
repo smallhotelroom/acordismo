@@ -1,5 +1,5 @@
 # File: acordismo-config.yaml
-# Version: 1.4.0
+# Version: 1.5.0
 # Single Source of Truth for Acordismo App Defaults, PDF Generation, and Database Layers.
 
 app:
@@ -10,6 +10,8 @@ app:
   max_font_size: 36
   default_freeze_chords: true
   default_hide_crawler_tabs: true
+  default_chord_diagrams: true
+  default_chord_instrument: "guitar"
   default_metronome_bpm: 120
   default_metronome_subdivision: 1
   default_metronome_sound: "natural"

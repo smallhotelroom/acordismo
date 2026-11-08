@@ -1,10 +1,10 @@
 /**
  * @file src/shared/acordismoConfig.js
- * @version 1.2.0
+ * @version 1.3.0
  * Universal zero-dependency parser for `acordismo-config.yaml` (shared by React App and Node scripts).
  */
 
-export const __version__ = '1.2.0';
+export const __version__ = '1.3.0';
 
 export const FALLBACK_ACORDISMO_CONFIG = {
     app: {
@@ -15,6 +15,8 @@ export const FALLBACK_ACORDISMO_CONFIG = {
         max_font_size: 36,
         default_freeze_chords: true,
         default_hide_crawler_tabs: true,
+        default_chord_diagrams: true,
+        default_chord_instrument: 'guitar',
         default_metronome_bpm: 120,
         default_metronome_subdivision: 1,
         default_metronome_sound: 'natural',

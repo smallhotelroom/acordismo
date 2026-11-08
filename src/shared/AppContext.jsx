@@ -1,6 +1,6 @@
 /**
  * @file src/shared/AppContext.jsx
- * @version 3.1.0
+ * @version 3.2.0
  */
 import React, { createContext, useEffect, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
@@ -8,7 +8,7 @@ import { getSavedDbLabel, loadExternalDatabaseBytes } from './database';
 import { parseAcordismoConfigYaml } from './acordismoConfig';
 import rawConfigYaml from '../../acordismo-config.yaml?raw';
 
-export const __version__ = '3.1.0';
+export const __version__ = '3.2.0';
 
 export const ACORDISMO_CONFIG = parseAcordismoConfigYaml(rawConfigYaml);
 export const APP_DEFAULTS = ACORDISMO_CONFIG.app;
@@ -21,6 +21,8 @@ const TOP_SPACE_STORAGE_KEY = Capacitor.isNativePlatform()
 
 const FREEZE_CHORDS_STORAGE_KEY = 'acordismo_freeze_chords';
 const HIDE_CRAWLER_TABS_STORAGE_KEY = 'acordismo_hide_crawler_tabs';
+const CHORD_DIAGRAMS_STORAGE_KEY = 'acordismo_chord_diagrams';
+const CHORD_INSTRUMENT_STORAGE_KEY = 'acordismo_chord_instrument';
 const DEFAULT_FONT_SIZE_STORAGE_KEY = 'acordismo_default_font_size';
 
 export function AppProvider({ children }) {
@@ -51,6 +53,18 @@ export function AppProvider({ children }) {
         return saved !== null
             ? saved === 'true'
             : Boolean(APP_DEFAULTS.default_hide_crawler_tabs);
+    });
+    const [chordDiagramsEnabled, setChordDiagramsEnabled] = useState(() => {
+        const saved = localStorage.getItem(CHORD_DIAGRAMS_STORAGE_KEY);
+        return saved !== null
+            ? saved === 'true'
+            : Boolean(APP_DEFAULTS.default_chord_diagrams);
+    });
+    const [chordInstrument, setChordInstrument] = useState(() => {
+        const saved = localStorage.getItem(CHORD_INSTRUMENT_STORAGE_KEY);
+        return saved === 'ukulele' || saved === 'guitar'
+            ? saved
+            : APP_DEFAULTS.default_chord_instrument || 'guitar';
     });
     const [defaultFontSize, setDefaultFontSize] = useState(() => {
         const saved = parseInt(localStorage.getItem(DEFAULT_FONT_SIZE_STORAGE_KEY), 10);
@@ -157,6 +171,17 @@ export function AppProvider({ children }) {
     }, [hideCrawlerTabsEnabled]);
 
     useEffect(() => {
+        localStorage.setItem(
+            CHORD_DIAGRAMS_STORAGE_KEY,
+            String(chordDiagramsEnabled)
+        );
+    }, [chordDiagramsEnabled]);
+
+    useEffect(() => {
+        localStorage.setItem(CHORD_INSTRUMENT_STORAGE_KEY, chordInstrument);
+    }, [chordInstrument]);
+
+    useEffect(() => {
         localStorage.setItem(DEFAULT_FONT_SIZE_STORAGE_KEY, String(defaultFontSize));
     }, [defaultFontSize]);
 
@@ -175,6 +200,10 @@ export function AppProvider({ children }) {
                 setFreezeChordsEnabled,
                 hideCrawlerTabsEnabled,
                 setHideCrawlerTabsEnabled,
+                chordDiagramsEnabled,
+                setChordDiagramsEnabled,
+                chordInstrument,
+                setChordInstrument,
                 defaultFontSize,
                 setDefaultFontSize,
                 currentTab,

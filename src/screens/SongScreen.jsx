@@ -1,6 +1,6 @@
 /**
  * @file src/screens/SongScreen.jsx
- * @version 2.33.0
+ * @version 2.34.0
  */
 import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Pause, Play } from 'lucide-react';
@@ -8,6 +8,7 @@ import executeQuery from '../shared/database';
 import { AppContext } from '../shared/AppContext';
 import { FREEZE_CHORDS_STORAGE_KEY } from './SettingsScreen';
 import { MetronomeIcon } from './HomeScreen';
+import ChordDiagramPopover from '../components/ChordDiagramPopover';
 import {
     getMetronomeState,
     setMetronomeBpm,
@@ -32,7 +33,7 @@ import {
     stripOuterPunctuation,
 } from '../shared/crawlerTransposer';
 
-export const __version__ = '2.33.0';
+export const __version__ = '2.34.0';
 
 const SCROLL_SPEED_STORAGE_KEY = 'acordismo_scroll_speed';
 const TARGET_DURATION_SECONDS = 210; // 3 minutes 30 seconds at 1.0x
@@ -105,7 +106,14 @@ function renderLyricWithChoir(text, choirColor, baseKey) {
  * Never highlights parentheses `()`; only highlights & transposes actual chord tokens in blue
  * while keeping surrounding words/remarks as normal uncolored text.
  */
-function renderCrawlerChordLineNodes(lineText, transposition, useFlats, palette, startKey) {
+function renderCrawlerChordLineNodes(
+    lineText,
+    transposition,
+    useFlats,
+    palette,
+    startKey,
+    onChordClick
+) {
     const nodes = [];
     let keyCounter = startKey;
     const tokenRegex = /(\S+)|(\s+)/g;
@@ -121,9 +129,23 @@ function renderCrawlerChordLineNodes(lineText, transposition, useFlats, palette,
                 if (prefix) {
                     nodes.push(<span key={keyCounter++}>{prefix}</span>);
                 }
+                const transposedChord = transposeChordToken(core, transposition, useFlats);
                 nodes.push(
-                    <strong key={keyCounter++} style={{ color: palette.chord }}>
-                        {transposeChordToken(core, transposition, useFlats)}
+                    <strong
+                        key={keyCounter++}
+                        style={{
+                            color: palette.chord,
+                            cursor: onChordClick ? 'pointer' : 'inherit',
+                        }}
+                        onClick={
+                            onChordClick
+                                ? (e) => {
+                                      e.stopPropagation();
+                                      onChordClick(transposedChord);
+                                  }
+                                : undefined
+                        }>
+                        {transposedChord}
                     </strong>
                 );
                 if (suffix) {
@@ -146,6 +168,9 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
         topSpaceEnabled,
         freezeChordsEnabled: ctxFreezeChords,
         hideCrawlerTabsEnabled = true,
+        chordDiagramsEnabled = true,
+        chordInstrument = 'guitar',
+        setChordInstrument,
         defaultFontSize = 14,
     } = useContext(AppContext);
 
@@ -160,6 +185,7 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
     }, [ctxFreezeChords]);
 
     const [songModalVisible, setSongModalVisible] = useState(false);
+    const [selectedDiagramChord, setSelectedDiagramChord] = useState(null);
     const [songData, setSongData] = useState(null);
     const [bandName, setBandName] = useState('');
     const [featuringBands, setFeaturingBands] = useState([]);
@@ -358,6 +384,10 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
             return [];
         }
 
+        const handleChordTap = chordDiagramsEnabled
+            ? (chordTokenStr) => setSelectedDiagramChord(chordTokenStr)
+            : null;
+
         const preChordItems = [];
         const sections = [];
         let currentSection = null;
@@ -395,7 +425,8 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
                         transposition,
                         useFlats,
                         palette,
-                        counter
+                        counter,
+                        handleChordTap
                     );
                     lineNodes.push(...nodes);
                     counter = nextKey;
@@ -411,7 +442,8 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
                     transposition,
                     useFlats,
                     palette,
-                    counter
+                    counter,
+                    handleChordTap
                 );
                 lineNodes.push(...nodes);
                 counter = nextKey;
@@ -471,28 +503,60 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
                                     );
                                     continue;
                                 }
+                                const transposedToken = transposeChordToken(
+                                    treatable,
+                                    transposition,
+                                    useFlats
+                                );
                                 innerTokens.push(
                                     <span
                                         key={`ch-${tokIdx++}`}
-                                        style={{ color: palette.chord }}>
-                                        {transposeChordToken(treatable, transposition, useFlats)}
+                                        style={{
+                                            color: palette.chord,
+                                            cursor: handleChordTap ? 'pointer' : 'inherit',
+                                        }}
+                                        onClick={
+                                            handleChordTap
+                                                ? (e) => {
+                                                      e.stopPropagation();
+                                                      handleChordTap(transposedToken);
+                                                  }
+                                                : undefined
+                                        }>
+                                        {transposedToken}
                                     </span>
                                 );
                                 innerTokens.push(
                                     <span
                                         key={`mod-${tokIdx++}`}
                                         style={{ color: palette.modifier }}>
-                                        {delimStr}
+                                            {delimStr}
                                     </span>
                                 );
                                 continue;
                             }
                             if (remaining.length > 0) {
+                                const transposedToken = transposeChordToken(
+                                    remaining,
+                                    transposition,
+                                    useFlats
+                                );
                                 innerTokens.push(
                                     <span
                                         key={`ch-${tokIdx++}`}
-                                        style={{ color: palette.chord }}>
-                                        {transposeChordToken(remaining, transposition, useFlats)}
+                                        style={{
+                                            color: palette.chord,
+                                            cursor: handleChordTap ? 'pointer' : 'inherit',
+                                        }}
+                                        onClick={
+                                            handleChordTap
+                                                ? (e) => {
+                                                      e.stopPropagation();
+                                                      handleChordTap(transposedToken);
+                                                  }
+                                                : undefined
+                                        }>
+                                        {transposedToken}
                                     </span>
                                 );
                             }
@@ -566,7 +630,16 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
             ...preChordItems,
             ...sections.map((sec) => <div key={sec.key}>{sec.items}</div>),
         ];
-    }, [songData, effectiveLyrics, transposition, songUseFlats, freezeChordsEnabled, sheetBgColor, palette]);
+    }, [
+        songData,
+        effectiveLyrics,
+        transposition,
+        songUseFlats,
+        freezeChordsEnabled,
+        chordDiagramsEnabled,
+        sheetBgColor,
+        palette,
+    ]);
 
     // Touch pinch-to-zoom handlers
     const handleTouchStart = (e) => {
@@ -760,6 +833,16 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
                         pointerEvents: 'none',
                         zIndex: 90,
                     }}
+                />
+            )}
+
+            {/* Chord Neck Diagram Overlay */}
+            {selectedDiagramChord && (
+                <ChordDiagramPopover
+                    chordStr={selectedDiagramChord}
+                    instrument={chordInstrument}
+                    onSelectInstrument={setChordInstrument}
+                    onClose={() => setSelectedDiagramChord(null)}
                 />
             )}
 
