@@ -1,6 +1,6 @@
 /**
  * @file src/screens/SettingsScreen.jsx
- * @version 3.8.0
+ * @version 3.9.0
  */
 import React, { useContext, useEffect, useRef, useState } from 'react';
 import {
@@ -23,8 +23,9 @@ import {
     toggleDatabaseLayer,
 } from '../shared/database';
 import { APP_DEFAULTS, AppContext } from '../shared/AppContext';
+import pkg from '../../package.json';
 
-export const __version__ = '3.8.0';
+export const __version__ = '3.9.0';
 
 export const FREEZE_CHORDS_STORAGE_KEY = 'acordismo_freeze_chords';
 export const HIDE_CRAWLER_TABS_STORAGE_KEY = 'acordismo_hide_crawler_tabs';
@@ -518,6 +519,35 @@ export default function SettingsScreen({ onBack }) {
                             onClick={handleResetDb}>
                             <RotateCcw size={16} /> Reset to Default DB
                         </button>
+                    </div>
+                </div>
+
+                {/* Discrete About & Versioning Footer */}
+                <div
+                    style={{
+                        padding: '22px 15px 28px 15px',
+                        textAlign: 'center',
+                        color: 'var(--text-secondary)',
+                        fontSize: '0.84rem',
+                        lineHeight: 1.5,
+                    }}>
+                    <div>
+                        <strong style={{ color: 'var(--text-primary)' }}>Acordismo</strong>{' '}
+                        <span>v{pkg.version || '0.1.0'}</span>
+                    </div>
+                    <div>
+                        by{' '}
+                        <a
+                            href="https://smallhotelroom.com"
+                            target="_blank"
+                            rel="noreferrer"
+                            style={{
+                                color: 'var(--text-secondary)',
+                                textDecoration: 'underline',
+                                fontWeight: 600,
+                            }}>
+                            Small Hotel Room
+                        </a>
                     </div>
                 </div>
             </main>
