@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 /**
  * @file scripts/build-pdf.mjs
- * @version 2.7.0
+ * @version 2.8.0
  * Builds printable LaTeX/PDF songbooks from Acordismo SQLite databases.
  * Features:
  * - Vertically & horizontally centered cover page (with explicit line break below acordismo-logo.svg)
  * - Initial Table of Contents (Band - Song order)
  * - Notepad/App-faithful monospace layout (zero left indent unless spaces exist, natural line height)
- * - Optional unindexed translation subsections (`Band - Song (Lang)`) rendered right after the song
+ * - Continuous same-page unindexed translation subsections (`Band - Song (Lang)`) when space permits
  *   (default ON via `pdf.include_translations: true`, disable with `--no-translations`)
  * - Short '-' separator for "Band - Song"
  * - 2-column back-of-book alphabetical Song Index (Song titles + clickable page numbers only)
@@ -29,7 +29,7 @@ import {
 } from '../src/shared/crawlerTransposer.js';
 import { parseSongSections } from '../src/shared/songSections.js';
 
-export const __version__ = '2.7.0';
+export const __version__ = '2.8.0';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -384,8 +384,8 @@ async function main() {
     const coverLogoFile = prepareCoverLogoPng(outDir);
     const palettePreamble = buildLatexPalettePreamble(SYNTAX_PALETTE, useColor);
 
-    // 1. Build Song Sections (ordered by Band - Song) + Optional Unindexed Translation Subsections
-    let translationPageCount = 0;
+    // 1. Build Song Sections (ordered by Band - Song) + Continuous Same-Page Translation Subsections
+    let translationCount = 0;
     const songSections = songs.map((s, idx) => {
         const labelId = `song:${idx + 1}`;
         const titleStr = `${escapeLatex(s.band_name)} - ${escapeLatex(s.name)}`;
@@ -409,13 +409,12 @@ async function main() {
 {\\ttfamily\\small\\linespread{1.05}\\selectfont
 ${bodyLatex}
 }
-\\clearpage
 `.trim(),
         ];
 
         if (includeTranslations && parsed.translations.length > 0) {
             for (const tr of parsed.translations) {
-                translationPageCount++;
+                translationCount++;
                 const trTitleStr = `${titleStr} (${escapeLatex(tr.lang)})`;
                 const trBodyLatex = formatSongContentsToLatex(
                     tr.content,
@@ -429,20 +428,22 @@ ${bodyLatex}
                     }
                 );
 
-                // Deliberately no \addcontentsline and slightly smaller \large header
+                // Flows continuously on the same page if at least 5 lines fit; otherwise starts at top of next page
                 blocks.push(
                     `
+\\vspace{1.4em}
+\\needspace{5\\baselineskip}
 {\\large\\bfseries\\noindent ${trTitleStr}\\par}
-\\vspace{0.6em}
+\\vspace{0.5em}
 {\\ttfamily\\small\\linespread{1.05}\\selectfont
 ${trBodyLatex}
 }
-\\clearpage
 `.trim()
                 );
             }
         }
 
+        blocks.push('\\clearpage');
         return blocks.join('\n\n');
     });
 
@@ -476,6 +477,7 @@ ${trBodyLatex}
 \\usepackage[margin=${margin}]{geometry}
 \\usepackage{graphicx}
 \\usepackage{multicol}
+\\usepackage{needspace}
 \\usepackage{hyperref}
 ${palettePreamble}
 
@@ -530,7 +532,7 @@ ${songIndexEntries.join('\n')}
     const texPath = path.join(outDir, `acordismo-songbook-${modeSuffix}.tex`);
     fs.writeFileSync(texPath, texDocument, 'utf8');
     console.log(
-        `✅ Wrote LaTeX source (${useColor ? 'COLOR' : 'B/W'} palette, translations: ${includeTranslations ? `ON [${translationPageCount}]` : 'OFF'}): ${texPath} (${songs.length} songs)`
+        `✅ Wrote LaTeX source (${useColor ? 'COLOR' : 'B/W'} palette, translations: ${includeTranslations ? `ON [${translationCount}]` : 'OFF'}): ${texPath} (${songs.length} songs)`
     );
 
     const pdflatexCheck = spawnSync('pdflatex', ['--version'], { stdio: 'ignore' });
