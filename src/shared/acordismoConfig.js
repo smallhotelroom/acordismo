@@ -1,10 +1,10 @@
 /**
  * @file src/shared/acordismoConfig.js
- * @version 1.4.0
+ * @version 1.5.0
  * Universal zero-dependency parser for `acordismo-config.yaml` (shared by React App and Node scripts).
  */
 
-export const __version__ = '1.4.0';
+export const __version__ = '1.5.0';
 
 export const FALLBACK_ACORDISMO_CONFIG = {
     app: {
@@ -35,7 +35,7 @@ export const FALLBACK_ACORDISMO_CONFIG = {
     },
     pdf: {
         default_palette: 'color',
-        include_translations: true,
+        include_translations: false,
         default_db: 'public/songs.db',
         output_dir: 'dist-pdfs',
         paper_size: 'a4paper',

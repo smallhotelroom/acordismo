@@ -1,5 +1,5 @@
 # File: acordismo-config.yaml
-# Version: 1.6.0
+# Version: 1.7.0
 # Single Source of Truth for Acordismo App Defaults, PDF Generation, and Database Layers.
 
 app:
@@ -30,7 +30,7 @@ app:
 
 pdf:
   default_palette: "color" # "color" (uses SYNTAX_PALETTE.light) or "bw" (uses SYNTAX_PALETTE.pdfBw)
-  include_translations: true
+  include_translations: false
   default_db: "public/songs.db"
   output_dir: "dist-pdfs"
   paper_size: "a4paper"

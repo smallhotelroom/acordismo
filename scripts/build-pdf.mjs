@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 /**
  * @file scripts/build-pdf.mjs
- * @version 2.8.0
+ * @version 2.9.0
  * Builds printable LaTeX/PDF songbooks from Acordismo SQLite databases.
  * Features:
  * - Vertically & horizontally centered cover page (with explicit line break below acordismo-logo.svg)
  * - Initial Table of Contents (Band - Song order)
  * - Notepad/App-faithful monospace layout (zero left indent unless spaces exist, natural line height)
- * - Continuous same-page unindexed translation subsections (`Band - Song (Lang)`) when space permits
- *   (default ON via `pdf.include_translations: true`, disable with `--no-translations`)
+ * - Optional continuous same-page unindexed translation subsections (`Band - Song (Lang)`)
+ *   (default OFF via `pdf.include_translations: false`, enable with `--translations`)
  * - Short '-' separator for "Band - Song"
  * - 2-column back-of-book alphabetical Song Index (Song titles + clickable page numbers only)
  * - Defaults to color palette (`SYNTAX_PALETTE.light`), or B/W (`SYNTAX_PALETTE.pdfBw`) with `--bw`.
@@ -29,7 +29,7 @@ import {
 } from '../src/shared/crawlerTransposer.js';
 import { parseSongSections } from '../src/shared/songSections.js';
 
-export const __version__ = '2.8.0';
+export const __version__ = '2.9.0';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -344,7 +344,7 @@ async function main() {
         ? false
         : forceTranslations
           ? true
-          : pdfCfg.include_translations !== false;
+          : Boolean(pdfCfg.include_translations);
 
     const dbArg = args.find((a) => !a.startsWith('-')) || pdfCfg.default_db || 'public/songs.db';
     const dbPath = path.resolve(ROOT_DIR, dbArg);
@@ -384,7 +384,7 @@ async function main() {
     const coverLogoFile = prepareCoverLogoPng(outDir);
     const palettePreamble = buildLatexPalettePreamble(SYNTAX_PALETTE, useColor);
 
-    // 1. Build Song Sections (ordered by Band - Song) + Continuous Same-Page Translation Subsections
+    // 1. Build Song Sections (ordered by Band - Song) + Optional Continuous Same-Page Translation Subsections
     let translationCount = 0;
     const songSections = songs.map((s, idx) => {
         const labelId = `song:${idx + 1}`;
