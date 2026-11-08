@@ -131,3 +131,18 @@ Open in Xcode (requires macOS):
 ```bash
 npx cap open ios
 ```
+
+## 6. Notes on syntax
+
+Syntax for custom chords section:
+
+```md
+## Chords
+Cmaj7: x32000
+Bm7b5: x2323x
+D5: x577xx
+C#aug: x4322x
+F#sus2: 244122 "Thumb on 6th"
+G7 (uke): 0212
+C#7 (uke): 1,1,1,4
+```
