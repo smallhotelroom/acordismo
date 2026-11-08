@@ -1,13 +1,15 @@
 #!/usr/bin/env node
 /**
  * @file scripts/install-linter.mjs
- * @version 2.2.0
+ * @version 2.3.0
  * Installs the Acordismo / Small Hotel Room VS Code Linter & Syntax Decorator extension
  * directly into `~/.vscode/extensions/acordismo-song-linter`.
  *
  * Features:
  * - Zero-duplication mtime-cached loader for `smallhotelroom.github.io/src/shared/songSchema.js`
  *   and `chordTransposer.js` (auto-reloads whenever you edit songSchema.js!)
+ * - Direct `doc.lineAt(docLineIdx).text` line scanning so chord decorations are 100% locked
+ *   to the exact line where `(...)` appears
  * - Frontmatter key order & required key diagnostics
  * - Inline `(Chord)` group validation & syntax highlighting (using SYNTAX_PALETTE)
  * - Markdown `## Section` header highlighting & `## Chords` / `## Fingerings` harmonic posture validation
@@ -17,7 +19,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 
-export const __version__ = '2.2.0';
+export const __version__ = '2.3.0';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -87,7 +89,6 @@ function evaluateEsmFile(filePath, injectedModules = {}) {
     const exportedNames = [];
 
     let transformed = rawCode
-        // Replace import { a, b } from './songSchema.js' with destructuring from injectedModules
         .replace(
             /import\\s*\\{([\\s\\S]*?)\\}\\s*from\\s*['"]([^'"]+)['"];?/g,
             (_, importsBlock, spec) => {
@@ -218,11 +219,27 @@ function isCandidateSongDocument(doc) {
     const ext = path.extname(fsPath).toLowerCase();
     if (ext !== '.md' && ext !== '.txt') return false;
     const base = path.basename(fsPath, ext);
-    return base.includes(' - ') || doc.getText().startsWith('---\\n');
+    return base.includes(' - ') || doc.getText().startsWith('---');
 }
 
 function clampLineIdx(lineIdx, doc) {
     return Math.max(0, Math.min(doc.lineCount - 1, lineIdx));
+}
+
+/**
+ * Finds the exact 0-indexed line number in \`doc\` where the song body starts
+ * (immediately after the closing \`---\` frontmatter fence, if present).
+ */
+function findBodyStartDocLineIdx(doc) {
+    if (doc.lineCount === 0 || doc.lineAt(0).text.trim() !== '---') {
+        return 0;
+    }
+    for (let i = 1; i < doc.lineCount; i++) {
+        if (doc.lineAt(i).text.trim() === '---') {
+            return i + 1;
+        }
+    }
+    return 0;
 }
 
 function lintAndDecorateEditor(editor, diagnosticCollection) {
@@ -245,8 +262,6 @@ function lintAndDecorateEditor(editor, diagnosticCollection) {
             hasFrontmatter,
             data: frontmatterData,
             keyLines,
-            bodyStartLine,
-            content: bodyContent,
         } = schemaMod.parseFrontmatterFile(rawText);
 
         const diagnostics = [];
@@ -303,23 +318,11 @@ function lintAndDecorateEditor(editor, diagnosticCollection) {
             }
         }
 
-        // 2. Validate Markdown ## Sections & ## Chords / ## Fingerings definitions
-        if (typeof schemaMod.validateMarkdownSections === 'function') {
-            const secDiags = schemaMod.validateMarkdownSections(bodyContent, bodyStartLine);
-            for (const sd of secDiags) {
-                const lineIdx = clampLineIdx(sd.line - 1, doc);
-                const lineText = doc.lineAt(lineIdx).text;
-                diagnostics.push(
-                    new vscode.Diagnostic(
-                        new vscode.Range(lineIdx, 0, lineIdx, Math.max(1, lineText.length)),
-                        sd.message,
-                        vscode.DiagnosticSeverity.Error
-                    )
-                );
-            }
-        }
+        // 2. Scan Document Body Lines Directly (0-indexed from findBodyStartDocLineIdx)
+        // Because we read doc.lineAt(docLineIdx).text directly for every docLineIdx,
+        // it is 100% impossible for a chord decoration to ever land on the wrong line!
+        const bodyStartIdx = findBodyStartDocLineIdx(doc);
 
-        // 3. Scan Body Lines for Syntax Highlighting & Inline Chord Group Diagnostics
         const rangesParenBg = [];
         const rangesParenSymbol = [];
         const rangesChord = [];
@@ -327,8 +330,8 @@ function lintAndDecorateEditor(editor, diagnosticCollection) {
         const rangesDirective = [];
         const rangesChoir = [];
 
-        const bodyLines = bodyContent.split('\\n');
         let currentSectionType = 'main';
+        const seenHeaders = new Set();
 
         const {
             CHORD_GROUP_DELIMITER_REGEX,
@@ -340,42 +343,76 @@ function lintAndDecorateEditor(editor, diagnosticCollection) {
         } = schemaMod;
         const { isValidParenChordGroup } = transposerMod;
 
-        for (let i = 0; i < bodyLines.length; i++) {
-            const lineText = bodyLines[i];
-            const docLineIdx = bodyStartLine - 1 + i;
-            if (docLineIdx < 0 || docLineIdx >= doc.lineCount) continue;
+        for (let docLineIdx = bodyStartIdx; docLineIdx < doc.lineCount; docLineIdx++) {
+            const lineText = doc.lineAt(docLineIdx).text;
 
             if (lineText.startsWith('##')) {
                 const secMatch = SECTION_HEADER_REGEX
                     ? SECTION_HEADER_REGEX.exec(lineText)
                     : /^##\\s+(.+?)\\s*$/.exec(lineText);
+
                 rangesDirective.push(
                     new vscode.Range(docLineIdx, 0, docLineIdx, lineText.length)
                 );
-                if (secMatch) {
-                    const secTitle = secMatch[1].trim();
-                    if (
-                        FINGERING_SECTION_HEADER_REGEX &&
-                        FINGERING_SECTION_HEADER_REGEX.test(secTitle)
-                    ) {
-                        currentSectionType = 'fingerings';
-                    } else if (
-                        NOTES_SECTION_HEADER_REGEX &&
-                        NOTES_SECTION_HEADER_REGEX.test(secTitle)
-                    ) {
-                        currentSectionType = 'notes';
-                    } else {
-                        currentSectionType = 'translation';
-                    }
+
+                if (!secMatch) {
+                    diagnostics.push(
+                        new vscode.Diagnostic(
+                            new vscode.Range(docLineIdx, 0, docLineIdx, Math.max(1, lineText.length)),
+                            "Malformed section header '" + lineText + "'. Expected '## Section Name'.",
+                            vscode.DiagnosticSeverity.Error
+                        )
+                    );
+                    continue;
+                }
+
+                const secTitle = secMatch[1].trim();
+                const normTitle = secTitle.toLowerCase();
+                if (seenHeaders.has(normTitle)) {
+                    diagnostics.push(
+                        new vscode.Diagnostic(
+                            new vscode.Range(docLineIdx, 0, docLineIdx, lineText.length),
+                            "Duplicate section header '## " + secTitle + "'.",
+                            vscode.DiagnosticSeverity.Error
+                        )
+                    );
+                }
+                seenHeaders.add(normTitle);
+
+                if (
+                    FINGERING_SECTION_HEADER_REGEX &&
+                    FINGERING_SECTION_HEADER_REGEX.test(secTitle)
+                ) {
+                    currentSectionType = 'fingerings';
+                } else if (
+                    NOTES_SECTION_HEADER_REGEX &&
+                    NOTES_SECTION_HEADER_REGEX.test(secTitle)
+                ) {
+                    currentSectionType = 'notes';
+                } else {
+                    currentSectionType = 'translation';
                 }
                 continue;
             }
 
             if (currentSectionType === 'fingerings') {
-                const colonIdx = lineText.indexOf(':');
-                if (colonIdx !== -1 && typeof parseFingeringDefinitionLine === 'function') {
+                if (typeof parseFingeringDefinitionLine === 'function') {
                     const parsedFingering = parseFingeringDefinitionLine(lineText);
-                    if (parsedFingering && parsedFingering.valid) {
+                    if (parsedFingering && !parsedFingering.valid) {
+                        diagnostics.push(
+                            new vscode.Diagnostic(
+                                new vscode.Range(
+                                    docLineIdx,
+                                    0,
+                                    docLineIdx,
+                                    Math.max(1, lineText.length)
+                                ),
+                                parsedFingering.error,
+                                vscode.DiagnosticSeverity.Error
+                            )
+                        );
+                    } else if (parsedFingering && parsedFingering.valid) {
+                        const colonIdx = lineText.indexOf(':');
                         const leftPart = lineText.slice(0, colonIdx);
                         const chordMatch = /^(\\s*)(\\S+)(?:(\\s+)(\\([^)]+\\)))?/.exec(leftPart);
                         if (chordMatch) {
@@ -426,6 +463,7 @@ function lintAndDecorateEditor(editor, diagnosticCollection) {
                 continue;
             }
 
+            // Highlight [choir / instrumental] blocks on lyric & translation lines
             const choirRe = /\\[[^\\]]+\\]/g;
             let cMatch;
             while ((cMatch = choirRe.exec(lineText)) !== null) {
@@ -439,6 +477,7 @@ function lintAndDecorateEditor(editor, diagnosticCollection) {
                 );
             }
 
+            // Scan (...) blocks on main / translation lines
             const parenRe = /\\((.+?)\\)/g;
             let pMatch;
             while ((pMatch = parenRe.exec(lineText)) !== null) {
@@ -579,5 +618,5 @@ fs.writeFileSync(path.join(EXT_DIR, 'extension.cjs'), extensionCjsCode, 'utf8');
 console.log(`✅ Installed Acordismo Song Linter v${__version__} to:`);
 console.log(`   ${EXT_DIR}`);
 console.log(
-    `💡 Reload VS Code ('Developer: Reload Window') to activate live harmonic posture linting!`
+    `💡 Reload VS Code ('Developer: Reload Window') to lock decorations to exact document lines!`
 );
