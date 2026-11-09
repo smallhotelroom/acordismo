@@ -1,11 +1,13 @@
 /**
  * @file src/shared/chordDiagrams.js
- * @version 1.2.0
+ * @version 1.3.0
  * Guitar (6-string) and Ukulele (4-string) chord voicing generator for Acordismo.
  * - Supports song-specific `## Chords` / `## Fingerings` overrides and custom `tuning:`
- * - Separates visual diagram shapes from true concert-pitch Strum frequencies:
- *   Strum always sounds at (original song chord + song capo/drop + custom tuning + vocal transposition),
- *   even when 'Compensate Capo/Drop' or 'Fake Uke (-5)' visual helpers are enabled!
+ * - When `fakeUkeEnabled` ("Guitar Shapes on Ukulele (-5)") is ON: locks to a 4-string Ukulele
+ *   diagram projecting the top 4 strings (D G B e -> G C E A) of the guitar shape, with a mode note.
+ * - When `compensateCapo` ("Compensate Capo / Drop / Alternate") is ON for a song with custom `tuning:`:
+ *   reverts chord diagrams to standard-tuning postures (ignoring alternate-tuning custom postures for display)
+ *   while keeping the original alternate-tuning posture for true concert-pitch Strum audio!
  */
 import {
     parseChordToken,
@@ -22,7 +24,7 @@ import {
     suggestChordsForVoicing,
 } from '../../../smallhotelroom.github.io/src/shared/songSchema.js';
 
-export const __version__ = '1.2.0';
+export const __version__ = '1.3.0';
 
 export { GUITAR_STRING_NAMES, UKULELE_STRING_NAMES };
 
@@ -564,11 +566,6 @@ function midiToFreq(midi) {
     return 440 * Math.pow(2, (midi - 69) / 12);
 }
 
-/**
- * Computes the exact frequencies (in Hz) for each sounded string in a voicing,
- * applying both the instrument's open-string MIDI pitches (standard or custom tuning)
- * and any global pitch shift (`pitchShiftSemitones` = songCapo + vocalTransposition).
- */
 export function getVoicingFrequencies(
     frets,
     instrument = 'guitar',
@@ -608,18 +605,6 @@ function resolveStandardFretsForChord(chordStr, instrument = 'guitar') {
 
 /**
  * Resolves any chord string into a complete diagram descriptor AND exact concert-pitch Strum frequencies.
- *
- * @param {string} chordStr - The displayed chord token (e.g. "Em7" or "F#m7")
- * @param {'guitar'|'ukulele'} instrument
- * @param {object} customVoicings - Song's custom voicings map
- * @param {object} context - {
- *   songCapo: number (positive for capo, negative for drop),
- *   songTuning: string|null (e.g. "D A C F A E" or "-2 0 -2 -2 -2 0"),
- *   vocalTransposition: number (Setting 3: actual vocal key change),
- *   visualOffset: number (total shift applied to displayed chord names),
- *   compensateCapo: boolean (Setting 1),
- *   fakeUkeEnabled: boolean (Setting 2)
- * }
  */
 export function getChordDiagramData(
     chordStr,
@@ -640,77 +625,151 @@ export function getChordDiagramData(
         return null;
     }
 
-    const customEntry = customVoicings?.[instrument]?.[cleanChord] || null;
-    let frets;
-    let customLabel = null;
+    // Check if the song has a non-standard alternate guitar tuning
+    const rawGuitarTuning = parseInstrumentTuning(songTuning, 'guitar');
+    const songHasAlternateTuning = rawGuitarTuning.valid && rawGuitarTuning.isCustom;
+
+    // 1) Special Mode: "Guitar Shapes on Ukulele (-5)" (`fakeUkeEnabled`)
+    // Forces 4-string Ukulele diagram (G C E A) and projects the top 4 strings (D G B e)
+    // of the displayed Guitar shape onto the Ukulele!
+    const effectiveInstrument = fakeUkeEnabled ? 'ukulele' : instrument;
+
+    // 2) "Compensate Capo / Drop / Alternate" (`compensateCapo`):
+    // When enabled on a song with an alternate tuning, revert the displayed diagram to the
+    // standard-tuning posture (bypassing alternate-tuning custom postures for display).
+    const revertAlternateToStandard =
+        Boolean(compensateCapo || fakeUkeEnabled) && songHasAlternateTuning;
+
+    const customGuitarEntry = customVoicings?.guitar?.[cleanChord] || null;
+    const customUkeEntry = customVoicings?.ukulele?.[cleanChord] || null;
+
+    let frets = null;
+    let modeNote = null;
     let isSongSpecific = false;
 
-    // If the user enabled 'Compensate Capo/Drop' (and not Fake Uke), they are playing on a standard-tuned,
-    // un-capoed instrument; otherwise, diagram string labels reflect the song's custom tuning (if any).
+    if (fakeUkeEnabled) {
+        // Project top 4 strings (indices 2..5: D G B e) of the guitar shape onto Ukulele (G C E A)
+        let guitarSourceFrets = null;
+        if (!revertAlternateToStandard && customGuitarEntry && Array.isArray(customGuitarEntry.frets)) {
+            guitarSourceFrets = customGuitarEntry.frets;
+        } else {
+            guitarSourceFrets = resolveStandardFretsForChord(cleanChord, 'guitar');
+        }
+        if (!guitarSourceFrets) return null;
+
+        const top4Frets = guitarSourceFrets.slice(2, 6);
+        const soundedTop4 = top4Frets.filter((f) => f >= 0);
+        frets =
+            soundedTop4.length >= 2
+                ? top4Frets
+                : resolveStandardFretsForChord(
+                      transposeChordToken(cleanChord, 5, false),
+                      'ukulele'
+                  );
+        modeNote = 'Fake Uke Mode (-5): Top 4 guitar strings on Ukulele';
+        isSongSpecific = true;
+    } else if (effectiveInstrument === 'ukulele') {
+        if (customUkeEntry && Array.isArray(customUkeEntry.frets)) {
+            frets = [...customUkeEntry.frets];
+            modeNote = customUkeEntry.label || 'Song-specific posture';
+            isSongSpecific = true;
+        } else {
+            frets = resolveStandardFretsForChord(cleanChord, 'ukulele');
+        }
+    } else {
+        // Guitar (6 strings)
+        if (revertAlternateToStandard) {
+            frets = resolveStandardFretsForChord(cleanChord, 'guitar');
+            modeNote = 'Standard tuning posture (Alternate tuning compensated)';
+            isSongSpecific = true;
+        } else if (customGuitarEntry && Array.isArray(customGuitarEntry.frets)) {
+            frets = [...customGuitarEntry.frets];
+            modeNote = customGuitarEntry.label || 'Song-specific posture';
+            isSongSpecific = true;
+        } else {
+            frets = resolveStandardFretsForChord(cleanChord, 'guitar');
+        }
+    }
+
+    if (!frets) return null;
+
     const useCustomTuningForDiagram =
-        instrument === 'guitar' && Boolean(songTuning) && !compensateCapo && !fakeUkeEnabled;
+        effectiveInstrument === 'guitar' &&
+        songHasAlternateTuning &&
+        !revertAlternateToStandard;
     const diagramTuning = parseInstrumentTuning(
         useCustomTuningForDiagram ? songTuning : null,
-        instrument
+        effectiveInstrument
     );
-
-    if (customEntry && Array.isArray(customEntry.frets)) {
-        frets = [...customEntry.frets];
-        customLabel = customEntry.label || 'Song-specific posture';
-        isSongSpecific = true;
-    } else {
-        frets = resolveStandardFretsForChord(cleanChord, instrument);
-        if (!frets) return null;
-    }
 
     const { baseFret, barre } = analyzeFretWindow(frets);
 
     // --- CONCERT-PITCH STRUM SOUND CALCULATION ---
-    // Rule: Settings 1 (Compensate Capo/Drop) and 2 (Fake Uke -5) NEVER change the Strum sound!
-    // Only the song's original capo/drop + original tuning + Setting 3 (vocalTransposition) determine the sound.
+    // Settings 1 (Compensate Capo/Drop/Alternate) & 2 (Fake Uke -5) NEVER alter the concert Strum sound!
     const soundShiftFromCapoAndVocal = Number(songCapo || 0) + Number(vocalTransposition || 0);
-    const soundTuning = parseInstrumentTuning(
-        instrument === 'guitar' ? songTuning : null,
-        instrument
-    );
-
+    let soundInstrument = effectiveInstrument;
     let soundFrets = frets;
+    let soundOpenMidis =
+        effectiveInstrument === 'ukulele' ? UKULELE_OPEN_MIDI : GUITAR_OPEN_MIDI;
+    let soundCustomTuningStr = null;
     let soundPitchShift = soundShiftFromCapoAndVocal;
 
-    if (customEntry && Array.isArray(customEntry.originalFrets)) {
-        // Play the song's exact original custom posture on the song's original tuning + capo + vocalTransposition
-        soundFrets = customEntry.originalFrets;
+    if (fakeUkeEnabled) {
+        // On Ukulele (G4 C4 E4 A4), the top 4 guitar strings (D3 G3 B3 E4) are natively +5 semitones higher,
+        // which automatically cancels out the -5 Fake Uke shift and sounds in true concert pitch!
+        soundInstrument = 'ukulele';
+        soundOpenMidis = UKULELE_OPEN_MIDI;
+        soundFrets = frets;
+        soundPitchShift = Number(vocalTransposition || 0);
+    } else if (
+        effectiveInstrument === 'guitar' &&
+        customGuitarEntry &&
+        Array.isArray(customGuitarEntry.originalFrets)
+    ) {
+        // Even if revertAlternateToStandard is ON for the visual diagram, Strum plays the song's
+        // authentic original posture in its original tuning + capo + vocalTransposition!
+        soundInstrument = 'guitar';
+        soundFrets = customGuitarEntry.originalFrets;
+        soundCustomTuningStr = songTuning;
+        soundOpenMidis = rawGuitarTuning.openMidis;
         soundPitchShift = soundShiftFromCapoAndVocal;
     } else if (visualOffset !== vocalTransposition) {
-        // Reconstruct the un-compensated chord (written chord + vocalTransposition) so Strum plays at true concert pitch
-        const helperShift = visualOffset - vocalTransposition; // e.g. +capo - 5
+        const helperShift = visualOffset - vocalTransposition;
         const concertWrittenChord = transposeChordToken(cleanChord, -helperShift, false);
         const uncompensatedFrets = resolveStandardFretsForChord(
             concertWrittenChord,
-            instrument
+            effectiveInstrument
         );
         if (uncompensatedFrets) {
             soundFrets = uncompensatedFrets;
+            soundCustomTuningStr =
+                effectiveInstrument === 'guitar' ? songTuning : null;
+            soundOpenMidis =
+                effectiveInstrument === 'guitar'
+                    ? rawGuitarTuning.openMidis
+                    : UKULELE_OPEN_MIDI;
             soundPitchShift = soundShiftFromCapoAndVocal;
         }
+    } else if (effectiveInstrument === 'guitar' && songHasAlternateTuning) {
+        soundCustomTuningStr = songTuning;
+        soundOpenMidis = rawGuitarTuning.openMidis;
     }
 
-    const frequencies = getVoicingFrequencies(soundFrets, instrument, {
-        openMidis: soundTuning.openMidis,
+    const frequencies = getVoicingFrequencies(soundFrets, soundInstrument, {
+        openMidis: soundOpenMidis,
         pitchShiftSemitones: soundPitchShift,
     });
 
-    // Identify the actual sounding concert chord name (e.g. when capo, drop, or custom tuning shifts the pitch)
-    const concertMatches = suggestChordsForVoicing(soundFrets, instrument, {
+    const concertMatches = suggestChordsForVoicing(soundFrets, soundInstrument, {
         maxResults: 1,
-        customTuningStr: instrument === 'guitar' ? songTuning : null,
+        customTuningStr: soundCustomTuningStr,
         pitchShiftSemitones: soundPitchShift,
     });
     const concertSoundName = concertMatches.length > 0 ? concertMatches[0].chord : null;
 
     return {
         chordName: cleanChord,
-        instrument,
+        instrument: effectiveInstrument,
         frets,
         baseFret,
         barre,
@@ -719,7 +778,8 @@ export function getChordDiagramData(
         tuningDisplay: diagramTuning.displayStr,
         frequencies,
         isSongSpecific,
-        customLabel,
+        customLabel: modeNote,
         concertSoundName,
+        isFakeUkeMode: Boolean(fakeUkeEnabled),
     };
 }

@@ -1,16 +1,18 @@
 /**
  * @file src/components/ChordDiagramPopover.jsx
- * @version 1.2.0
+ * @version 1.3.0
  * Floating fretboard neck diagram overlay for Guitar (6 strings) and Ukulele (4 strings).
- * - Supports song-specific `## Chords` / `## Fingerings` postures and custom `tuning:`
- * - Strum always plays the true concert sound (accounting for song capo/drop, custom tuning, and vocal transposition)
+ * - In "Guitar Shapes on Ukulele (-5)" mode (`fakeUkeEnabled`), locks to 4-string Ukulele diagrams
+ *   with a clear mode badge.
+ * - In "Compensate Capo / Drop / Alternate" mode (`compensateCapo`), displays a note when alternate-tuning
+ *   postures have been reverted to standard-tuning postures.
  */
 import React, { useMemo } from 'react';
 import { Volume2, X } from 'lucide-react';
 import { getChordDiagramData } from '../shared/chordDiagrams';
 import { playPolyphonicChord } from '../shared/audioEngine';
 
-export const __version__ = '1.2.0';
+export const __version__ = '1.3.0';
 
 export default function ChordDiagramPopover({
     chordStr,
@@ -62,6 +64,8 @@ export default function ChordDiagramPopover({
         isSongSpecific,
         customLabel,
         concertSoundName,
+        isFakeUkeMode,
+        instrument: effectiveInstrument,
     } = diagram;
     const numStrings = frets.length;
     const numFrets = 4;
@@ -98,7 +102,7 @@ export default function ChordDiagramPopover({
             <div
                 className="modal-card"
                 style={{
-                    maxWidth: 274,
+                    maxWidth: 278,
                     padding: '14px 16px 16px 16px',
                     borderRadius: 12,
                     textAlign: 'center',
@@ -143,58 +147,74 @@ export default function ChordDiagramPopover({
                     </button>
                 </div>
 
-                {isSongSpecific && (
+                {isSongSpecific && customLabel && (
                     <div
                         style={{
-                            fontSize: '0.76rem',
+                            fontSize: '0.75rem',
                             fontWeight: 700,
                             color: '#f59e0b',
                             marginBottom: 8,
                             textAlign: 'left',
+                            lineHeight: 1.3,
                         }}>
                         ★ {customLabel}
                     </div>
                 )}
 
-                {/* Instrument Switcher: Guitar | Ukulele */}
-                <div
-                    style={{
-                        display: 'grid',
-                        gridTemplateColumns: '1fr 1fr',
-                        gap: 6,
-                        marginBottom: 10,
-                        background: 'var(--bg-primary)',
-                        padding: 4,
-                        borderRadius: 8,
-                        border: '1px solid var(--border-color)',
-                    }}>
-                    {[
-                        { id: 'guitar', label: 'Guitar (6)' },
-                        { id: 'ukulele', label: 'Ukulele (4)' },
-                    ].map((inst) => {
-                        const active = instrument === inst.id;
-                        return (
-                            <button
-                                key={inst.id}
-                                type="button"
-                                onClick={() => onSelectInstrument(inst.id)}
-                                style={{
-                                    padding: '6px 8px',
-                                    borderRadius: 6,
-                                    border: 'none',
-                                    fontWeight: 700,
-                                    fontSize: '0.8rem',
-                                    background: active
-                                        ? 'var(--accent-color)'
-                                        : 'transparent',
-                                    color: active ? '#ffffff' : 'var(--text-secondary)',
-                                    cursor: 'pointer',
-                                }}>
-                                {inst.label}
-                            </button>
-                        );
-                    })}
-                </div>
+                {/* Instrument Switcher: Locked to Ukulele (4) when Fake Uke (-5) is active */}
+                {isFakeUkeMode ? (
+                    <div
+                        style={{
+                            marginBottom: 10,
+                            background: 'var(--accent-color)',
+                            color: '#ffffff',
+                            padding: '6px 10px',
+                            borderRadius: 8,
+                            fontWeight: 700,
+                            fontSize: '0.78rem',
+                        }}>
+                        Ukulele (4) · Guitar Shapes (-5)
+                    </div>
+                ) : (
+                    <div
+                        style={{
+                            display: 'grid',
+                            gridTemplateColumns: '1fr 1fr',
+                            gap: 6,
+                            marginBottom: 10,
+                            background: 'var(--bg-primary)',
+                            padding: 4,
+                            borderRadius: 8,
+                            border: '1px solid var(--border-color)',
+                        }}>
+                        {[
+                            { id: 'guitar', label: 'Guitar (6)' },
+                            { id: 'ukulele', label: 'Ukulele (4)' },
+                        ].map((inst) => {
+                            const active = effectiveInstrument === inst.id;
+                            return (
+                                <button
+                                    key={inst.id}
+                                    type="button"
+                                    onClick={() => onSelectInstrument(inst.id)}
+                                    style={{
+                                        padding: '6px 8px',
+                                        borderRadius: 6,
+                                        border: 'none',
+                                        fontWeight: 700,
+                                        fontSize: '0.8rem',
+                                        background: active
+                                            ? 'var(--accent-color)'
+                                            : 'transparent',
+                                        color: active ? '#ffffff' : 'var(--text-secondary)',
+                                        cursor: 'pointer',
+                                    }}>
+                                    {inst.label}
+                                </button>
+                            );
+                        })}
+                    </div>
+                )}
 
                 {/* SVG Neck & Finger Placement Diagram */}
                 <div style={{ display: 'flex', justifyContent: 'center' }}>
@@ -250,7 +270,7 @@ export default function ChordDiagramPopover({
                                 y2={padTop + gridH}
                                 stroke="var(--text-primary)"
                                 strokeWidth={
-                                    instrument === 'guitar'
+                                    effectiveInstrument === 'guitar'
                                         ? Math.max(1.2, 2.4 - sIdx * 0.2)
                                         : 1.6
                                 }

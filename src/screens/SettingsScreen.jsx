@@ -1,6 +1,6 @@
 /**
  * @file src/screens/SettingsScreen.jsx
- * @version 3.10.0
+ * @version 3.11.0
  */
 import React, { useContext, useEffect, useRef, useState } from 'react';
 import {
@@ -25,7 +25,7 @@ import {
 import { APP_DEFAULTS, AppContext } from '../shared/AppContext';
 import pkg from '../../package.json';
 
-export const __version__ = '3.10.0';
+export const __version__ = '3.11.0';
 
 export const FREEZE_CHORDS_STORAGE_KEY = 'acordismo_freeze_chords';
 export const HIDE_CRAWLER_TABS_STORAGE_KEY = 'acordismo_hide_crawler_tabs';
@@ -208,7 +208,7 @@ export default function SettingsScreen({ onBack }) {
             </header>
 
             <main className="content-scroll">
-                {/* 1) Compensate Capo / Drop */}
+                {/* 1) Compensate Capo / Drop / Alternate */}
                 <div
                     style={{
                         display: 'flex',
@@ -219,13 +219,13 @@ export default function SettingsScreen({ onBack }) {
                         borderBottom: '1px solid var(--border-color)',
                     }}>
                     <div>
-                        <strong>Compensate Capo / Drop</strong>
+                        <strong>Compensate Capo / Drop / Alternate</strong>
                         <div style={{ fontSize: '0.86rem', color: 'var(--text-secondary)' }}>
                             {compensateCapo
                                 ? fakeUkeEnabled
                                     ? 'Enabled (forced ON while Guitar Shapes on Ukulele is active)'
-                                    : 'Enabled (shifts displayed chords so you play in concert pitch without capo/drop)'
-                                : 'Disabled (displays original written chords for capo/drop)'}
+                                    : 'Enabled (shifts capo/drop chords & reverts alternate-tuning diagrams to standard postures)'
+                                : 'Disabled (displays original written chords & alternate-tuning postures)'}
                         </div>
                     </div>
                     <button
@@ -251,8 +251,8 @@ export default function SettingsScreen({ onBack }) {
                         <strong>Guitar Shapes on Ukulele (-5)</strong>
                         <div style={{ fontSize: '0.86rem', color: 'var(--text-secondary)' }}>
                             {fakeUkeEnabled
-                                ? 'Enabled (depicts -5 semitone guitar shapes to sound in concert pitch on Ukulele)'
-                                : 'Disabled (normal chord names)'}
+                                ? 'Enabled (depicts -5 semitone guitar names & locks diagrams to 4-string Ukulele shapes)'
+                                : 'Disabled (normal chord names & instrument switcher)'}
                         </div>
                     </div>
                     <button
@@ -347,12 +347,14 @@ export default function SettingsScreen({ onBack }) {
                         <strong>Chord Diagrams on Tap</strong>
                         <div style={{ fontSize: '0.88rem', color: 'var(--text-secondary)' }}>
                             {chordDiagramsEnabled
-                                ? `Enabled (tap any chord in a song for ${chordInstrument === 'ukulele' ? 'Ukulele' : 'Guitar'} neck diagram)`
+                                ? fakeUkeEnabled
+                                    ? 'Enabled (locked to Ukulele 4-string diagrams while Guitar Shapes on Ukulele is ON)'
+                                    : `Enabled (tap any chord in a song for ${chordInstrument === 'ukulele' ? 'Ukulele' : 'Guitar'} neck diagram)`
                                 : 'Disabled'}
                         </div>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        {chordDiagramsEnabled && (
+                        {chordDiagramsEnabled && !fakeUkeEnabled && (
                             <button
                                 className="btn-primary"
                                 style={{ background: '#4b5563' }}

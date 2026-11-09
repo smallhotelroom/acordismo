@@ -1,6 +1,6 @@
 /**
  * @file src/screens/SongScreen.jsx
- * @version 2.37.0
+ * @version 2.38.0
  */
 import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Pause, Play } from 'lucide-react';
@@ -38,14 +38,13 @@ import {
     stripOuterPunctuation,
 } from '../shared/crawlerTransposer';
 
-export const __version__ = '2.37.0';
+export const __version__ = '2.38.0';
 
 const SCROLL_SPEED_STORAGE_KEY = 'acordismo_scroll_speed';
 const TARGET_DURATION_SECONDS = 210; // 3 minutes 30 seconds at 1.0x
 
 /**
  * Formats initNote: only Setting 3 (`vocalTransposition`) affects the singing pitch & initNote!
- * Settings 1 (Compensate Capo/Drop) and 2 (Fake Uke -5) leave initNote untouched.
  */
 function formatInitNoteDisplay(rawInitNote, vocalTransposition, useFlats) {
     if (!rawInitNote) return null;
@@ -65,10 +64,6 @@ function formatInitNoteDisplay(rawInitNote, vocalTransposition, useFlats) {
     return `${baseStr} (vocal ${sign})`;
 }
 
-/**
- * Renders plain lyric segments while highlighting any [choir / backing vocal] blocks
- * using the shared SYNTAX_PALETTE choir color.
- */
 function renderLyricWithChoir(text, choirColor, baseKey) {
     if (!text || !text.includes('[')) {
         return <span key={baseKey}>{text}</span>;
@@ -99,9 +94,6 @@ function renderLyricWithChoir(text, choirColor, baseKey) {
     return <span key={baseKey}>{parts}</span>;
 }
 
-/**
- * Renders a crawler chord line (e.g. "Intro: A B C F# (I will learn this better)" or "Am  F  C  G").
- */
 function renderCrawlerChordLineNodes(
     lineText,
     visualOffset,
@@ -195,7 +187,6 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
         return subscribeMetronomeState((st) => setMetroState(st));
     }, []);
 
-    // Pinch-to-zoom and double-tap reset state initialized to defaultFontSize from Settings
     const [fontSize, setFontSize] = useState(defaultFontSize);
     const pinchStartDistRef = useRef(null);
     const pinchStartSizeRef = useRef(defaultFontSize);
@@ -319,7 +310,7 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
     }, [autoScrollActive, scrollSpeed]);
 
     // Total semitone shift applied to displayed chord names:
-    // (1) Compensate Capo/Drop + (2) Fake Uke (-5) + (3) Vocal Transposition
+    // (1) Compensate Capo/Drop/Alternate + (2) Fake Uke (-5) + (3) Vocal Transposition
     const songCapo = Number(songData?.capo || 0);
     const visualOffset = useMemo(() => {
         const capoComp = compensateCapo || fakeUkeEnabled ? songCapo : 0;
@@ -381,7 +372,6 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
         );
     }, [songData, mainSheetLyrics, visualOffset]);
 
-    // Shift song-specific `## Chords` / `## Fingerings` postures by visualOffset
     const transposedCustomVoicings = useMemo(
         () =>
             buildTransposedCustomVoicings(
@@ -392,7 +382,6 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
         [parsedSections.customVoicings, visualOffset, songUseFlats]
     );
 
-    // Deduce key guess + confidence % when frontmatter `key` is absent
     const deducedKeyDisplay = useMemo(() => {
         if (!songData) return null;
         const originId = songData.origin_id;
@@ -467,7 +456,13 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
             }
 
             if (parsedTuning) {
-                topDirectives.push(`(tuning: ${parsedTuning.displayStr})`);
+                if (compensateCapo || fakeUkeEnabled) {
+                    topDirectives.push(
+                        `(diagrams reverted to standard postures; originally tuning: ${parsedTuning.displayStr})`
+                    );
+                } else {
+                    topDirectives.push(`(tuning: ${parsedTuning.displayStr})`);
+                }
             }
 
             if (topDirectives.length > 0) {
