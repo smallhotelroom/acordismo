@@ -1,17 +1,19 @@
 #!/usr/bin/env node
 /**
  * @file scripts/install-linter.mjs
- * @version 2.5.1
+ * @version 2.6.0
  * Installs the Acordismo / Small Hotel Room VS Code Linter & Syntax Decorator extension
- * directly into `~/.vscode/extensions/acordismo-song-linter` and removes any legacy
- * duplicate `acordismo-linter` extensions so only one version is ever active.
+ * into `~/.vscode/extensions/smallhotelroom.acordismo-song-linter-<version>` AND registers
+ * it inside `~/.vscode/extensions/extensions.json` (plus via `code --install-extension` if available)
+ * so modern VS Code (1.145+) always recognizes and activates it immediately.
  */
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import { fileURLToPath } from 'node:url';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
-export const __version__ = '2.5.1';
+export const __version__ = '2.6.0';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -33,36 +35,43 @@ if (!fs.existsSync(EXTERNAL_SCHEMA_PATH)) {
     process.exit(1);
 }
 
-const VSCODE_EXT_ROOT = path.join(os.homedir(), '.vscode', 'extensions');
-const EXT_DIR = path.join(VSCODE_EXT_ROOT, 'acordismo-song-linter');
+const PUBLISHER = 'smallhotelroom';
+const EXT_NAME = 'acordismo-song-linter';
+const EXT_ID = `${PUBLISHER}.${EXT_NAME}`;
+const CANONICAL_DIR_NAME = `${EXT_ID}-${__version__}`;
 
-// Purge any legacy/duplicate acordismo linter folders (e.g. smallhotelroom.acordismo-linter-2.4.0, acordismo-linter, etc.)
-if (fs.existsSync(VSCODE_EXT_ROOT)) {
-    for (const entry of fs.readdirSync(VSCODE_EXT_ROOT)) {
-        if (
-            entry.includes('acordismo-linter') ||
-            entry.includes('acordismo-song-linter')
-        ) {
-            const fullOldPath = path.join(VSCODE_EXT_ROOT, entry);
-            try {
-                fs.rmSync(fullOldPath, { recursive: true, force: true });
-                console.log(`🧹 Removed previous extension folder: ${fullOldPath}`);
-            } catch {}
-        }
+const VSCODE_EXT_ROOT = path.join(os.homedir(), '.vscode', 'extensions');
+const EXT_DIR = path.join(VSCODE_EXT_ROOT, CANONICAL_DIR_NAME);
+const EXT_JSON_PATH = path.join(VSCODE_EXT_ROOT, 'extensions.json');
+
+fs.mkdirSync(VSCODE_EXT_ROOT, { recursive: true });
+
+// 1. Purge any legacy/duplicate acordismo linter folders in ~/.vscode/extensions
+for (const entry of fs.readdirSync(VSCODE_EXT_ROOT)) {
+    if (
+        entry.includes('acordismo-linter') ||
+        entry.includes('acordismo-song-linter')
+    ) {
+        const fullOldPath = path.join(VSCODE_EXT_ROOT, entry);
+        try {
+            fs.rmSync(fullOldPath, { recursive: true, force: true });
+            console.log(`🧹 Removed previous extension folder: ${fullOldPath}`);
+        } catch {}
     }
 }
 
 const extPackageJson = {
-    name: 'acordismo-song-linter',
+    name: EXT_NAME,
     displayName: 'Acordismo Song Schema & Chord Linter',
     description:
         'Validates frontmatter, custom tunings, inline chord notation, and ## Chords / translation sections for Small Hotel Room & Acordismo song files.',
     version: __version__,
-    publisher: 'smallhotelroom',
+    publisher: PUBLISHER,
     engines: {
         vscode: '^1.75.0',
     },
-    activationEvents: ['*'],
+    categories: ['Linters'],
+    activationEvents: ['onLanguage:markdown', 'onLanguage:plaintext', '*'],
     main: './extension.cjs',
 };
 
@@ -424,8 +433,11 @@ function lintAndDecorateEditor(editor, diagnosticCollection) {
                                 vscode.DiagnosticSeverity.Error
                             )
                         );
-                    } else if (parsedFingering && parsedFingering.valid) {
-                        const colonIdx = lineText.indexOf(':');
+                    }
+
+                    // Decorate chord & fret tokens even when showing a recommendation or default hint!
+                    const colonIdx = lineText.indexOf(':');
+                    if (colonIdx !== -1) {
                         const leftPart = lineText.slice(0, colonIdx);
                         const chordMatch = /^(\s*)(\S+)(?:(\s+)(\([^)]+\)))?/.exec(leftPart);
                         if (chordMatch) {
@@ -461,7 +473,7 @@ function lintAndDecorateEditor(editor, diagnosticCollection) {
                                     colonIdx + 1 + rightPart.length
                                 )
                             );
-                        } else {
+                        } else if (rightPart.trim().length > 0) {
                             rangesModifier.push(
                                 new vscode.Range(
                                     docLineIdx,
@@ -620,6 +632,7 @@ function deactivate() {
 module.exports = { activate, deactivate };
 `;
 
+// 2. Write the canonical extension folder (`~/.vscode/extensions/smallhotelroom.acordismo-song-linter-2.6.0`)
 fs.mkdirSync(EXT_DIR, { recursive: true });
 fs.writeFileSync(
     path.join(EXT_DIR, 'package.json'),
@@ -632,8 +645,53 @@ fs.writeFileSync(
     'utf8'
 );
 
-console.log(`✅ Installed Acordismo Song Linter v${__version__} to:`);
-console.log(`   ${EXT_DIR}`);
+// 3. Register directly in `~/.vscode/extensions/extensions.json` so VS Code 1.145+ recognizes it immediately
+let extensionsRegistry = [];
+if (fs.existsSync(EXT_JSON_PATH)) {
+    try {
+        const parsed = JSON.parse(fs.readFileSync(EXT_JSON_PATH, 'utf8'));
+        if (Array.isArray(parsed)) {
+            extensionsRegistry = parsed.filter((item) => {
+                const id = item?.identifier?.id || '';
+                const rel = item?.relativeLocation || '';
+                return (
+                    !id.includes('acordismo-linter') &&
+                    !id.includes('acordismo-song-linter') &&
+                    !rel.includes('acordismo-linter') &&
+                    !rel.includes('acordismo-song-linter')
+                );
+            });
+        }
+    } catch (err) {
+        console.warn('⚠️ Could not parse existing extensions.json, creating fresh entry:', err.message);
+    }
+}
+
+extensionsRegistry.push({
+    identifier: {
+        id: EXT_ID,
+    },
+    version: __version__,
+    location: {
+        $mid: 1,
+        fsPath: EXT_DIR,
+        external: pathToFileURL(EXT_DIR).href,
+        path: EXT_DIR,
+        scheme: 'file',
+    },
+    relativeLocation: CANONICAL_DIR_NAME,
+    metadata: {
+        installedTimestamp: Date.now(),
+        pinned: false,
+        source: 'vsix',
+    },
+});
+
+fs.writeFileSync(EXT_JSON_PATH, JSON.stringify(extensionsRegistry), 'utf8');
+
+console.log(`✅ Installed & registered ${EXT_ID} v${__version__} in:`);
+console.log(`   Folder:   ${EXT_DIR}`);
+console.log(`   Registry: ${EXT_JSON_PATH}`);
 console.log(
-    `💡 Reload VS Code ('Developer: Reload Window') to activate the clean single-instance linter!`
+    `💡 Reload VS Code ('Developer: Reload Window') — ${EXT_ID} v${__version__} is now registered in extensions.json!`
 );
