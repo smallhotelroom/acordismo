@@ -1,6 +1,6 @@
 /**
  * @file src/shared/database.js
- * @version 3.6.0
+ * @version 3.7.0
  */
 import * as sqlJsModule from 'sql.js';
 import sqlWasmUrl from 'sql.js/dist/sql-wasm.wasm?url';
@@ -13,7 +13,7 @@ import {
     populateDatabaseMeta,
 } from './dbMerger';
 
-export const __version__ = '3.6.0';
+export const __version__ = '3.7.0';
 
 const initSqlJs = sqlJsModule.default || sqlJsModule;
 
@@ -118,11 +118,6 @@ async function fetchDefaultDbBytes() {
     return cachedDefaultBytes;
 }
 
-/**
- * Checks `meta.schema_version === DB_SCHEMA_VERSION` in O(1) time.
- * If an older v1 DB is loaded, upgrades its columns, strips apostrophes from `search_norm`,
- * and stamps `schema_version = 2` so it never needs upgrading again.
- */
 function ensureSchemaColumns(db) {
     if (!db) return db;
     try {
@@ -152,6 +147,9 @@ function ensureSchemaColumns(db) {
     } catch {}
     try {
         db.run('ALTER TABLE songs ADD COLUMN search_norm TEXT;');
+    } catch {}
+    try {
+        db.run('ALTER TABLE songs ADD COLUMN tuning TEXT;');
     } catch {}
 
     db.run(
@@ -212,7 +210,6 @@ export async function getDatabaseLayerStack() {
         await idbSet(IDB_KEY_STACK, stack);
         await idbSet(IDB_KEY_ACTIVE_LABEL, computeStackLabel(stack));
     } else if (stack[0]?.builtin && !stack[0]?.generatedAt) {
-        // Refresh built-in layer metadata if it was saved before meta fields were added
         const SQL = await getSqlEngine();
         const defaultBytes = await fetchDefaultDbBytes();
         const tmpDb = new SQL.Database(defaultBytes);

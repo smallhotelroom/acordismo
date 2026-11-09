@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * @file scripts/build-db.mjs
- * @version 4.9.0
+ * @version 5.0.0
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -22,7 +22,7 @@ import {
 import { parseAcordismoConfigYaml } from '../src/shared/acordismoConfig.js';
 import { hasCrawlerSongAndChords } from '../src/shared/crawlerTransposer.js';
 
-export const __version__ = '4.9.0';
+export const __version__ = '5.0.0';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -55,10 +55,6 @@ function getGitShortCommit() {
     return null;
 }
 
-/**
- * Normalizes CRLF to LF and strips trailing newlines/whitespace at the end of a song
- * so neither the DB nor PDF generator ever renders trailing blank lines.
- */
 function cleanSongContents(rawContent) {
     return String(rawContent || '')
         .replace(/\r\n/g, '\n')
@@ -109,10 +105,24 @@ function validateSongFrontmatterAndSections(
         }
     }
 
+    const customTuningStr =
+        frontmatterData.tuning !== undefined && frontmatterData.tuning !== null
+            ? String(frontmatterData.tuning)
+            : null;
+
+    if (customTuningStr && typeof schemaMod.parseInstrumentTuning === 'function') {
+        const tRes = schemaMod.parseInstrumentTuning(customTuningStr, 'guitar');
+        if (!tRes.valid) {
+            const tLine = keyLines.tuning || 1;
+            errors.push(`${formatClickableLocation(fullPath, tLine, 1)} — ${tRes.error}`);
+        }
+    }
+
     if (typeof schemaMod.validateMarkdownSections === 'function') {
         const secDiagnostics = schemaMod.validateMarkdownSections(
             bodyContent,
-            bodyStartLine
+            bodyStartLine,
+            customTuningStr
         );
         for (const diag of secDiagnostics) {
             errors.push(
@@ -153,9 +163,6 @@ function loadDotEnv() {
     }
 }
 
-/**
- * Strictly case-sensitive path resolver for `acordismo-config.yaml`.
- */
 function resolveConfigPath(rawStr) {
     if (!rawStr || typeof rawStr !== 'string') {
         return null;
@@ -448,6 +455,10 @@ function buildLayerDatabase(
                         ? String(song.time_signature)
                         : null;
                 const track = song.track ?? null;
+                const tuning =
+                    song.tuning !== undefined && song.tuning !== null
+                        ? String(song.tuning)
+                        : null;
                 const url = song.url ?? null;
                 const writer = song.writer ?? author;
 
@@ -466,8 +477,8 @@ function buildLayerDatabase(
                     `INSERT INTO songs (
                         content_hash, name, band_id, origin_id, has_chords, search_norm, album, author, bpm, capo,
                         falsetto, highest, init_note, isrc, key, lang, license, musicians,
-                        spotify, time_signature, track, url, writer, contents
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+                        spotify, time_signature, track, tuning, url, writer, contents
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
                     [
                         contentHash,
                         songName,
@@ -490,6 +501,7 @@ function buildLayerDatabase(
                         spotify,
                         timeSig,
                         track,
+                        tuning,
                         url,
                         writer,
                         content,

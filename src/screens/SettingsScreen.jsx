@@ -1,6 +1,6 @@
 /**
  * @file src/screens/SettingsScreen.jsx
- * @version 3.9.0
+ * @version 3.10.0
  */
 import React, { useContext, useEffect, useRef, useState } from 'react';
 import {
@@ -25,7 +25,7 @@ import {
 import { APP_DEFAULTS, AppContext } from '../shared/AppContext';
 import pkg from '../../package.json';
 
-export const __version__ = '3.9.0';
+export const __version__ = '3.10.0';
 
 export const FREEZE_CHORDS_STORAGE_KEY = 'acordismo_freeze_chords';
 export const HIDE_CRAWLER_TABS_STORAGE_KEY = 'acordismo_hide_crawler_tabs';
@@ -65,6 +65,10 @@ function formatLayerSubtitle(layer, hideCrawlerTabsEnabled) {
 
 export default function SettingsScreen({ onBack }) {
     const {
+        compensateCapo,
+        setCompensateCapo,
+        fakeUkeEnabled,
+        setFakeUkeEnabled,
         transposition,
         setTransposition,
         darkMode,
@@ -204,6 +208,7 @@ export default function SettingsScreen({ onBack }) {
             </header>
 
             <main className="content-scroll">
+                {/* 1) Compensate Capo / Drop */}
                 <div
                     style={{
                         display: 'flex',
@@ -211,9 +216,68 @@ export default function SettingsScreen({ onBack }) {
                         justifyContent: 'space-between',
                         padding: 15,
                         gap: 10,
+                        borderBottom: '1px solid var(--border-color)',
+                    }}>
+                    <div>
+                        <strong>Compensate Capo / Drop</strong>
+                        <div style={{ fontSize: '0.86rem', color: 'var(--text-secondary)' }}>
+                            {compensateCapo
+                                ? fakeUkeEnabled
+                                    ? 'Enabled (forced ON while Guitar Shapes on Ukulele is active)'
+                                    : 'Enabled (shifts displayed chords so you play in concert pitch without capo/drop)'
+                                : 'Disabled (displays original written chords for capo/drop)'}
+                        </div>
+                    </div>
+                    <button
+                        className="btn-primary"
+                        disabled={fakeUkeEnabled}
+                        style={{ opacity: fakeUkeEnabled ? 0.5 : 1 }}
+                        onClick={() => setCompensateCapo(!compensateCapo)}>
+                        {compensateCapo ? 'Disable' : 'Enable'}
+                    </button>
+                </div>
+
+                {/* 2) Guitar Shapes on Ukulele ("Fake Uke" -5 semitones) */}
+                <div
+                    style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: 15,
+                        gap: 10,
+                        borderBottom: '1px solid var(--border-color)',
+                    }}>
+                    <div>
+                        <strong>Guitar Shapes on Ukulele (-5)</strong>
+                        <div style={{ fontSize: '0.86rem', color: 'var(--text-secondary)' }}>
+                            {fakeUkeEnabled
+                                ? 'Enabled (depicts -5 semitone guitar shapes to sound in concert pitch on Ukulele)'
+                                : 'Disabled (normal chord names)'}
+                        </div>
+                    </div>
+                    <button
+                        className="btn-primary"
+                        onClick={() => setFakeUkeEnabled(!fakeUkeEnabled)}>
+                        {fakeUkeEnabled ? 'Disable' : 'Enable'}
+                    </button>
+                </div>
+
+                {/* 3) Vocal / Pitch Transposition */}
+                <div
+                    style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: 15,
+                        gap: 10,
+                        borderBottom: '1px solid var(--border-color)',
                     }}>
                     <div style={{ flex: 4 }}>
-                        <strong>Transposition:</strong> {transposition}
+                        <strong>Vocal Transposition:</strong>{' '}
+                        {transposition > 0 ? `+${transposition}` : transposition}
+                        <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                            Shifts singing key, chord strumming pitch, and init note
+                        </div>
                     </div>
                     <button
                         className="btn-primary"
@@ -232,22 +296,6 @@ export default function SettingsScreen({ onBack }) {
                         }>
                         RESET
                     </button>
-                </div>
-
-                <div style={{ padding: '0 15px 15px 15px' }}>
-                    <div>Examples:</div>
-                    <div>{'\u2022'} Song says Capo on 2, but play without capo: 2</div>
-                    <div>{'\u2022'} Song says Drop 2, but play without untuning: -2</div>
-                </div>
-
-                <div
-                    style={{
-                        padding: '0 15px 15px 15px',
-                        borderBottom: '1px solid var(--border-color)',
-                    }}>
-                    <div>Examples for Ukelele:</div>
-                    <div>{'\u2022'} Play most songs on Ukelele: -5</div>
-                    <div>{'\u2022'} Play song on Ukelele, but song says Capo on 2: -3</div>
                 </div>
 
                 {/* Default Song Contents Font Size */}

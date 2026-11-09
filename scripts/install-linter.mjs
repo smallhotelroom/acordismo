@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * @file scripts/install-linter.mjs
- * @version 2.4.0
+ * @version 2.5.0
  * Installs the Acordismo / Small Hotel Room VS Code Linter & Syntax Decorator extension
  * directly into `~/.vscode/extensions/acordismo-song-linter`.
  *
@@ -10,14 +10,15 @@
  *   and `chordTransposer.js` (auto-reloads whenever you edit songSchema.js!)
  * - Direct `doc.lineAt(docLineIdx).text` line scanning so chord decorations are 100% locked
  *   to the exact line where `(...)` appears
- * - Non-intrusive "Did you mean: ...?" chord voicing recommendations inside `## Chords`
+ * - Custom `tuning:` frontmatter validation and tuning-aware "Did you mean: ...?" chord suggestions
+ *   inside `## Chords` / `## Fingerings`
  */
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 
-export const __version__ = '2.4.0';
+export const __version__ = '2.5.0';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -50,7 +51,7 @@ const extPackageJson = {
     name: 'acordismo-song-linter',
     displayName: 'Acordismo Song Schema & Chord Linter',
     description:
-        'Validates frontmatter, inline chord notation, and ## Chords / translation sections for Small Hotel Room & Acordismo song files.',
+        'Validates frontmatter, custom tunings, inline chord notation, and ## Chords / translation sections for Small Hotel Room & Acordismo song files.',
     version: __version__,
     publisher: 'smallhotelroom',
     engines: {
@@ -253,6 +254,10 @@ const extensionCjsCode = [
     '        } = schemaMod.parseFrontmatterFile(rawText);',
     '',
     '        const diagnostics = [];',
+    '        const customTuningStr =',
+    '            frontmatterData && frontmatterData.tuning !== undefined && frontmatterData.tuning !== null',
+    '                ? String(frontmatterData.tuning)',
+    '                : null;',
     '',
     '        // 1. Validate Frontmatter (if present)',
     '        if (hasFrontmatter) {',
@@ -300,6 +305,21 @@ const extensionCjsCode = [
     '                            new vscode.Range(lineIdx, 0, lineIdx, k.length),',
     '                            "Unknown frontmatter key \'" + k + "\' (not in TREATED_KEYS).",',
     '                            vscode.DiagnosticSeverity.Warning',
+    '                        )',
+    '                    );',
+    '                }',
+    '            }',
+    '',
+    "            if (customTuningStr && typeof schemaMod.parseInstrumentTuning === 'function') {",
+    "                const tCheck = schemaMod.parseInstrumentTuning(customTuningStr, 'guitar');",
+    '                if (!tCheck.valid) {',
+    '                    const tLineIdx = clampLineIdx((keyLines.tuning || 2) - 1, doc);',
+    '                    const tLineText = doc.lineAt(tLineIdx).text;',
+    '                    diagnostics.push(',
+    '                        new vscode.Diagnostic(',
+    '                            new vscode.Range(tLineIdx, 0, tLineIdx, Math.max(1, tLineText.length)),',
+    '                            tCheck.error,',
+    '                            vscode.DiagnosticSeverity.Error',
     '                        )',
     '                    );',
     '                }',
@@ -385,7 +405,7 @@ const extensionCjsCode = [
     '            // Inside ## Chords / ## Fingerings: validate & decorate posture definition',
     "            if (currentSectionType === 'fingerings') {",
     "                if (typeof parseFingeringDefinitionLine === 'function') {",
-    '                    const parsedFingering = parseFingeringDefinitionLine(lineText);',
+    '                    const parsedFingering = parseFingeringDefinitionLine(lineText, customTuningStr);',
     '                    if (parsedFingering && !parsedFingering.valid) {',
     '                        diagnostics.push(',
     '                            new vscode.Diagnostic(',
@@ -606,5 +626,5 @@ fs.writeFileSync(path.join(EXT_DIR, 'extension.cjs'), extensionCjsCode, 'utf8');
 console.log(`✅ Installed Acordismo Song Linter v${__version__} to:`);
 console.log(`   ${EXT_DIR}`);
 console.log(
-    `💡 Reload VS Code ('Developer: Reload Window') to activate live 'Did you mean: ...?' chord suggestions!`
+    `💡 Reload VS Code ('Developer: Reload Window') to activate tuning-aware posture linting!`
 );

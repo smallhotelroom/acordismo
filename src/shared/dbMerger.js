@@ -1,12 +1,12 @@
 /**
  * @file src/shared/dbMerger.js
- * @version 1.7.0
+ * @version 1.8.0
  */
 import { hasCrawlerSongAndChords } from './crawlerTransposer.js';
 
-export const __version__ = '1.7.0';
+export const __version__ = '1.8.0';
 
-export const DB_SCHEMA_VERSION = '2';
+export const DB_SCHEMA_VERSION = '3';
 
 /**
  * Strips diacritics/accents (e.g. "Leãozinho" -> "leaozinho", "Español" -> "espanol"),
@@ -118,6 +118,7 @@ CREATE TABLE IF NOT EXISTS songs (
     spotify TEXT,
     time_signature TEXT,
     track INTEGER,
+    tuning TEXT,
     url TEXT,
     writer TEXT,
     contents TEXT,
@@ -156,9 +157,6 @@ CREATE INDEX IF NOT EXISTS idx_songs_ft_bands_song_id ON songs_ft_bands (song_id
 CREATE INDEX IF NOT EXISTS idx_songs_ft_bands_ft_band_id ON songs_ft_bands (ft_band_id);
 `;
 
-/**
- * Updates `bands.has_chords` in a single fast SQL pass so the Bands tab never needs correlated subqueries.
- */
 export const UPDATE_BANDS_HAS_CHORDS_SQL = `
 UPDATE bands SET has_chords = CASE
     WHEN id IN (SELECT band_id FROM songs WHERE has_chords = 1)
@@ -193,9 +191,6 @@ export function wildcardToRegExp(pattern) {
     return new RegExp(`^${escaped}$`, 'i');
 }
 
-/**
- * Populates the `meta` table with rich pack diagnostics and schema version.
- */
 export function populateDatabaseMeta(
     db,
     {
@@ -231,9 +226,6 @@ export function populateDatabaseMeta(
     }
 }
 
-/**
- * Reads embedded metadata from `meta` in O(1) time (falling back to COUNT queries only for legacy DBs).
- */
 export function inspectDatabase(db, fallbackName = 'custom') {
     const metaMap = {};
     try {
@@ -243,9 +235,7 @@ export function inspectDatabase(db, fallbackName = 'custom') {
                 metaMap[r.key] = r.value;
             }
         }
-    } catch {
-        // Older DB without meta table
-    }
+    } catch {}
 
     const layerId = metaMap.layer_id || fallbackName;
     const packName = metaMap.pack_name || layerId;
@@ -258,7 +248,7 @@ export function inspectDatabase(db, fallbackName = 'custom') {
         metaMap.chord_song_count !== undefined ? Number(metaMap.chord_song_count) : null;
     let bandCount = metaMap.band_count !== undefined ? Number(metaMap.band_count) : null;
     let chordBandCount =
-        metaMap.chord_band_count !== undefined ? Number(metaMap.chord_band_count) : null;
+        metaMap.chordBandCount !== undefined ? Number(metaMap.chord_band_count) : null;
 
     if (songCount === null || bandCount === null) {
         try {
@@ -361,9 +351,7 @@ export function mergeDatabasesInPriorityOrder(SQL, sourceDbs, mergedId = 'merged
                     );
                 }
             }
-        } catch {
-            // DB might not have playlist_rules table
-        }
+        } catch {}
 
         const srcPlaylists = queryObjects(srcDb, 'SELECT id, name FROM playlists;');
         const srcPlaylistIdToName = new Map();
@@ -445,8 +433,8 @@ export function mergeDatabasesInPriorityOrder(SQL, sourceDbs, mergedId = 'merged
                 `INSERT INTO songs (
                     content_hash, name, band_id, origin_id, has_chords, search_norm, album, author, bpm, capo,
                     falsetto, highest, init_note, isrc, key, lang, license, musicians,
-                    spotify, time_signature, track, url, writer, contents
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+                    spotify, time_signature, track, tuning, url, writer, contents
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
                 [
                     s.content_hash ?? null,
                     s.name,
@@ -469,6 +457,7 @@ export function mergeDatabasesInPriorityOrder(SQL, sourceDbs, mergedId = 'merged
                     s.spotify ?? null,
                     s.time_signature ?? null,
                     s.track ?? null,
+                    s.tuning ?? null,
                     s.url ?? null,
                     s.writer ?? null,
                     s.contents ?? '',

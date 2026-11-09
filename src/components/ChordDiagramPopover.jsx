@@ -1,26 +1,51 @@
 /**
  * @file src/components/ChordDiagramPopover.jsx
- * @version 1.1.0
+ * @version 1.2.0
  * Floating fretboard neck diagram overlay for Guitar (6 strings) and Ukulele (4 strings).
- * Supports song-specific `## Chords` / `## Fingerings` postures, Guitar/Ukulele toggle, and Strum button.
+ * - Supports song-specific `## Chords` / `## Fingerings` postures and custom `tuning:`
+ * - Strum always plays the true concert sound (accounting for song capo/drop, custom tuning, and vocal transposition)
  */
 import React, { useMemo } from 'react';
 import { Volume2, X } from 'lucide-react';
 import { getChordDiagramData } from '../shared/chordDiagrams';
 import { playPolyphonicChord } from '../shared/audioEngine';
 
-export const __version__ = '1.1.0';
+export const __version__ = '1.2.0';
 
 export default function ChordDiagramPopover({
     chordStr,
     instrument = 'guitar',
     customVoicings = null,
+    songCapo = 0,
+    songTuning = null,
+    vocalTransposition = 0,
+    visualOffset = 0,
+    compensateCapo = false,
+    fakeUkeEnabled = false,
     onSelectInstrument,
     onClose,
 }) {
     const diagram = useMemo(
-        () => getChordDiagramData(chordStr, instrument, customVoicings),
-        [chordStr, instrument, customVoicings]
+        () =>
+            getChordDiagramData(chordStr, instrument, customVoicings, {
+                songCapo,
+                songTuning,
+                vocalTransposition,
+                visualOffset,
+                compensateCapo,
+                fakeUkeEnabled,
+            }),
+        [
+            chordStr,
+            instrument,
+            customVoicings,
+            songCapo,
+            songTuning,
+            vocalTransposition,
+            visualOffset,
+            compensateCapo,
+            fakeUkeEnabled,
+        ]
     );
 
     if (!diagram) {
@@ -32,9 +57,11 @@ export default function ChordDiagramPopover({
         baseFret,
         barre,
         stringNames,
+        isCustomTuning,
         frequencies,
         isSongSpecific,
         customLabel,
+        concertSoundName,
     } = diagram;
     const numStrings = frets.length;
     const numFrets = 4;
@@ -60,6 +87,9 @@ export default function ChordDiagramPopover({
         }
     };
 
+    const showConcertSubtitle =
+        concertSoundName && concertSoundName !== chordStr;
+
     return (
         <div
             className="modal-backdrop"
@@ -68,7 +98,7 @@ export default function ChordDiagramPopover({
             <div
                 className="modal-card"
                 style={{
-                    maxWidth: 270,
+                    maxWidth: 274,
                     padding: '14px 16px 16px 16px',
                     borderRadius: 12,
                     textAlign: 'center',
@@ -80,15 +110,28 @@ export default function ChordDiagramPopover({
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'space-between',
-                        marginBottom: isSongSpecific ? 4 : 10,
+                        marginBottom: isSongSpecific || showConcertSubtitle ? 4 : 10,
                     }}>
-                    <div
-                        style={{
-                            fontSize: '1.35rem',
-                            fontWeight: 800,
-                            color: 'var(--accent-color)',
-                        }}>
-                        {chordStr}
+                    <div style={{ textAlign: 'left' }}>
+                        <div
+                            style={{
+                                fontSize: '1.35rem',
+                                fontWeight: 800,
+                                color: 'var(--accent-color)',
+                                lineHeight: 1.15,
+                            }}>
+                            {chordStr}
+                        </div>
+                        {showConcertSubtitle && (
+                            <div
+                                style={{
+                                    fontSize: '0.75rem',
+                                    color: 'var(--text-secondary)',
+                                    fontWeight: 600,
+                                }}>
+                                Concert sound: {concertSoundName}
+                            </div>
+                        )}
                     </div>
                     <button
                         type="button"
@@ -160,7 +203,7 @@ export default function ChordDiagramPopover({
                         height={svgHeight}
                         viewBox={`0 0 ${svgWidth} ${svgHeight}`}
                         style={{ overflow: 'visible' }}>
-                        {/* Top Nut (thick bar when baseFret === 1) */}
+                        {/* Top Nut */}
                         <line
                             x1={padLeft}
                             y1={padTop}
@@ -171,7 +214,6 @@ export default function ChordDiagramPopover({
                             strokeLinecap="round"
                         />
 
-                        {/* Base Fret Label on the left when baseFret > 1 */}
                         {baseFret > 1 && (
                             <text
                                 x={padLeft - 10}
@@ -298,14 +340,18 @@ export default function ChordDiagramPopover({
                             );
                         })}
 
-                        {/* Bottom String Tuning Labels (E A D G B e / G C E A) */}
+                        {/* Bottom String Tuning Labels (E A D G B e, or custom D A C F A e) */}
                         {stringNames.map((sName, sIdx) => (
                             <text
                                 key={`sname-${sIdx}`}
                                 x={getStringX(sIdx)}
                                 y={padTop + gridH + 18}
                                 textAnchor="middle"
-                                fill="var(--text-secondary)"
+                                fill={
+                                    isCustomTuning
+                                        ? '#f59e0b'
+                                        : 'var(--text-secondary)'
+                                }
                                 fontSize="11"
                                 fontWeight="700">
                                 {sName}
@@ -331,7 +377,7 @@ export default function ChordDiagramPopover({
                         fontWeight: 700,
                     }}>
                     <Volume2 size={16} />
-                    Strum {chordStr}
+                    Strum {concertSoundName ? `${chordStr} (${concertSoundName})` : chordStr}
                 </button>
             </div>
         </div>

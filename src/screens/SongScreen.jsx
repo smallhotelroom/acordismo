@@ -1,6 +1,6 @@
 /**
  * @file src/screens/SongScreen.jsx
- * @version 2.36.0
+ * @version 2.37.0
  */
 import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Pause, Play } from 'lucide-react';
@@ -27,6 +27,7 @@ import {
     parseChordToken,
     transposeChordToken,
 } from '@shr-shared/chordTransposer.js';
+import { parseInstrumentTuning } from '../../../smallhotelroom.github.io/src/shared/songSchema.js';
 import {
     deduceAcordismoSongKey,
     deduceAcordismoSongKeyInfo,
@@ -37,38 +38,31 @@ import {
     stripOuterPunctuation,
 } from '../shared/crawlerTransposer';
 
-export const __version__ = '2.36.0';
+export const __version__ = '2.37.0';
 
 const SCROLL_SPEED_STORAGE_KEY = 'acordismo_scroll_speed';
 const TARGET_DURATION_SECONDS = 210; // 3 minutes 30 seconds at 1.0x
 
 /**
- * Preserves the absolute original initNote and, when transposition !== 0,
- * appends a concise comment showing the resulting transposed note/pitch relationship.
+ * Formats initNote: only Setting 3 (`vocalTransposition`) affects the singing pitch & initNote!
+ * Settings 1 (Compensate Capo/Drop) and 2 (Fake Uke -5) leave initNote untouched.
  */
-function formatInitNoteDisplay(rawInitNote, transposition, songCapo, useFlats) {
+function formatInitNoteDisplay(rawInitNote, vocalTransposition, useFlats) {
     if (!rawInitNote) return null;
     const baseStr = String(rawInitNote).trim();
-    if (!transposition) {
+    if (!vocalTransposition) {
         return baseStr;
     }
 
-    const sign = transposition > 0 ? `+${transposition}` : `${transposition}`;
+    const sign = vocalTransposition > 0 ? `+${vocalTransposition}` : `${vocalTransposition}`;
     const shiftedStr = baseStr.replace(/\b([A-G][#b]?[0-9]?)\b/g, (tok) =>
-        transposeChordToken(tok, transposition, useFlats)
+        transposeChordToken(tok, vocalTransposition, useFlats)
     );
 
-    const numCapo = Number(songCapo || 0);
-    if (numCapo !== 0 && transposition === numCapo) {
-        return `${baseStr} (${shiftedStr} at ${sign}; matches original concert pitch without capo/drop)`;
-    }
-    if (transposition + 5 === numCapo) {
-        return `${baseStr} (${shiftedStr} at ${sign}; matches original concert pitch on Ukulele)`;
-    }
     if (shiftedStr !== baseStr) {
-        return `${baseStr} (${shiftedStr} if shifted ${sign})`;
+        return `${baseStr} (${shiftedStr} at ${sign})`;
     }
-    return `${baseStr} (transposition ${sign})`;
+    return `${baseStr} (vocal ${sign})`;
 }
 
 /**
@@ -107,12 +101,10 @@ function renderLyricWithChoir(text, choirColor, baseKey) {
 
 /**
  * Renders a crawler chord line (e.g. "Intro: A B C F# (I will learn this better)" or "Am  F  C  G").
- * Never highlights parentheses `()`; only highlights & transposes actual chord tokens in blue
- * while keeping surrounding words/remarks as normal uncolored text.
  */
 function renderCrawlerChordLineNodes(
     lineText,
-    transposition,
+    visualOffset,
     useFlats,
     palette,
     startKey,
@@ -133,7 +125,7 @@ function renderCrawlerChordLineNodes(
                 if (prefix) {
                     nodes.push(<span key={keyCounter++}>{prefix}</span>);
                 }
-                const transposedChord = transposeChordToken(core, transposition, useFlats);
+                const transposedChord = transposeChordToken(core, visualOffset, useFlats);
                 nodes.push(
                     <strong
                         key={keyCounter++}
@@ -167,6 +159,8 @@ function renderCrawlerChordLineNodes(
 export default function SongScreen({ routeParams, onNavigate, onBack }) {
     const { selectedSongId, originStr } = routeParams;
     const {
+        compensateCapo = false,
+        fakeUkeEnabled = false,
         transposition,
         darkMode,
         topSpaceEnabled,
@@ -210,7 +204,6 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
         setFontSize(defaultFontSize);
     }, [defaultFontSize]);
 
-    // Auto-scroll state (calibrated: 1.0x = full song in 3:30, range 0.0x to 3.0x in 0.1 steps, default 1.0x)
     const scrollContainerRef = useRef(null);
     const [autoScrollActive, setAutoScrollActive] = useState(false);
     const [speedMenuOpen, setSpeedMenuOpen] = useState(false);
@@ -229,7 +222,6 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
         setAutoScrollActive((prev) => !prev);
     };
 
-    // Sample the exact computed background color of the song sheet container so sticky lines are 100% opaque
     useEffect(() => {
         if (scrollContainerRef.current) {
             const bg = window.getComputedStyle(scrollContainerRef.current).backgroundColor;
@@ -253,7 +245,7 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
                 if (!songRes.rows.length) {
                     return;
                 }
-                const tmpSong = songRes.rows.item(0); // index 0 means we count on unique id
+                const tmpSong = songRes.rows.item(0);
 
                 const [bandRes, ftRes] = await Promise.all([
                     executeQuery('SELECT name FROM bands WHERE id = ?;', [tmpSong.band_id]),
@@ -287,7 +279,6 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
         };
     }, [selectedSongId]);
 
-    // Smooth 60fps Auto-Scroll loop dynamically scaled so 1.0x = 3:30 (210s) at current zoom level
     useEffect(() => {
         if (!autoScrollActive) {
             return;
@@ -327,7 +318,21 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
         return () => cancelAnimationFrame(animationFrameId);
     }, [autoScrollActive, scrollSpeed]);
 
-    // Parse `##` sections (separating main chord sheet, language translations, and song-specific fingerings)
+    // Total semitone shift applied to displayed chord names:
+    // (1) Compensate Capo/Drop + (2) Fake Uke (-5) + (3) Vocal Transposition
+    const songCapo = Number(songData?.capo || 0);
+    const visualOffset = useMemo(() => {
+        const capoComp = compensateCapo || fakeUkeEnabled ? songCapo : 0;
+        const ukeShift = fakeUkeEnabled ? -5 : 0;
+        return capoComp + ukeShift + Number(transposition || 0);
+    }, [compensateCapo, fakeUkeEnabled, songCapo, transposition]);
+
+    const parsedTuning = useMemo(() => {
+        if (!songData?.tuning) return null;
+        const info = parseInstrumentTuning(songData.tuning, 'guitar');
+        return info.valid && info.isCustom ? info : null;
+    }, [songData]);
+
     const parsedSections = useMemo(() => {
         if (!songData) {
             return {
@@ -370,21 +375,21 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
         if (!songData) return false;
         return deduceAcordismoSongUseFlats(
             mainSheetLyrics,
-            transposition,
+            visualOffset,
             songData.key,
             songData.origin_id
         );
-    }, [songData, mainSheetLyrics, transposition]);
+    }, [songData, mainSheetLyrics, visualOffset]);
 
-    // Shift song-specific `## Chords` / `## Fingerings` postures if transposition !== 0
+    // Shift song-specific `## Chords` / `## Fingerings` postures by visualOffset
     const transposedCustomVoicings = useMemo(
         () =>
             buildTransposedCustomVoicings(
                 parsedSections.customVoicings,
-                transposition,
+                visualOffset,
                 songUseFlats
             ),
-        [parsedSections.customVoicings, transposition, songUseFlats]
+        [parsedSections.customVoicings, visualOffset, songUseFlats]
     );
 
     // Deduce key guess + confidence % when frontmatter `key` is absent
@@ -392,14 +397,14 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
         if (!songData) return null;
         const originId = songData.origin_id;
         if (songData.key) {
-            if (!transposition) return songData.key;
+            if (!visualOffset) return songData.key;
             const shifted = deduceAcordismoSongKey(
                 mainSheetLyrics,
-                transposition,
+                visualOffset,
                 songData.key,
                 originId
             );
-            const sign = transposition > 0 ? `+${transposition}` : `${transposition}`;
+            const sign = visualOffset > 0 ? `+${visualOffset}` : `${visualOffset}`;
             return shifted && shifted !== songData.key
                 ? `${songData.key} (${shifted} at ${sign})`
                 : songData.key;
@@ -411,20 +416,20 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
             originId
         );
         if (!guessedOrig) return null;
-        if (!transposition) {
+        if (!visualOffset) {
             return `${guessedOrig.key} (guessed, ${guessedOrig.confidence}%)`;
         }
         const guessedShifted = deduceAcordismoSongKeyInfo(
             mainSheetLyrics,
-            transposition,
+            visualOffset,
             null,
             originId
         );
-        const sign = transposition > 0 ? `+${transposition}` : `${transposition}`;
+        const sign = visualOffset > 0 ? `+${visualOffset}` : `${visualOffset}`;
         return guessedShifted && guessedShifted.key !== guessedOrig.key
             ? `${guessedOrig.key} (guessed, ${guessedOrig.confidence}%; ${guessedShifted.key} at ${sign})`
             : `${guessedOrig.key} (guessed, ${guessedOrig.confidence}%)`;
-    }, [songData, mainSheetLyrics, transposition]);
+    }, [songData, mainSheetLyrics, visualOffset]);
 
     const songScreenItems = useMemo(() => {
         if (!songData) {
@@ -439,17 +444,37 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
         const sections = [];
         let currentSection = null;
 
-        if (!activeTranslationObj && songData.capo) {
-            if (songData.capo < 1) {
+        if (!activeTranslationObj) {
+            const topDirectives = [];
+            if (songCapo !== 0) {
+                const origCapoDesc =
+                    songCapo < 0
+                        ? `drop ${-songCapo} semitones`
+                        : `capo on ${songCapo}`;
+                if (fakeUkeEnabled) {
+                    topDirectives.push(
+                        `(guitar shapes for ukulele [-5]; compensated for ${origCapoDesc})`
+                    );
+                } else if (compensateCapo) {
+                    topDirectives.push(
+                        `(chords compensated for no ${songCapo < 0 ? 'drop' : 'capo'}; originally ${origCapoDesc})`
+                    );
+                } else {
+                    topDirectives.push(`(chords for ${origCapoDesc})`);
+                }
+            } else if (fakeUkeEnabled) {
+                topDirectives.push(`(guitar shapes for ukulele [-5 semitones])`);
+            }
+
+            if (parsedTuning) {
+                topDirectives.push(`(tuning: ${parsedTuning.displayStr})`);
+            }
+
+            if (topDirectives.length > 0) {
                 preChordItems.push(
-                    <strong key="drop" style={{ color: palette.directive }}>
-                        (chords for drop {-songData.capo} semitones){'\n\n'}
-                    </strong>
-                );
-            } else {
-                preChordItems.push(
-                    <strong key="capo" style={{ color: palette.directive }}>
-                        (chords for capo on {songData.capo}){'\n\n'}
+                    <strong key="top-directives" style={{ color: palette.directive }}>
+                        {topDirectives.join('\n')}
+                        {'\n\n'}
                     </strong>
                 );
             }
@@ -469,7 +494,7 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
                     hasChordsOnLine = true;
                     const { nodes, nextKey } = renderCrawlerChordLineNodes(
                         lineText,
-                        transposition,
+                        visualOffset,
                         useFlats,
                         palette,
                         counter,
@@ -486,7 +511,7 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
                 hasChordsOnLine = true;
                 const { nodes, nextKey } = renderCrawlerChordLineNodes(
                     lineText,
-                    transposition,
+                    visualOffset,
                     useFlats,
                     palette,
                     counter,
@@ -495,7 +520,6 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
                 lineNodes.push(...nodes);
                 counter = nextKey;
             } else {
-                // Curated songs (origin_id === 0): canonical (...) chord groups + [choir]
                 const re1 = /\((.+?)\)/g;
                 let array1;
                 let outerLastIndex = 0;
@@ -552,7 +576,7 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
                                 }
                                 const transposedToken = transposeChordToken(
                                     treatable,
-                                    transposition,
+                                    visualOffset,
                                     useFlats
                                 );
                                 innerTokens.push(
@@ -585,7 +609,7 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
                             if (remaining.length > 0) {
                                 const transposedToken = transposeChordToken(
                                     remaining,
-                                    transposition,
+                                    visualOffset,
                                     useFlats
                                 );
                                 innerTokens.push(
@@ -681,7 +705,11 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
         songData,
         displayedLyrics,
         activeTranslationObj,
-        transposition,
+        songCapo,
+        compensateCapo,
+        fakeUkeEnabled,
+        parsedTuning,
+        visualOffset,
         songUseFlats,
         freezeChordsEnabled,
         chordDiagramsEnabled,
@@ -689,7 +717,6 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
         palette,
     ]);
 
-    // Touch pinch-to-zoom handlers
     const handleTouchStart = (e) => {
         if (e.touches.length === 2) {
             const dx = e.touches[0].clientX - e.touches[1].clientX;
@@ -716,7 +743,6 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
     const songName = songData ? songData.name : '';
     const headerTitle = songName === '' ? '' : `${songName} [${originStr}]`;
 
-    // 76px bottom gradient scoped directly to SongScreen (only visible in portrait mode)
     const rgb = darkMode ? '18, 18, 18' : '243, 244, 246';
     const bottomNavGradient = `linear-gradient(to top, rgba(${rgb}, 0.92) 0%, rgba(${rgb}, 0.78) 45%, rgba(${rgb}, 0.35) 78%, rgba(${rgb}, 0) 100%)`;
 
@@ -730,7 +756,6 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
 
     return (
         <>
-            {/* Elevated zIndex (20000) ensures the header and its vertical speed popover always render above sticky chords */}
             <header className="app-header" style={{ position: 'relative', zIndex: 20000 }}>
                 <div className="header-left">
                     <button className="icon-btn" onClick={onBack}>
@@ -739,7 +764,6 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
                     <h1 className="header-title">{headerTitle}</h1>
                 </div>
                 <div className="header-actions">
-                    {/* Only appears when the persistent Metronome is actively ticking in the background */}
                     {metroState.isPlaying && (
                         <button
                             type="button"
@@ -834,7 +858,6 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
                 </div>
             </header>
 
-            {/* Isolation stacking context (zIndex: 1) prevents internal sticky masks from escaping above the modal backdrop */}
             <main
                 ref={scrollContainerRef}
                 className="content-scroll song-sheet-container"
@@ -855,7 +878,6 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
                         paddingTop: 15,
                         paddingBottom: 15,
                     }}>
-                    {/* Single 15px ceiling mask so scrolling lyrics and outgoing sticky headers never peek above `top: 15px` */}
                     {freezeChordsEnabled && (
                         <div
                             style={{
@@ -875,7 +897,6 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
                 </div>
             </main>
 
-            {/* SongScreen Bottom Gradient Fade over OS navigation area (Portrait mode only) */}
             {topSpaceEnabled && (
                 <div
                     className="portrait-only-bottom-bar"
@@ -898,6 +919,12 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
                     chordStr={selectedDiagramChord}
                     instrument={chordInstrument}
                     customVoicings={transposedCustomVoicings}
+                    songCapo={songCapo}
+                    songTuning={songData?.tuning || null}
+                    vocalTransposition={transposition}
+                    visualOffset={visualOffset}
+                    compensateCapo={compensateCapo}
+                    fakeUkeEnabled={fakeUkeEnabled}
                     onSelectInstrument={setChordInstrument}
                     onClose={() => setSelectedDiagramChord(null)}
                 />
@@ -971,6 +998,7 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
                                     <div>Capo: {songData.capo}</div>
                                 )
                             ) : null}
+                            {parsedTuning && <div>Tuning: {parsedTuning.displayStr}</div>}
                             {deducedKeyDisplay && <div>Key: {deducedKeyDisplay}</div>}
                             {songData.init_note && (
                                 <div>
@@ -978,7 +1006,6 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
                                     {formatInitNoteDisplay(
                                         songData.init_note,
                                         transposition,
-                                        songData.capo,
                                         songUseFlats
                                     )}
                                 </div>
@@ -1107,7 +1134,13 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
                                 justifyContent: 'space-between',
                                 alignItems: 'center',
                             }}>
-                            <span>Transposition: {transposition}</span>
+                            <span>
+                                Chord shift:{' '}
+                                {visualOffset > 0 ? `+${visualOffset}` : visualOffset}
+                                {transposition !== 0
+                                    ? ` (vocal ${transposition > 0 ? `+${transposition}` : transposition})`
+                                    : ''}
+                            </span>
                             <span>Font size: {fontSize}px</span>
                         </div>
 

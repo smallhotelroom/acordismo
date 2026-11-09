@@ -1,6 +1,6 @@
 /**
  * @file src/shared/AppContext.jsx
- * @version 3.2.0
+ * @version 3.3.0
  */
 import React, { createContext, useEffect, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
@@ -8,7 +8,7 @@ import { getSavedDbLabel, loadExternalDatabaseBytes } from './database';
 import { parseAcordismoConfigYaml } from './acordismoConfig';
 import rawConfigYaml from '../../acordismo-config.yaml?raw';
 
-export const __version__ = '3.2.0';
+export const __version__ = '3.3.0';
 
 export const ACORDISMO_CONFIG = parseAcordismoConfigYaml(rawConfigYaml);
 export const APP_DEFAULTS = ACORDISMO_CONFIG.app;
@@ -19,6 +19,8 @@ const TOP_SPACE_STORAGE_KEY = Capacitor.isNativePlatform()
     ? 'acordismo_top_space_native'
     : 'acordismo_top_space_web';
 
+const COMPENSATE_CAPO_STORAGE_KEY = 'acordismo_compensate_capo';
+const FAKE_UKE_STORAGE_KEY = 'acordismo_fake_uke';
 const FREEZE_CHORDS_STORAGE_KEY = 'acordismo_freeze_chords';
 const HIDE_CRAWLER_TABS_STORAGE_KEY = 'acordismo_hide_crawler_tabs';
 const CHORD_DIAGRAMS_STORAGE_KEY = 'acordismo_chord_diagrams';
@@ -26,9 +28,44 @@ const CHORD_INSTRUMENT_STORAGE_KEY = 'acordismo_chord_instrument';
 const DEFAULT_FONT_SIZE_STORAGE_KEY = 'acordismo_default_font_size';
 
 export function AppProvider({ children }) {
+    // 1) Compensate Capo / Drop (Default: false)
+    const [compensateCapo, setCompensateCapoState] = useState(() => {
+        const saved = localStorage.getItem(COMPENSATE_CAPO_STORAGE_KEY);
+        return saved !== null
+            ? saved === 'true'
+            : Boolean(APP_DEFAULTS.default_compensate_capo);
+    });
+
+    // 2) Guitar Shapes on Ukulele / "Fake Uke" (-5 semitones, Default: false; forces compensateCapo ON when enabled)
+    const [fakeUkeEnabled, setFakeUkeState] = useState(() => {
+        const saved = localStorage.getItem(FAKE_UKE_STORAGE_KEY);
+        return saved !== null
+            ? saved === 'true'
+            : Boolean(APP_DEFAULTS.default_fake_uke);
+    });
+
+    // 3) Vocal / Concert Pitch Transposition (Default: 0; the only option that shifts Strum sound & initNote)
     const [transposition, setTransposition] = useState(
         APP_DEFAULTS.default_transposition
     );
+
+    const setFakeUkeEnabled = (nextVal) => {
+        const boolVal = Boolean(nextVal);
+        setFakeUkeState(boolVal);
+        if (boolVal) {
+            setCompensateCapoState(true);
+        }
+    };
+
+    const setCompensateCapo = (nextVal) => {
+        if (fakeUkeEnabled) {
+            // While Fake Uke (-5) is active, Compensate Capo/Drop stays forced ON
+            setCompensateCapoState(true);
+            return;
+        }
+        setCompensateCapoState(Boolean(nextVal));
+    };
+
     const [darkMode, setDarkMode] = useState(() => {
         const saved = localStorage.getItem('acordismo_dark_mode');
         return saved !== null ? saved === 'true' : Boolean(APP_DEFAULTS.default_dark_mode);
@@ -143,6 +180,14 @@ export function AppProvider({ children }) {
     }, []);
 
     useEffect(() => {
+        localStorage.setItem(COMPENSATE_CAPO_STORAGE_KEY, String(compensateCapo));
+    }, [compensateCapo]);
+
+    useEffect(() => {
+        localStorage.setItem(FAKE_UKE_STORAGE_KEY, String(fakeUkeEnabled));
+    }, [fakeUkeEnabled]);
+
+    useEffect(() => {
         localStorage.setItem('acordismo_dark_mode', String(darkMode));
         document.documentElement.setAttribute('data-theme', darkMode ? 'dark' : 'light');
     }, [darkMode]);
@@ -188,6 +233,10 @@ export function AppProvider({ children }) {
     return (
         <AppContext.Provider
             value={{
+                compensateCapo,
+                setCompensateCapo,
+                fakeUkeEnabled,
+                setFakeUkeEnabled,
                 transposition,
                 setTransposition,
                 darkMode,
