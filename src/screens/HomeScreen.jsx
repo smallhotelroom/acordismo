@@ -1,22 +1,25 @@
 /**
  * @file src/screens/HomeScreen.jsx
- * @version 2.10.0
+ * @version 3.9.0
+ * Restores the canonical Acordismo HomeScreen layout:
+ * 1) Header: Left { Menu (3 bars -> Settings), Acordismo } | Right { Metronome, Tuner, DarkMode, Search, MoreVertical (3 dots) }
+ * 2) Top Tab Bar: PLAYLISTS | BANDS | SONGS directly under the header
+ * 3) Infinite scroll list + Contextual 3-dots Sort Order Modal
  */
-import React, { useContext, useEffect, useState } from 'react';
-import { ArrowRight, Menu, MoreVertical, Moon, Search, Sun } from 'lucide-react';
-import VirtualList from '../components/VirtualList';
-import SongItem from '../components/SongItem';
-import SearchBar from '../components/SearchBar';
+import React, { useContext, useEffect, useRef, useState } from 'react';
+import { Menu, Moon, MoreVertical, Search, Sun, X } from 'lucide-react';
 import executeQuery from '../shared/database';
 import { buildMultiTokenSearchClause } from '../shared/dbMerger';
 import { AppContext } from '../shared/AppContext';
-import { getMetronomeState, subscribeMetronomeState } from '../shared/audioEngine';
+import {
+    getMetronomeState,
+    subscribeMetronomeState,
+} from '../shared/audioEngine';
 
-export const __version__ = '2.10.0';
+export const __version__ = '3.9.0';
 
-/**
- * Clean 20x20 stroke SVG icon for the Metronome (matches Lucide 2px stroke aesthetic).
- */
+const PAGE_SIZE = 80;
+
 export function MetronomeIcon({ size = 20 }) {
     return (
         <svg
@@ -28,16 +31,13 @@ export function MetronomeIcon({ size = 20 }) {
             strokeWidth="2"
             strokeLinecap="round"
             strokeLinejoin="round">
-            <path d="M6 21L10 3h4l4 18H6z" />
-            <path d="M12 18L19 7" />
-            <line x1="8" y1="15" x2="16" y2="15" />
+            <polygon points="6 21 10 3 14 3 18 21 6 21" />
+            <line x1="12" y1="15" x2="19" y2="6" />
+            <circle cx="16.5" cy="9" r="1.5" fill="currentColor" />
         </svg>
     );
 }
 
-/**
- * Clean 20x20 stroke SVG icon for the Tuning Fork / Tuner (matches Lucide 2px stroke aesthetic).
- */
 export function TuningForkIcon({ size = 20 }) {
     return (
         <svg
@@ -49,16 +49,14 @@ export function TuningForkIcon({ size = 20 }) {
             strokeWidth="2"
             strokeLinecap="round"
             strokeLinejoin="round">
-            <path d="M8 3v7a4 4 0 0 0 8 0V3" />
-            <line x1="12" y1="14" x2="12" y2="21" />
+            <path d="M7 3v7a5 5 0 0 0 10 0V3" />
+            <line x1="12" y1="15" x2="12" y2="21" />
         </svg>
     );
 }
 
 export default function HomeScreen({ onNavigate }) {
     const {
-        darkMode,
-        setDarkMode,
         currentTab,
         setCurrentTab,
         tabOrders,
@@ -69,275 +67,390 @@ export default function HomeScreen({ onNavigate }) {
         setHomeSearchStr,
         homeModalVisible,
         setHomeModalVisible,
-        hideCrawlerTabsEnabled,
+        darkMode,
+        setDarkMode,
+        hideCrawlerTabsEnabled = true,
         dbRevision,
     } = useContext(AppContext);
 
-    const [playlists, setPlaylists] = useState([]);
-    const [bands, setBands] = useState([]);
-    const [songs, setSongs] = useState([]);
-    const [searchInLyrics, setSearchInLyrics] = useState(false);
-    const [metroActive, setMetroActive] = useState(() => getMetronomeState().isPlaying);
+    const [items, setItems] = useState([]);
+    const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+    const [metroState, setMetroState] = useState(() => getMetronomeState());
+    const scrollRef = useRef(null);
 
     useEffect(() => {
-        return subscribeMetronomeState((st) => setMetroActive(st.isPlaying));
+        return subscribeMetronomeState((st) => setMetroState(st));
     }, []);
 
-    const currentOrder = tabOrders[currentTab];
+    const currentOrder = tabOrders[currentTab] || 'ASC';
 
-    useEffect(() => {
-        if (currentTab === 'Playlists') {
-            const { sqlCondition, params } = buildMultiTokenSearchClause(
-                homeSearchStr,
-                'playlists.search_norm',
-                false
-            );
-            const whereClause = sqlCondition ? ` WHERE ${sqlCondition}` : '';
-            const orderClause =
-                currentOrder === 'ASC'
-                    ? ' ORDER BY name ASC'
-                    : currentOrder === 'DESC'
-                      ? ' ORDER BY name DESC'
-                      : '';
-
-            executeQuery(`SELECT id, name FROM playlists${whereClause}${orderClause};`, params)
-                .then((data) => {
-                    setPlaylists(data.rows._array);
-                })
-                .catch((err) => console.error(err));
-        } else if (currentTab === 'Bands') {
-            const { sqlCondition, params } = buildMultiTokenSearchClause(
-                homeSearchStr,
-                'bands.search_norm',
-                false
-            );
-            const conditions = [];
-            if (hideCrawlerTabsEnabled) {
-                conditions.push('bands.has_chords = 1');
-            }
-            if (sqlCondition) {
-                conditions.push(`(${sqlCondition})`);
-            }
-            const whereClause = conditions.length > 0 ? ` WHERE ${conditions.join(' AND ')}` : '';
-            const orderClause =
-                currentOrder === 'ASC'
-                    ? ' ORDER BY name ASC'
-                    : currentOrder === 'DESC'
-                      ? ' ORDER BY name DESC'
-                      : '';
-
-            executeQuery(`SELECT id, name FROM bands${whereClause}${orderClause};`, params)
-                .then((data) => {
-                    setBands(data.rows._array);
-                })
-                .catch((err) => console.error(err));
-        } else if (currentTab === 'Songs') {
-            const { sqlCondition, params } = buildMultiTokenSearchClause(
-                homeSearchStr,
-                'songs.search_norm',
-                searchInLyrics
-            );
-            const conditions = [];
-            if (hideCrawlerTabsEnabled) {
-                conditions.push('songs.has_chords = 1');
-            }
-            if (sqlCondition) {
-                conditions.push(`(${sqlCondition})`);
-            }
-            const whereClause = conditions.length > 0 ? ` WHERE ${conditions.join(' AND ')}` : '';
-            const orderClause =
-                currentOrder === 'ASC'
-                    ? ' ORDER BY songs.name ASC'
-                    : currentOrder === 'DESC'
-                      ? ' ORDER BY songs.name DESC'
-                      : '';
-
-            executeQuery(
-                `SELECT songs.id, songs.name, bands.name AS band_name FROM songs INNER JOIN bands ON songs.band_id = bands.id${whereClause}${orderClause};`,
-                params
-            )
-                .then((data) => {
-                    setSongs(data.rows._array);
-                })
-                .catch((err) => console.error(err));
-        }
-    }, [currentTab, currentOrder, homeSearchStr, searchInLyrics, hideCrawlerTabsEnabled, dbRevision]);
-
-    const handleTabSelect = (tabName) => {
-        setCurrentTab(tabName);
-        setHomeSearchVisible(false);
-        setHomeSearchStr('');
-    };
-
-    const setOrderForCurrentTab = (orderVal) => {
-        setTabOrders((prev) => ({ ...prev, [currentTab]: orderVal }));
+    const handleSelectSortOrder = (nextOrder) => {
+        setTabOrders({ ...tabOrders, [currentTab]: nextOrder });
         setHomeModalVisible(false);
     };
 
+    useEffect(() => {
+        let isMounted = true;
+        setVisibleCount(PAGE_SIZE);
+        if (scrollRef.current) {
+            scrollRef.current.scrollTop = 0;
+        }
+
+        async function loadTabItems() {
+            try {
+                let sql = '';
+                let params = [];
+
+                if (currentTab === 'Playlists') {
+                    const { sqlCondition, params: searchParams } =
+                        buildMultiTokenSearchClause(
+                            homeSearchStr,
+                            'playlists.search_norm',
+                            false
+                        );
+                    const whereClause = sqlCondition ? `WHERE ${sqlCondition}` : '';
+                    params = searchParams;
+
+                    const orderClause =
+                        currentOrder === 'Original'
+                            ? 'ORDER BY playlists.id ASC'
+                            : `ORDER BY LOWER(playlists.name) ${currentOrder}`;
+
+                    sql = `SELECT playlists.id, playlists.name FROM playlists ${whereClause} ${orderClause};`;
+                } else if (currentTab === 'Bands') {
+                    const { sqlCondition, params: searchParams } =
+                        buildMultiTokenSearchClause(
+                            homeSearchStr,
+                            'bands.search_norm',
+                            false
+                        );
+                    const conditions = [];
+                    if (hideCrawlerTabsEnabled) {
+                        conditions.push('COALESCE(bands.has_chords, 1) = 1');
+                    }
+                    if (sqlCondition) {
+                        conditions.push(sqlCondition);
+                    }
+                    const whereClause =
+                        conditions.length > 0
+                            ? `WHERE ${conditions.join(' AND ')}`
+                            : '';
+                    params = searchParams;
+
+                    sql = `SELECT bands.id, bands.name FROM bands ${whereClause} ORDER BY LOWER(bands.name) ${currentOrder};`;
+                } else {
+                    const { sqlCondition, params: searchParams } =
+                        buildMultiTokenSearchClause(
+                            homeSearchStr,
+                            'songs.search_norm',
+                            true
+                        );
+                    const conditions = [];
+                    if (hideCrawlerTabsEnabled) {
+                        conditions.push('COALESCE(songs.has_chords, 1) = 1');
+                    }
+                    if (sqlCondition) {
+                        conditions.push(sqlCondition);
+                    }
+                    const whereClause =
+                        conditions.length > 0
+                            ? `WHERE ${conditions.join(' AND ')}`
+                            : '';
+                    params = searchParams;
+
+                    sql = `
+                        SELECT songs.id, songs.name, songs.origin_id, bands.name AS band_name
+                        FROM songs
+                        INNER JOIN bands ON songs.band_id = bands.id
+                        ${whereClause}
+                        ORDER BY LOWER(songs.name) ${currentOrder}, LOWER(bands.name) ${currentOrder};
+                    `;
+                }
+
+                const res = await executeQuery(sql, params);
+                if (isMounted) {
+                    setItems(res.rows._array);
+                }
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        loadTabItems();
+        return () => {
+            isMounted = false;
+        };
+    }, [currentTab, currentOrder, homeSearchStr, hideCrawlerTabsEnabled, dbRevision]);
+
+    const handleScroll = (e) => {
+        const el = e.currentTarget;
+        if (el.scrollTop + el.clientHeight >= el.scrollHeight - 240) {
+            if (visibleCount < items.length) {
+                setVisibleCount((prev) => Math.min(items.length, prev + PAGE_SIZE));
+            }
+        }
+    };
+
+    const visibleItems = items.slice(0, visibleCount);
+
+    const sortOptions =
+        currentTab === 'Playlists'
+            ? [
+                  { id: 'Original', label: 'Original Order' },
+                  { id: 'ASC', label: 'A → Z (Ascending)' },
+                  { id: 'DESC', label: 'Z → A (Descending)' },
+              ]
+            : [
+                  { id: 'ASC', label: 'A → Z (Ascending)' },
+                  { id: 'DESC', label: 'Z → A (Descending)' },
+              ];
+
     return (
         <>
+            {/* 1) Header: Left { 3 bars Settings, Acordismo } | Right { Metronome, Tuner, DarkMode, Search, 3 dots } */}
             <header className="app-header">
                 <div className="header-left">
                     <button
                         className="icon-btn"
                         title="Settings"
                         onClick={() => onNavigate({ screen: 'Settings' })}>
-                        <Menu size={24} />
+                        <Menu size={22} />
                     </button>
                     <h1 className="header-title">Acordismo</h1>
                 </div>
+
                 <div className="header-actions">
                     <button
                         className="icon-btn"
-                        title={metroActive ? 'Metronome (Playing)' : 'Metronome'}
+                        title="Metronome"
+                        onClick={() => onNavigate({ screen: 'Metronome' })}
                         style={
-                            metroActive
+                            metroState.isPlaying
                                 ? {
                                       color: '#f59e0b',
-                                      background: 'rgba(245, 158, 11, 0.15)',
+                                      background: 'rgba(245, 158, 11, 0.14)',
                                       borderRadius: 8,
                                   }
                                 : undefined
-                        }
-                        onClick={() => onNavigate({ screen: 'Metronome' })}>
+                        }>
                         <MetronomeIcon size={20} />
                     </button>
+
                     <button
                         className="icon-btn"
                         title="Tuner"
                         onClick={() => onNavigate({ screen: 'Tuner' })}>
                         <TuningForkIcon size={20} />
                     </button>
+
                     <button
                         className="icon-btn"
                         title="Toggle Dark Mode"
                         onClick={() => setDarkMode(!darkMode)}>
                         {darkMode ? <Sun size={20} /> : <Moon size={20} />}
                     </button>
+
                     <button
                         className="icon-btn"
                         title="Search"
-                        onClick={() => setHomeSearchVisible(!homeSearchVisible)}>
-                        <Search size={22} />
+                        onClick={() => {
+                            if (homeSearchVisible) {
+                                setHomeSearchStr('');
+                                setHomeSearchVisible(false);
+                            } else {
+                                setHomeSearchVisible(true);
+                            }
+                        }}>
+                        <Search size={20} />
                     </button>
+
                     <button
                         className="icon-btn"
-                        title="Order"
+                        title="Sort Options"
                         onClick={() => setHomeModalVisible(true)}>
-                        <MoreVertical size={22} />
+                        <MoreVertical size={20} />
                     </button>
                 </div>
             </header>
 
             {homeSearchVisible && (
-                <SearchBar
-                    placeholder={
-                        currentTab === 'Songs'
-                            ? searchInLyrics
-                                ? 'Search band, song, or lyrics...'
-                                : 'Search band or song (e.g. small hotel moon)...'
-                            : `Search ${currentTab.toLowerCase()}...`
-                    }
-                    value={homeSearchStr}
-                    onChange={setHomeSearchStr}
-                    onClear={() => setHomeSearchStr('')}
-                    showLyricsToggle={currentTab === 'Songs'}
-                    searchInLyrics={searchInLyrics}
-                    onToggleLyrics={() => setSearchInLyrics((prev) => !prev)}
-                />
+                <div className="search-bar-container">
+                    <input
+                        type="text"
+                        className="search-input"
+                        placeholder={`Search ${currentTab.toLowerCase()}...`}
+                        value={homeSearchStr}
+                        autoFocus
+                        onChange={(e) => setHomeSearchStr(e.target.value)}
+                    />
+                    {homeSearchStr && (
+                        <button
+                            className="icon-btn"
+                            title="Clear search"
+                            onClick={() => setHomeSearchStr('')}>
+                            <X size={18} />
+                        </button>
+                    )}
+                </div>
             )}
 
-            <nav className="tabs-bar">
-                {['Playlists', 'Bands', 'Songs'].map((tab) => (
-                    <button
-                        key={tab}
-                        className={`tab-btn ${currentTab === tab ? 'active' : ''}`}
-                        onClick={() => handleTabSelect(tab)}>
-                        {tab}
-                    </button>
-                ))}
+            {/* 2) Top Tab Bar: PLAYLISTS | BANDS | SONGS */}
+            <nav
+                className="tabs-bar"
+                style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(3, 1fr)',
+                    borderBottom: '1px solid var(--border-color)',
+                    background: 'var(--bg-surface)',
+                    flexShrink: 0,
+                }}>
+                {['Playlists', 'Bands', 'Songs'].map((tabName) => {
+                    const isActive = currentTab === tabName;
+                    return (
+                        <button
+                            key={tabName}
+                            type="button"
+                            className={`tab-btn ${isActive ? 'active' : ''}`}
+                            onClick={() => setCurrentTab(tabName)}
+                            style={{
+                                padding: '13px 8px',
+                                border: 'none',
+                                borderBottom: isActive
+                                    ? '3px solid var(--accent-color)'
+                                    : '3px solid transparent',
+                                background: 'transparent',
+                                color: isActive
+                                    ? 'var(--text-primary)'
+                                    : 'var(--text-secondary)',
+                                fontWeight: 700,
+                                fontSize: '0.88rem',
+                                letterSpacing: '0.03em',
+                                textTransform: 'uppercase',
+                                cursor: 'pointer',
+                            }}>
+                            {tabName}
+                        </button>
+                    );
+                })}
             </nav>
 
-            {currentTab === 'Playlists' && (
-                <VirtualList
-                    items={playlists}
-                    itemHeight={54}
-                    renderItem={(item) => (
+            {/* 3) Infinite Scroll List */}
+            <main
+                ref={scrollRef}
+                className="content-scroll"
+                onScroll={handleScroll}>
+                {visibleItems.map((item) => {
+                    if (currentTab === 'Playlists') {
+                        return (
+                            <div
+                                key={item.id}
+                                className="list-item"
+                                style={{ fontWeight: 700 }}
+                                onClick={() =>
+                                    onNavigate({
+                                        screen: 'Playlist',
+                                        params: {
+                                            selectedPlaylistId: item.id,
+                                            selectedPlaylistName: item.name,
+                                        },
+                                    })
+                                }>
+                                {item.name}
+                            </div>
+                        );
+                    }
+                    if (currentTab === 'Bands') {
+                        return (
+                            <div
+                                key={item.id}
+                                className="list-item"
+                                style={{ fontWeight: 700 }}
+                                onClick={() =>
+                                    onNavigate({
+                                        screen: 'Band',
+                                        params: {
+                                            selectedBandId: item.id,
+                                            selectedBandName: item.name,
+                                        },
+                                    })
+                                }>
+                                {item.name}
+                            </div>
+                        );
+                    }
+                    return (
                         <div
+                            key={item.id}
                             className="list-item"
-                            style={{ height: '100%', display: 'flex', alignItems: 'center' }}
                             onClick={() =>
                                 onNavigate({
-                                    screen: 'Playlist',
-                                    params: { selectedPlaylistId: item.id },
+                                    screen: 'Song',
+                                    params: {
+                                        selectedSongId: item.id,
+                                        originStr: item.band_name,
+                                    },
                                 })
                             }>
-                            <div className="list-item-title">{item.name}</div>
+                            <strong>{item.name}</strong>{' '}
+                            <span style={{ color: 'var(--text-secondary)' }}>
+                                [{item.band_name}]
+                            </span>
                         </div>
-                    )}
-                />
-            )}
+                    );
+                })}
+            </main>
 
-            {currentTab === 'Bands' && (
-                <VirtualList
-                    items={bands}
-                    itemHeight={54}
-                    renderItem={(item) => (
-                        <div
-                            className="list-item"
-                            style={{ height: '100%', display: 'flex', alignItems: 'center' }}
-                            onClick={() =>
-                                onNavigate({
-                                    screen: 'Band',
-                                    params: { selectedBandId: item.id },
-                                })
-                            }>
-                            <div className="list-item-title">{item.name}</div>
-                        </div>
-                    )}
-                />
-            )}
-
-            {currentTab === 'Songs' && (
-                <VirtualList
-                    items={songs}
-                    itemHeight={68}
-                    renderItem={(item) => (
-                        <SongItem
-                            id={item.id}
-                            name={item.name}
-                            band_name={item.band_name}
-                            ft_band_name=""
-                            onNavigate={onNavigate}
-                            originStr={item.band_name}
-                        />
-                    )}
-                />
-            )}
-
+            {/* Contextual 3-Dots Sort Order Modal */}
             {homeModalVisible && (
-                <div className="modal-backdrop" onClick={() => setHomeModalVisible(false)}>
-                    <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-                        <p style={{ marginTop: 0 }}>Order:</p>
-                        {currentTab === 'Playlists' && (
+                <div
+                    className="modal-backdrop"
+                    onClick={() => setHomeModalVisible(false)}>
+                    <div
+                        className="modal-card"
+                        onClick={(e) => e.stopPropagation()}>
+                        <div
+                            style={{
+                                fontWeight: 700,
+                                marginBottom: 12,
+                                paddingBottom: 10,
+                                borderBottom: '1px solid var(--border-color)',
+                            }}>
+                            Sort {currentTab}
+                        </div>
+                        <div
+                            style={{
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: 8,
+                                marginBottom: 15,
+                            }}>
+                            {sortOptions.map((opt) => {
+                                const active = currentOrder === opt.id;
+                                return (
+                                    <button
+                                        key={opt.id}
+                                        type="button"
+                                        className="btn-primary"
+                                        style={{
+                                            background: active
+                                                ? 'var(--accent-color)'
+                                                : 'var(--bg-primary)',
+                                            color: active
+                                                ? '#ffffff'
+                                                : 'var(--text-primary)',
+                                            border: '1px solid var(--border-color)',
+                                            textAlign: 'left',
+                                            padding: '10px 14px',
+                                        }}
+                                        onClick={() => handleSelectSortOrder(opt.id)}>
+                                        {opt.label}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'center' }}>
                             <button
-                                className="modal-sort-option"
-                                onClick={() => setOrderForCurrentTab('Original')}>
-                                {currentTab} Original
-                            </button>
-                        )}
-                        <button
-                            className="modal-sort-option"
-                            onClick={() => setOrderForCurrentTab('ASC')}>
-                            {currentTab} Ascending: A <ArrowRight size={14} /> Z
-                        </button>
-                        <button
-                            className="modal-sort-option"
-                            onClick={() => setOrderForCurrentTab('DESC')}>
-                            {currentTab} Descending: Z <ArrowRight size={14} /> A
-                        </button>
-                        <div style={{ display: 'flex', justifyContent: 'center', marginTop: 22 }}>
-                            <button
+                                type="button"
                                 className="btn-primary"
                                 onClick={() => setHomeModalVisible(false)}>
                                 Close
