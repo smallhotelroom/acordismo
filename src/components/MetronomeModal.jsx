@@ -1,27 +1,31 @@
 /**
  * @file src/components/MetronomeModal.jsx
- * @version 1.0.0
- * Metronome & Reference Notes modal with 5-row compact layout and interactive Roll Editor:
+ * @version 1.1.0
+ * Metronome & Reference Notes modal with 5-row compact layout and interactive Polyrhythm Roll Editor:
  * 1) Click: Natural/Synth + Keep on exit
  * 2) Master BPMs
  * 3) Start / Stop Metronome
- * 4) Beat subdivision (quick 4/4): Quarter (1/4), Eighth (1/8), Sixteenth (1/16)
- * 5) Multi-line Roll Editor (AAAA, ABABABAB, ABBBABBBABBBABBB)
+ * 4) Beat subdivision (quick 4/4): 1/4, 1/8, 1/3 (Triplet), 1/16
+ * 5) Multi-line Polyrhythm Roll Editor
  */
 import React from 'react';
 import { Pause, Play, Volume2, X } from 'lucide-react';
 import MetronomeRollEditor from './MetronomeRollEditor';
 import {
+    addMetronomeTrack,
+    cycleMetronomeTrackVoice,
     playReferenceNote,
+    removeLastMetronomeTrack,
     setMetronomeBpm,
     setMetronomePersistent,
     setMetronomePlaying,
     setMetronomeSoundMode,
     setMetronomeSubdivision,
+    setMetronomeTrackStepCount,
     toggleMetronomeTrackStep,
 } from '../shared/audioEngine';
 
-export const __version__ = '1.0.0';
+export const __version__ = '1.1.0';
 
 const REFERENCE_NOTES = [
     { label: 'C4', freq: 261.63 },
@@ -52,17 +56,17 @@ export default function MetronomeModal({ visible, metroState, onClose }) {
             onClick={handleCloseModal}>
             <div
                 className="modal-card"
-                style={{ maxWidth: 380, padding: '16px 18px' }}
+                style={{ maxWidth: 384, padding: '15px 17px' }}
                 onClick={(e) => e.stopPropagation()}>
-                {/* Modal Title Header (removed "(4/4)") */}
+                {/* Modal Title Header */}
                 <div
                     style={{
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'space-between',
                         borderBottom: '1px solid var(--border-color)',
-                        paddingBottom: 10,
-                        marginBottom: 10,
+                        paddingBottom: 9,
+                        marginBottom: 9,
                     }}>
                     <strong style={{ fontSize: '1.05rem' }}>Metronome</strong>
                     <button
@@ -82,8 +86,8 @@ export default function MetronomeModal({ visible, metroState, onClose }) {
                         alignItems: 'center',
                         justifyContent: 'space-between',
                         gap: 8,
-                        marginBottom: 10,
-                        paddingBottom: 10,
+                        marginBottom: 9,
+                        paddingBottom: 9,
                         borderBottom: '1px solid var(--border-color)',
                         fontSize: '0.8rem',
                     }}>
@@ -167,13 +171,13 @@ export default function MetronomeModal({ visible, metroState, onClose }) {
                 </div>
 
                 {/* ROW 2: Master BPM Controls */}
-                <div style={{ marginBottom: 10 }}>
+                <div style={{ marginBottom: 9 }}>
                     <div
                         style={{
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'space-between',
-                            marginBottom: 6,
+                            marginBottom: 5,
                         }}>
                         <button
                             type="button"
@@ -182,7 +186,7 @@ export default function MetronomeModal({ visible, metroState, onClose }) {
                             -
                         </button>
                         <div style={{ textAlign: 'center' }}>
-                            <span style={{ fontSize: '1.55rem', fontWeight: 800 }}>
+                            <span style={{ fontSize: '1.5rem', fontWeight: 800 }}>
                                 {metroState.bpm}
                             </span>
                             <span
@@ -220,15 +224,15 @@ export default function MetronomeModal({ visible, metroState, onClose }) {
                 </div>
 
                 {/* ROW 3: Start / Stop Metronome Button */}
-                <div style={{ marginBottom: 12 }}>
+                <div style={{ marginBottom: 10 }}>
                     <button
                         type="button"
                         className="btn-primary"
                         onClick={() => setMetronomePlaying(!metroState.isPlaying)}
                         style={{
                             width: '100%',
-                            padding: '9px',
-                            fontSize: '0.95rem',
+                            padding: '8px',
+                            fontSize: '0.92rem',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
@@ -239,23 +243,23 @@ export default function MetronomeModal({ visible, metroState, onClose }) {
                         }}>
                         {metroState.isPlaying ? (
                             <>
-                                <Pause size={17} /> Stop Metronome
+                                <Pause size={16} /> Stop Metronome
                             </>
                         ) : (
                             <>
-                                <Play size={17} /> Start Metronome
+                                <Play size={16} /> Start Metronome
                             </>
                         )}
                     </button>
                 </div>
 
-                {/* ROW 4: Beat subdivision (quick 4/4) */}
+                {/* ROW 4: Beat subdivision (quick 4/4) — 1/4, 1/8, 1/3, 1/16 */}
                 <div style={{ marginBottom: 8 }}>
                     <div
                         style={{
-                            fontSize: '0.78rem',
+                            fontSize: '0.76rem',
                             color: 'var(--text-secondary)',
-                            marginBottom: 5,
+                            marginBottom: 4,
                             fontWeight: 600,
                         }}>
                         Beat subdivision (quick 4/4)
@@ -263,23 +267,25 @@ export default function MetronomeModal({ visible, metroState, onClose }) {
                     <div
                         style={{
                             display: 'grid',
-                            gridTemplateColumns: 'repeat(3, 1fr)',
-                            gap: 6,
+                            gridTemplateColumns: 'repeat(4, 1fr)',
+                            gap: 5,
                         }}>
                         {[
-                            { val: 1, label: 'Quarter (1/4)' },
-                            { val: 2, label: 'Eighth (1/8)' },
-                            { val: 4, label: 'Sixteenth (1/16)' },
+                            { val: 1, label: '1/4', sub: 'Quarter' },
+                            { val: 2, label: '1/8', sub: 'Eighth' },
+                            { val: 3, label: '1/3', sub: 'Triplet' },
+                            { val: 4, label: '1/16', sub: 'Sixteenth' },
                         ].map((opt) => {
                             const active = metroState.subdivision === opt.val;
                             return (
                                 <button
                                     key={opt.val}
                                     type="button"
+                                    title={`${opt.sub} (${opt.label})`}
                                     onClick={() => setMetronomeSubdivision(opt.val)}
                                     style={{
-                                        padding: '6px 4px',
-                                        fontSize: '0.76rem',
+                                        padding: '5px 2px',
+                                        fontSize: '0.74rem',
                                         fontWeight: 700,
                                         borderRadius: 6,
                                         border: '1px solid var(--border-color)',
@@ -290,19 +296,23 @@ export default function MetronomeModal({ visible, metroState, onClose }) {
                                             ? '#ffffff'
                                             : 'var(--text-primary)',
                                         cursor: 'pointer',
+                                        lineHeight: 1.15,
                                     }}>
-                                    {opt.label}
+                                    <div>{opt.sub}</div>
+                                    <div style={{ fontSize: '0.68rem', opacity: 0.85 }}>
+                                        ({opt.label})
+                                    </div>
                                 </button>
                             );
                         })}
                     </div>
                 </div>
 
-                {/* ROW 5: Multi-Line Roll Editor */}
+                {/* ROW 5: Interactive Multi-Line Polyrhythm Roll Editor */}
                 <div
                     style={{
-                        marginBottom: 12,
-                        paddingBottom: 12,
+                        marginBottom: 10,
+                        paddingBottom: 10,
                         borderBottom: '1px solid var(--border-color)',
                     }}>
                     <MetronomeRollEditor
@@ -310,6 +320,10 @@ export default function MetronomeModal({ visible, metroState, onClose }) {
                         currentStepByTrack={metroState.currentStepByTrack}
                         isPlaying={metroState.isPlaying}
                         onToggleStep={toggleMetronomeTrackStep}
+                        onChangeTrackSteps={setMetronomeTrackStepCount}
+                        onCycleTrackVoice={cycleMetronomeTrackVoice}
+                        onAddTrack={addMetronomeTrack}
+                        onRemoveTrack={removeLastMetronomeTrack}
                     />
                 </div>
 
@@ -320,8 +334,8 @@ export default function MetronomeModal({ visible, metroState, onClose }) {
                             display: 'flex',
                             alignItems: 'center',
                             gap: 6,
-                            marginBottom: 8,
-                            fontSize: '0.84rem',
+                            marginBottom: 6,
+                            fontSize: '0.82rem',
                             fontWeight: 700,
                         }}>
                         <Volume2 size={15} /> Reference Notes (C4 – B4)
@@ -342,13 +356,13 @@ export default function MetronomeModal({ visible, metroState, onClose }) {
                                     })
                                 }
                                 style={{
-                                    padding: '7px 0',
+                                    padding: '6px 0',
                                     borderRadius: 6,
                                     border: '1px solid var(--border-color)',
                                     background: 'var(--bg-primary)',
                                     color: 'var(--text-primary)',
                                     fontWeight: 700,
-                                    fontSize: '0.8rem',
+                                    fontSize: '0.78rem',
                                     cursor: 'pointer',
                                 }}>
                                 {n.label.replace('4', '')}

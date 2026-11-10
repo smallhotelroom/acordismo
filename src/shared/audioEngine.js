@@ -1,16 +1,20 @@
 /**
  * @file src/shared/audioEngine.js
- * @version 2.2.0
+ * @version 2.4.0
  * Web Audio API synthesis engine for Acordismo:
+ * - Tuner reference string definitions (`GUITAR_STRINGS`, `UKULELE_STRINGS`) & `playNoteFrequency`
  * - Polyphonic guitar/ukulele chord strumming & Reference pitch generator
- * - Multi-track / polyrhythm-ready Metronome scheduler with quick 4/4 presets:
- *   - 1/4 (Quarter):   1 track  (4 steps)  -> AAAA
- *   - 1/8 (Eighth):    2 tracks (8 steps)  -> Top: A·A·A·A· (4), Bottom: ·B·B·B·B (4) = ABABABAB
- *   - 1/16 (Sixteenth): 2 tracks (16 steps) -> Top: A···A···A···A··· (4), Bottom: ·BBB·BBB·BBB·BBB (12) = ABBBABBBABBBABBB
+ * - Multi-track Polyrhythm Metronome scheduler with quick 4/4 presets:
+ *   - 1 (1/4 Quarter):   1 track  (4 steps)  -> AAAA
+ *   - 2 (1/8 Eighth):    2 tracks (8 steps)  -> ABABABAB
+ *   - 3 (1/3 Triplet):   2 tracks (12 steps) -> ABBABBABBABB
+ *   - 4 (1/16 Sixteenth): 2 tracks (16 steps) -> ABBBABBBABBBABBB
+ * - Full per-track step-count editing (1..16 steps per track), voice cycling ('high'|'mid'|'low'),
+ *   and up to 4 simultaneous polyrhythm tracks (A, B, C, D).
  */
 import { APP_DEFAULTS } from './AppContext';
 
-export const __version__ = '2.2.0';
+export const __version__ = '2.4.0';
 
 let audioCtx = null;
 
@@ -27,14 +31,36 @@ function getAudioContext() {
     return audioCtx;
 }
 
+// --- TUNER STRING CONSTANTS ---
+export const GUITAR_STRINGS = [
+    { string: 6, note: 'E2', label: '6E', freq: 82.41, midi: 40 },
+    { string: 5, note: 'A2', label: '5A', freq: 110.0, midi: 45 },
+    { string: 4, note: 'D3', label: '4D', freq: 146.83, midi: 50 },
+    { string: 3, note: 'G3', label: '3G', freq: 196.0, midi: 55 },
+    { string: 2, note: 'B3', label: '2B', freq: 246.94, midi: 59 },
+    { string: 1, note: 'E4', label: '1e', freq: 329.63, midi: 64 },
+];
+
+export const UKULELE_STRINGS = [
+    { string: 4, note: 'G4', label: '4G', freq: 392.0, midi: 67 },
+    { string: 3, note: 'C4', label: '3C', freq: 261.63, midi: 60 },
+    { string: 2, note: 'E4', label: '2E', freq: 329.63, midi: 64 },
+    { string: 1, note: 'A4', label: '1A', freq: 440.0, midi: 69 },
+];
+
+const TRACK_LABELS = ['A', 'B', 'C', 'D'];
+const VOICE_ORDER = ['high', 'low', 'mid'];
+
 /**
- * Builds the default multi-track roll pattern for the quick 4/4 subdivision buttons (1, 2, or 4).
- * Each track has constant-height blocks whose width is 1 / track.steps.length of the bar.
+ * Builds the default multi-track roll pattern for the quick 4/4 subdivision buttons:
+ * - 1 (1/4):  1 track of 4 steps (AAAA)
+ * - 2 (1/8):  2 tracks of 8 steps (ABABABAB)
+ * - 3 (1/3):  2 tracks of 12 steps (ABBABBABBABB)
+ * - 4 (1/16): 2 tracks of 16 steps (ABBBABBBABBBABBB)
  */
 export function buildQuick44Tracks(subdivision = 1) {
     const sub = Number(subdivision) || 1;
     if (sub <= 1) {
-        // 5.1) 1/4: 1 line with 4 subdivisions, a dot on each subdivision (AAAA)
         return [
             {
                 id: 'A',
@@ -45,7 +71,7 @@ export function buildQuick44Tracks(subdivision = 1) {
         ];
     }
 
-    const totalSteps = 4 * sub; // 8 for 1/8, 16 for 1/16
+    const totalSteps = 4 * sub; // 8 for 1/8, 12 for 1/3, 16 for 1/16
     const topSteps = [];
     const bottomSteps = [];
 
@@ -55,8 +81,6 @@ export function buildQuick44Tracks(subdivision = 1) {
         bottomSteps.push(!isMainBeat);
     }
 
-    // 5.2) 1/8  -> 2 lines with 8 subdivisions (top: 4 dots, bottom: 4 complementary dots -> ABABABAB)
-    // 5.3) 1/16 -> 2 lines with 16 subdivisions (top: 4 dots, bottom: 12 complementary dots -> ABBBABBBABBBABBB)
     return [
         {
             id: 'A',
@@ -82,7 +106,7 @@ const PERSIST_STORAGE_KEY = 'acordismo_metronome_persistent';
 function loadInitialSubdivision() {
     if (typeof localStorage !== 'undefined') {
         const saved = parseInt(localStorage.getItem(SUBDIV_STORAGE_KEY), 10);
-        if ([1, 2, 4].includes(saved)) return saved;
+        if ([1, 2, 3, 4].includes(saved)) return saved;
     }
     return APP_DEFAULTS?.default_metronome_subdivision || 1;
 }
@@ -98,7 +122,7 @@ const metronomeState = {
         }
         return APP_DEFAULTS?.default_metronome_bpm || 120;
     })(),
-    subdivision: initialSubdiv, // 1 = Quarter (1/4), 2 = Eighth (1/8), 4 = Sixteenth (1/16)
+    subdivision: initialSubdiv, // 1 = 1/4, 2 = 1/8, 3 = 1/3, 4 = 1/16, 0 = Custom roll
     soundMode: (() => {
         if (typeof localStorage !== 'undefined') {
             const saved = localStorage.getItem(SOUND_STORAGE_KEY);
@@ -150,19 +174,22 @@ export function subscribeMetronomeState(listener) {
 
 /**
  * Schedules a single metronome click sound at `time` (in AudioContext seconds).
- * `voice`: 'high' (Track A / primary pulse) or 'low' (Track B / subdivision pulse).
+ * `voice`: 'high' (Track A), 'mid' (Track C), or 'low' (Track B).
  */
 function scheduleMetronomeClickAt(ctx, time, voice = 'high', soundMode = 'natural') {
     const isHigh = voice === 'high';
+    const isMid = voice === 'mid';
 
     if (soundMode === 'synth') {
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
         osc.type = 'triangle';
-        osc.frequency.setValueAtTime(isHigh ? 1046.5 : 659.25, time); // C6 (A) vs E5 (B)
+        const freq = isHigh ? 1046.5 : isMid ? 830.61 : 659.25; // C6 / G#5 / E5
+        const peakGain = isHigh ? 0.34 : isMid ? 0.26 : 0.2;
+        osc.frequency.setValueAtTime(freq, time);
 
         gain.gain.setValueAtTime(0.0001, time);
-        gain.gain.linearRampToValueAtTime(isHigh ? 0.34 : 0.2, time + 0.003);
+        gain.gain.linearRampToValueAtTime(peakGain, time + 0.003);
         gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.055);
 
         osc.connect(gain);
@@ -176,13 +203,14 @@ function scheduleMetronomeClickAt(ctx, time, voice = 'high', soundMode = 'natura
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.type = 'sine';
-    const startFreq = isHigh ? 1320 : 880;
-    const endFreq = isHigh ? 520 : 360;
+    const startFreq = isHigh ? 1320 : isMid ? 1060 : 840;
+    const endFreq = isHigh ? 520 : isMid ? 430 : 340;
+    const peakGain = isHigh ? 0.42 : isMid ? 0.32 : 0.24;
     osc.frequency.setValueAtTime(startFreq, time);
     osc.frequency.exponentialRampToValueAtTime(endFreq, time + 0.028);
 
     gain.gain.setValueAtTime(0.0001, time);
-    gain.gain.linearRampToValueAtTime(isHigh ? 0.42 : 0.24, time + 0.002);
+    gain.gain.linearRampToValueAtTime(peakGain, time + 0.002);
     gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.042);
 
     osc.connect(gain);
@@ -293,7 +321,7 @@ export function setMetronomeBpm(nextBpm) {
 }
 
 export function setMetronomeSubdivision(nextSubdiv) {
-    const valid = [1, 2, 4].includes(Number(nextSubdiv)) ? Number(nextSubdiv) : 1;
+    const valid = [1, 2, 3, 4].includes(Number(nextSubdiv)) ? Number(nextSubdiv) : 1;
     metronomeState.subdivision = valid;
     metronomeState.tracks = buildQuick44Tracks(valid);
     metronomeState.currentStepByTrack = metronomeState.tracks.map(() =>
@@ -315,6 +343,80 @@ export function toggleMetronomeTrackStep(trackIdx, stepIdx) {
     const track = metronomeState.tracks[trackIdx];
     if (!track || stepIdx < 0 || stepIdx >= track.steps.length) return;
     track.steps[stepIdx] = !track.steps[stepIdx];
+    metronomeState.subdivision = 0; // Mark as custom pattern
+    notifyListeners();
+}
+
+/**
+ * Changes the number of steps (1..16) on a single track independently (for polyrhythms like 3 against 4).
+ */
+export function setMetronomeTrackStepCount(trackIdx, nextCount) {
+    const track = metronomeState.tracks[trackIdx];
+    if (!track) return;
+    const clamped = Math.max(1, Math.min(16, Math.round(Number(nextCount) || 4)));
+    if (clamped === track.steps.length) return;
+
+    if (clamped < track.steps.length) {
+        track.steps = track.steps.slice(0, clamped);
+    } else {
+        while (track.steps.length < clamped) {
+            track.steps.push(true);
+        }
+    }
+    metronomeState.subdivision = 0;
+    if (metronomeState.isPlaying && audioCtx) {
+        resetSchedulerCursors(audioCtx);
+    }
+    notifyListeners();
+}
+
+/**
+ * Cycles a track's click pitch voice ('high' -> 'low' -> 'mid') when the user taps its left A/B/C badge.
+ */
+export function cycleMetronomeTrackVoice(trackIdx) {
+    const track = metronomeState.tracks[trackIdx];
+    if (!track) return;
+    const currIdx = VOICE_ORDER.indexOf(track.voice || 'high');
+    track.voice = VOICE_ORDER[(currIdx + 1) % VOICE_ORDER.length];
+    notifyListeners();
+}
+
+/**
+ * Appends a new polyrhythm track line (up to 4 tracks: A, B, C, D).
+ */
+export function addMetronomeTrack() {
+    if (metronomeState.tracks.length >= 4) return;
+    const nextIdx = metronomeState.tracks.length;
+    const label = TRACK_LABELS[nextIdx] || String.fromCharCode(65 + nextIdx);
+    const defaultVoice = nextIdx === 0 ? 'high' : nextIdx === 1 ? 'low' : 'mid';
+    const firstLen = metronomeState.tracks[0]?.steps.length || 4;
+    const defaultStepsCount = firstLen === 4 && nextIdx >= 1 ? 3 : 4;
+
+    metronomeState.tracks.push({
+        id: label,
+        label,
+        voice: defaultVoice,
+        steps: new Array(defaultStepsCount).fill(true),
+    });
+    metronomeState.currentStepByTrack.push(metronomeState.isPlaying ? 0 : -1);
+    metronomeState.subdivision = 0;
+    if (metronomeState.isPlaying && audioCtx) {
+        resetSchedulerCursors(audioCtx);
+    }
+    notifyListeners();
+}
+
+/**
+ * Removes the bottom-most track line (down to 1 track).
+ */
+export function removeLastMetronomeTrack() {
+    if (metronomeState.tracks.length <= 1) return;
+    metronomeState.tracks.pop();
+    metronomeState.currentStepByTrack.pop();
+    metronomeState.subdivision = 0;
+    if (metronomeState.isPlaying && audioCtx) {
+        resetSchedulerCursors(audioCtx);
+    }
     notifyListeners();
 }
 
@@ -357,7 +459,6 @@ export function playReferenceNote(
         filter.type = 'lowpass';
         filter.frequency.setValueAtTime(freqHz * 4, now);
     } else {
-        // Warm plucked acoustic string envelope
         osc1.type = 'triangle';
         osc2.type = 'sine';
         osc2.frequency.setValueAtTime(freqHz * 2, now);
@@ -384,6 +485,23 @@ export function playReferenceNote(
     osc2.start(now);
     osc1.stop(now + duration + 0.02);
     osc2.stop(now + duration + 0.02);
+}
+
+/**
+ * Alias used by `TunerScreen.jsx` for playing reference string tones (e.g. `playNoteFrequency(freq)`).
+ */
+export function playNoteFrequency(freqHz, options = {}) {
+    if (typeof options === 'number') {
+        return playReferenceNote(freqHz, {
+            mode: metronomeState.soundMode,
+            duration: options,
+        });
+    }
+    return playReferenceNote(freqHz, {
+        mode: options.mode || metronomeState.soundMode,
+        duration: options.duration || 1.8,
+        ...options,
+    });
 }
 
 export function playPolyphonicChord(
