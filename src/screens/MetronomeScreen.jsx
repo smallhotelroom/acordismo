@@ -1,88 +1,59 @@
 /**
  * @file src/screens/MetronomeScreen.jsx
  * @version 2.0.0
- * 4/4 Precision Web Audio Metronome connected to the persistent global scheduler:
- * - Continues playing across screens when 'Persist Across Screens' is ON (default: true)
- * - Adjustable BPM (30 - 260 BPM) + Tap Tempo
- * - Subdivision selector: Quarter (1/4), Eighth (1/8), Sixteenth (1/16)
- * - Sound selector: Natural (Woodblock) vs Synth (Digital Click)
+ * Full-screen Metronome with compact 5-row layout and interactive Polyrhythm Roll Editor:
+ * 1) Click: Natural/Synth + Keep on exit
+ * 2) Master BPMs (- / BPM / + and range slider)
+ * 3) Start / Stop Metronome
+ * 4) Beat subdivision (quick 4/4): Quarter (1/4), Eighth (1/8), Triplet (1/3), Sixteenth (1/16)
+ * 5) Multi-line Polyrhythm Roll Editor (MetronomeRollEditor)
  */
-import React, { useContext, useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Moon, Pause, Pin, Play, Sun, Volume2 } from 'lucide-react';
+import React, { useContext, useEffect, useState } from 'react';
+import { ArrowLeft, Moon, Pause, Play, RotateCcw, Sun } from 'lucide-react';
 import { AppContext } from '../shared/AppContext';
+import MetronomeRollEditor from '../components/MetronomeRollEditor';
 import {
+    addMetronomeTrack,
+    cycleMetronomeTrackVoice,
     getMetronomeState,
+    removeLastMetronomeTrack,
     setMetronomeBpm,
     setMetronomePersistent,
     setMetronomePlaying,
     setMetronomeSoundMode,
     setMetronomeSubdivision,
-    subscribeMetronomeBeat,
+    setMetronomeTrackStepCount,
     subscribeMetronomeState,
     toggleMetronomePlaying,
+    toggleMetronomeTrackStep,
 } from '../shared/audioEngine';
 
 export const __version__ = '2.0.0';
 
-const SUBDIVISIONS = [
-    { value: 1, label: '1/4', desc: 'Quarter' },
-    { value: 2, label: '1/8', desc: 'Eighth' },
-    { value: 4, label: '1/16', desc: 'Sixteenth' },
-];
-
 export default function MetronomeScreen({ onBack }) {
     const { darkMode, setDarkMode } = useContext(AppContext);
-
-    const [metro, setMetro] = useState(() => getMetronomeState());
-    const [currentBeat, setCurrentBeat] = useState(() => getMetronomeState().currentBeat);
-    const tapTimesRef = useRef([]);
+    const [metroState, setMetroState] = useState(() => getMetronomeState());
 
     useEffect(() => {
-        const unsubState = subscribeMetronomeState((nextState) => {
-            setMetro(nextState);
-        });
-        const unsubBeat = subscribeMetronomeBeat((beatIdx) => {
-            setCurrentBeat(beatIdx);
-        });
-
-        return () => {
-            unsubState();
-            unsubBeat();
-            // Only stop on unmount if the user explicitly disabled persistence!
-            const latest = getMetronomeState();
-            if (!latest.persistent && latest.isPlaying) {
-                setMetronomePlaying(false);
-            }
-        };
+        return subscribeMetronomeState((st) => setMetroState(st));
     }, []);
 
-    const handleTapTempo = () => {
-        const now = performance.now();
-        const taps = tapTimesRef.current.filter((t) => now - t < 2500);
-        taps.push(now);
-        tapTimesRef.current = taps;
-
-        if (taps.length >= 2) {
-            let totalIntervals = 0;
-            for (let i = 1; i < taps.length; i++) {
-                totalIntervals += taps[i] - taps[i - 1];
-            }
-            const avgMs = totalIntervals / (taps.length - 1);
-            const tappedBpm = Math.round(60000 / avgMs);
-            setMetronomeBpm(tappedBpm);
+    const handleBack = () => {
+        const latest = getMetronomeState();
+        if (!latest.persistent && latest.isPlaying) {
+            setMetronomePlaying(false);
         }
+        onBack();
     };
-
-    const { isPlaying, bpm, subdivision, soundMode, persistent } = metro;
 
     return (
         <>
             <header className="app-header">
                 <div className="header-left">
-                    <button className="icon-btn" onClick={onBack}>
+                    <button className="icon-btn" onClick={handleBack}>
                         <ArrowLeft size={22} />
                     </button>
-                    <h1 className="header-title">Metronome (4/4)</h1>
+                    <h1 className="header-title">Metronome</h1>
                 </div>
                 <div className="header-actions">
                     <button
@@ -94,274 +65,299 @@ export default function MetronomeScreen({ onBack }) {
                 </div>
             </header>
 
-            <main className="content-scroll" style={{ padding: 16 }}>
-                {/* Sound Mode & Persistence Bar */}
+            <main className="content-scroll">
                 <div
                     style={{
+                        maxWidth: 460,
+                        margin: '0 auto',
+                        padding: '12px 16px',
                         display: 'flex',
-                        flexWrap: 'wrap',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        gap: 10,
-                        padding: '12px 14px',
-                        borderRadius: 10,
-                        border: '1px solid var(--border-color)',
-                        background: 'var(--bg-surface)',
-                        marginBottom: 18,
-                    }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <Volume2 size={18} />
-                        <span style={{ fontWeight: 700, fontSize: '0.9rem' }}>Click:</span>
-                        <div style={{ display: 'inline-flex', gap: 6 }}>
-                            {['natural', 'synth'].map((m) => (
-                                <button
-                                    key={m}
-                                    type="button"
-                                    onClick={() => setMetronomeSoundMode(m)}
-                                    style={{
-                                        padding: '5px 12px',
-                                        borderRadius: 999,
-                                        fontWeight: 700,
-                                        fontSize: '0.82rem',
-                                        textTransform: 'capitalize',
-                                        border:
-                                            soundMode === m
-                                                ? '1px solid #2563eb'
-                                                : '1px solid var(--border-color)',
-                                        background:
-                                            soundMode === m ? '#2563eb' : 'transparent',
-                                        color:
-                                            soundMode === m
-                                                ? '#ffffff'
-                                                : 'var(--text-primary)',
-                                        cursor: 'pointer',
-                                    }}>
-                                    {m}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-
-                    <button
-                        type="button"
-                        title="Keep metronome playing when you navigate to songs"
-                        onClick={() => setMetronomePersistent(!persistent)}
-                        style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: 6,
-                            padding: '6px 12px',
-                            borderRadius: 999,
-                            fontWeight: 700,
-                            fontSize: '0.82rem',
-                            border: persistent
-                                ? '1px solid #2563eb'
-                                : '1px solid var(--border-color)',
-                            background: persistent ? '#2563eb' : 'transparent',
-                            color: persistent ? '#ffffff' : 'var(--text-primary)',
-                            cursor: 'pointer',
-                        }}>
-                        <Pin size={14} />
-                        {persistent ? 'Persist in Songs: ON' : 'Persist in Songs: OFF'}
-                    </button>
-                </div>
-
-                {/* 4/4 Visual Beat Indicator */}
-                <div
-                    style={{
-                        display: 'grid',
-                        gridTemplateColumns: 'repeat(4, 1fr)',
+                        flexDirection: 'column',
                         gap: 12,
-                        marginBottom: 22,
                     }}>
-                    {[0, 1, 2, 3].map((beatIdx) => {
-                        const active = isPlaying && currentBeat === beatIdx;
-                        const isDownbeat = beatIdx === 0;
-                        return (
-                            <div
-                                key={beatIdx}
-                                style={{
-                                    height: 54,
-                                    borderRadius: 10,
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    fontWeight: 800,
-                                    fontSize: '1.15rem',
-                                    border: active
-                                        ? `2px solid ${isDownbeat ? '#f59e0b' : '#2563eb'}`
-                                        : '1px solid var(--border-color)',
-                                    background: active
-                                        ? isDownbeat
-                                            ? '#f59e0b'
-                                            : '#2563eb'
-                                        : 'var(--bg-surface)',
-                                    color: active ? '#ffffff' : 'var(--text-secondary)',
-                                    transition: 'all 0.06s ease',
-                                }}>
-                                {beatIdx + 1}
-                            </div>
-                        );
-                    })}
-                </div>
-
-                {/* BPM Display & Controls */}
-                <div
-                    style={{
-                        padding: 18,
-                        borderRadius: 12,
-                        border: '1px solid var(--border-color)',
-                        background: 'var(--bg-surface)',
-                        textAlign: 'center',
-                        marginBottom: 18,
-                    }}>
-                    <div
-                        style={{
-                            fontSize: '2.8rem',
-                            fontWeight: 800,
-                            lineHeight: 1.1,
-                            marginBottom: 4,
-                        }}>
-                        {bpm}{' '}
-                        <span
-                            style={{
-                                fontSize: '1rem',
-                                fontWeight: 600,
-                                color: 'var(--text-secondary)',
-                            }}>
-                            BPM
-                        </span>
-                    </div>
-
-                    <input
-                        type="range"
-                        min="30"
-                        max="260"
-                        step="1"
-                        value={bpm}
-                        onChange={(e) => setMetronomeBpm(Number(e.target.value))}
-                        style={{
-                            width: '100%',
-                            margin: '14px 0',
-                            cursor: 'pointer',
-                        }}
-                    />
-
+                    {/* ROW 1: Click (Natural / Synth) + Keep on exit */}
                     <div
                         style={{
                             display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            flexWrap: 'wrap',
+                            gap: 10,
+                            padding: '10px 14px',
+                            borderRadius: 10,
+                            border: '1px solid var(--border-color)',
+                            background: 'var(--bg-surface)',
+                            fontSize: '0.86rem',
+                        }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span style={{ fontWeight: 700, color: 'var(--text-secondary)' }}>
+                                Click:
+                            </span>
+                            <div
+                                style={{
+                                    display: 'inline-flex',
+                                    background: 'var(--bg-primary)',
+                                    padding: 3,
+                                    borderRadius: 8,
+                                    border: '1px solid var(--border-color)',
+                                }}>
+                                {[
+                                    { id: 'natural', label: 'Natural' },
+                                    { id: 'synth', label: 'Synth' },
+                                ].map((opt) => {
+                                    const active = metroState.soundMode === opt.id;
+                                    return (
+                                        <button
+                                            key={opt.id}
+                                            type="button"
+                                            onClick={() => setMetronomeSoundMode(opt.id)}
+                                            style={{
+                                                padding: '4px 10px',
+                                                borderRadius: 6,
+                                                border: 'none',
+                                                fontWeight: 700,
+                                                fontSize: '0.8rem',
+                                                background: active
+                                                    ? 'var(--accent-color)'
+                                                    : 'transparent',
+                                                color: active
+                                                    ? '#ffffff'
+                                                    : 'var(--text-secondary)',
+                                                cursor: 'pointer',
+                                            }}>
+                                            {opt.label}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span style={{ fontWeight: 700, color: 'var(--text-secondary)' }}>
+                                Keep on exit:
+                            </span>
+                            <button
+                                type="button"
+                                onClick={() =>
+                                    setMetronomePersistent(!metroState.persistent)
+                                }
+                                style={{
+                                    padding: '4px 10px',
+                                    borderRadius: 6,
+                                    border: '1px solid var(--border-color)',
+                                    fontWeight: 700,
+                                    fontSize: '0.8rem',
+                                    background: metroState.persistent
+                                        ? 'var(--accent-color)'
+                                        : 'var(--bg-primary)',
+                                    color: metroState.persistent
+                                        ? '#ffffff'
+                                        : 'var(--text-secondary)',
+                                    cursor: 'pointer',
+                                }}>
+                                {metroState.persistent ? 'ON' : 'OFF'}
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* ROW 2: Master BPM Controls */}
+                    <div
+                        style={{
+                            padding: '12px 14px',
+                            borderRadius: 10,
+                            border: '1px solid var(--border-color)',
+                            background: 'var(--bg-surface)',
+                        }}>
+                        <div
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                marginBottom: 8,
+                            }}>
+                            <div style={{ display: 'flex', gap: 6 }}>
+                                <button
+                                    type="button"
+                                    className="btn-primary"
+                                    onClick={() => setMetronomeBpm(metroState.bpm - 5)}>
+                                    -5
+                                </button>
+                                <button
+                                    type="button"
+                                    className="btn-primary"
+                                    onClick={() => setMetronomeBpm(metroState.bpm - 1)}>
+                                    -1
+                                </button>
+                            </div>
+
+                            <div style={{ textAlign: 'center' }}>
+                                <span style={{ fontSize: '1.85rem', fontWeight: 800 }}>
+                                    {metroState.bpm}
+                                </span>
+                                <span
+                                    style={{
+                                        fontSize: '0.85rem',
+                                        color: 'var(--text-secondary)',
+                                        marginLeft: 5,
+                                        fontWeight: 700,
+                                    }}>
+                                    BPM
+                                </span>
+                            </div>
+
+                            <div style={{ display: 'flex', gap: 6 }}>
+                                <button
+                                    type="button"
+                                    className="btn-primary"
+                                    onClick={() => setMetronomeBpm(metroState.bpm + 1)}>
+                                    +1
+                                </button>
+                                <button
+                                    type="button"
+                                    className="btn-primary"
+                                    onClick={() => setMetronomeBpm(metroState.bpm + 5)}>
+                                    +5
+                                </button>
+                            </div>
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <input
+                                type="range"
+                                min="40"
+                                max="240"
+                                value={metroState.bpm}
+                                onChange={(e) =>
+                                    setMetronomeBpm(parseInt(e.target.value, 10))
+                                }
+                                onDoubleClick={() => setMetronomeBpm(120)}
+                                style={{
+                                    flex: 1,
+                                    accentColor: 'var(--accent-color)',
+                                    cursor: 'pointer',
+                                }}
+                            />
+                            <button
+                                type="button"
+                                className="icon-btn"
+                                title="Reset to 120 BPM"
+                                onClick={() => setMetronomeBpm(120)}
+                                style={{ padding: 4 }}>
+                                <RotateCcw size={17} />
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* ROW 3: Start / Stop Metronome */}
+                    <button
+                        type="button"
+                        className="btn-primary"
+                        onClick={() => toggleMetronomePlaying()}
+                        style={{
+                            width: '100%',
+                            padding: '11px',
+                            fontSize: '1rem',
+                            fontWeight: 800,
+                            borderRadius: 10,
+                            display: 'flex',
+                            alignItems: 'center',
                             justifyContent: 'center',
                             gap: 8,
-                            flexWrap: 'wrap',
+                            background: metroState.isPlaying
+                                ? '#dc2626'
+                                : 'var(--accent-color)',
                         }}>
-                        <button
-                            className="btn-primary"
-                            onClick={() => setMetronomeBpm(bpm - 5)}>
-                            -5
-                        </button>
-                        <button
-                            className="btn-primary"
-                            onClick={() => setMetronomeBpm(bpm - 1)}>
-                            -1
-                        </button>
-                        <button
-                            className="btn-primary"
-                            style={{ background: '#4b5563' }}
-                            onClick={handleTapTempo}>
-                            TAP
-                        </button>
-                        <button
-                            className="btn-primary"
-                            onClick={() => setMetronomeBpm(bpm + 1)}>
-                            +1
-                        </button>
-                        <button
-                            className="btn-primary"
-                            onClick={() => setMetronomeBpm(bpm + 5)}>
-                            +5
-                        </button>
-                    </div>
-                </div>
+                        {metroState.isPlaying ? (
+                            <>
+                                <Pause size={18} /> Stop Metronome
+                            </>
+                        ) : (
+                            <>
+                                <Play size={18} /> Start Metronome
+                            </>
+                        )}
+                    </button>
 
-                {/* Beat Subdivision Selector (1/4, 1/8, 1/16) */}
-                <div style={{ marginBottom: 24 }}>
+                    {/* ROW 4: Beat subdivision (quick 4/4) */}
                     <div
                         style={{
-                            fontWeight: 800,
-                            fontSize: '0.95rem',
-                            marginBottom: 10,
+                            padding: '10px 14px',
+                            borderRadius: 10,
+                            border: '1px solid var(--border-color)',
+                            background: 'var(--bg-surface)',
                         }}>
-                        Beat Subdivision
-                    </div>
-                    <div
-                        style={{
-                            display: 'grid',
-                            gridTemplateColumns: 'repeat(3, 1fr)',
-                            gap: 10,
-                        }}>
-                        {SUBDIVISIONS.map((sub) => {
-                            const selected = subdivision === sub.value;
-                            return (
-                                <button
-                                    key={sub.value}
-                                    type="button"
-                                    onClick={() => setMetronomeSubdivision(sub.value)}
-                                    style={{
-                                        padding: '12px 8px',
-                                        borderRadius: 10,
-                                        border: selected
-                                            ? '2px solid #2563eb'
-                                            : '1px solid var(--border-color)',
-                                        background: selected
-                                            ? 'rgba(37, 99, 235, 0.14)'
-                                            : 'var(--bg-surface)',
-                                        color: 'var(--text-primary)',
-                                        cursor: 'pointer',
-                                    }}>
-                                    <div
+                        <div
+                            style={{
+                                fontSize: '0.82rem',
+                                fontWeight: 700,
+                                color: 'var(--text-secondary)',
+                                marginBottom: 8,
+                            }}>
+                            Beat subdivision (quick 4/4)
+                        </div>
+                        <div
+                            style={{
+                                display: 'grid',
+                                gridTemplateColumns: 'repeat(4, 1fr)',
+                                gap: 6,
+                            }}>
+                            {[
+                                { val: 1, label: '1/4', sub: 'Quarter' },
+                                { val: 2, label: '1/8', sub: 'Eighth' },
+                                { val: 3, label: '1/3', sub: 'Triplet' },
+                                { val: 4, label: '1/16', sub: 'Sixteenth' },
+                            ].map((opt) => {
+                                const active = metroState.subdivision === opt.val;
+                                return (
+                                    <button
+                                        key={opt.val}
+                                        type="button"
+                                        onClick={() => setMetronomeSubdivision(opt.val)}
                                         style={{
-                                            fontSize: '1.2rem',
-                                            fontWeight: 800,
-                                            color: selected
-                                                ? '#2563eb'
-                                                : 'var(--text-primary)',
-                                        }}>
-                                        {sub.label}
-                                    </div>
-                                    <div
-                                        style={{
+                                            padding: '7px 4px',
+                                            borderRadius: 8,
+                                            border: '1px solid var(--border-color)',
+                                            fontWeight: 700,
                                             fontSize: '0.78rem',
-                                            color: 'var(--text-secondary)',
-                                            marginTop: 2,
+                                            background: active
+                                                ? 'var(--accent-color)'
+                                                : 'var(--bg-primary)',
+                                            color: active
+                                                ? '#ffffff'
+                                                : 'var(--text-primary)',
+                                            cursor: 'pointer',
+                                            lineHeight: 1.2,
                                         }}>
-                                        {sub.desc}
-                                    </div>
-                                </button>
-                            );
-                        })}
+                                        <div>{opt.sub}</div>
+                                        <div style={{ fontSize: '0.7rem', opacity: 0.85 }}>
+                                            ({opt.label})
+                                        </div>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
+
+                    {/* ROW 5: Interactive Multi-Line Polyrhythm Roll Editor */}
+                    <div
+                        style={{
+                            padding: '10px 14px',
+                            borderRadius: 10,
+                            border: '1px solid var(--border-color)',
+                            background: 'var(--bg-surface)',
+                        }}>
+                        <MetronomeRollEditor
+                            tracks={metroState.tracks}
+                            currentStepByTrack={metroState.currentStepByTrack}
+                            isPlaying={metroState.isPlaying}
+                            onToggleStep={toggleMetronomeTrackStep}
+                            onChangeTrackSteps={setMetronomeTrackStepCount}
+                            onCycleTrackVoice={cycleMetronomeTrackVoice}
+                            onAddTrack={addMetronomeTrack}
+                            onRemoveTrack={removeLastMetronomeTrack}
+                        />
                     </div>
                 </div>
-
-                {/* Big Start / Stop Button */}
-                <button
-                    type="button"
-                    className="btn-primary"
-                    onClick={() => toggleMetronomePlaying()}
-                    style={{
-                        width: '100%',
-                        padding: '14px',
-                        fontSize: '1.1rem',
-                        fontWeight: 800,
-                        borderRadius: 10,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: 10,
-                        background: isPlaying ? '#dc2626' : '#2563eb',
-                    }}>
-                    {isPlaying ? <Pause size={20} /> : <Play size={20} />}
-                    {isPlaying ? 'STOP METRONOME' : 'START METRONOME'}
-                </button>
             </main>
         </>
     );

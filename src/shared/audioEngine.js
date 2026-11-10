@@ -1,6 +1,6 @@
 /**
  * @file src/shared/audioEngine.js
- * @version 2.4.0
+ * @version 2.5.0
  * Web Audio API synthesis engine for Acordismo:
  * - Tuner reference string definitions (`GUITAR_STRINGS`, `UKULELE_STRINGS`) & `playNoteFrequency`
  * - Polyphonic guitar/ukulele chord strumming & Reference pitch generator
@@ -14,11 +14,11 @@
  */
 import { APP_DEFAULTS } from './AppContext';
 
-export const __version__ = '2.4.0';
+export const __version__ = '2.5.0';
 
 let audioCtx = null;
 
-function getAudioContext() {
+export function getAudioContext() {
     if (!audioCtx && typeof window !== 'undefined') {
         const AudioContextClass = window.AudioContext || window.webkitAudioContext;
         if (AudioContextClass) {
@@ -140,9 +140,11 @@ const metronomeState = {
     tracks: buildQuick44Tracks(initialSubdiv),
     currentStepByTrack: buildQuick44Tracks(initialSubdiv).map(() => -1),
     currentBeat: -1,
+    currentSubBeat: 0,
 };
 
 const listeners = new Set();
+const beatListeners = new Set();
 
 function notifyListeners() {
     const snapshot = {
@@ -154,6 +156,16 @@ function notifyListeners() {
         currentStepByTrack: [...metronomeState.currentStepByTrack],
     };
     listeners.forEach((fn) => fn(snapshot));
+}
+
+function notifyBeatListeners() {
+    const beatPayload = {
+        beat: metronomeState.currentBeat,
+        subBeat: metronomeState.currentSubBeat,
+        isPlaying: metronomeState.isPlaying,
+        currentStepByTrack: [...metronomeState.currentStepByTrack],
+    };
+    beatListeners.forEach((fn) => fn(beatPayload));
 }
 
 export function getMetronomeState() {
@@ -170,6 +182,14 @@ export function getMetronomeState() {
 export function subscribeMetronomeState(listener) {
     listeners.add(listener);
     return () => listeners.delete(listener);
+}
+
+/**
+ * Subscribes to beat/step ticks (used by `MetronomeScreen.jsx`).
+ */
+export function subscribeMetronomeBeat(listener) {
+    beatListeners.add(listener);
+    return () => beatListeners.delete(listener);
 }
 
 /**
@@ -275,8 +295,11 @@ function runSchedulerTick() {
                         metronomeState.currentBeat = Math.floor(
                             (capturedStepIdx / numSteps) * 4
                         );
+                        metronomeState.currentSubBeat =
+                            capturedStepIdx % Math.max(1, Math.round(numSteps / 4));
                     }
                     notifyListeners();
+                    notifyBeatListeners();
                 }
             }, delayMs);
 
@@ -296,6 +319,7 @@ export function setMetronomePlaying(shouldPlay) {
         metronomeState.isPlaying = true;
         metronomeState.currentStepByTrack = metronomeState.tracks.map(() => 0);
         metronomeState.currentBeat = 0;
+        metronomeState.currentSubBeat = 0;
         resetSchedulerCursors(ctx);
         runSchedulerTick();
         schedulerTimerId = setInterval(runSchedulerTick, LOOKAHEAD_MS);
@@ -303,12 +327,27 @@ export function setMetronomePlaying(shouldPlay) {
         metronomeState.isPlaying = false;
         metronomeState.currentStepByTrack = metronomeState.tracks.map(() => -1);
         metronomeState.currentBeat = -1;
+        metronomeState.currentSubBeat = 0;
         if (schedulerTimerId) {
             clearInterval(schedulerTimerId);
             schedulerTimerId = null;
         }
     }
     notifyListeners();
+    notifyBeatListeners();
+}
+
+export function toggleMetronomePlaying() {
+    setMetronomePlaying(!metronomeState.isPlaying);
+    return metronomeState.isPlaying;
+}
+
+export function startMetronome() {
+    setMetronomePlaying(true);
+}
+
+export function stopMetronome() {
+    setMetronomePlaying(false);
 }
 
 export function setMetronomeBpm(nextBpm) {
@@ -334,6 +373,7 @@ export function setMetronomeSubdivision(nextSubdiv) {
         localStorage.setItem(SUBDIV_STORAGE_KEY, String(valid));
     }
     notifyListeners();
+    notifyBeatListeners();
 }
 
 /**
@@ -368,6 +408,7 @@ export function setMetronomeTrackStepCount(trackIdx, nextCount) {
         resetSchedulerCursors(audioCtx);
     }
     notifyListeners();
+    notifyBeatListeners();
 }
 
 /**
@@ -404,6 +445,7 @@ export function addMetronomeTrack() {
         resetSchedulerCursors(audioCtx);
     }
     notifyListeners();
+    notifyBeatListeners();
 }
 
 /**
@@ -418,6 +460,7 @@ export function removeLastMetronomeTrack() {
         resetSchedulerCursors(audioCtx);
     }
     notifyListeners();
+    notifyBeatListeners();
 }
 
 export function setMetronomeSoundMode(nextMode) {
