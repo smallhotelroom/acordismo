@@ -1,7 +1,8 @@
 /**
  * @file src/shared/chordDiagrams.js
- * @version 1.4.0
+ * @version 1.5.0
  * Guitar (6-string) and Ukulele (4-string) chord voicing generator for Acordismo.
+ * Includes `stringFrequencies` (indexed per string, `null` when muted) for the 6-line Arpeggio Sequencer.
  */
 import {
     parseChordToken,
@@ -18,7 +19,7 @@ import {
     suggestChordsForVoicing,
 } from './songSchema.js';
 
-export const __version__ = '1.4.0';
+export const __version__ = '1.5.0';
 
 export { GUITAR_STRING_NAMES, UKULELE_STRING_NAMES };
 
@@ -560,7 +561,11 @@ function midiToFreq(midi) {
     return 440 * Math.pow(2, (midi - 69) / 12);
 }
 
-export function getVoicingFrequencies(
+/**
+ * Returns an array of length `frets.length` (6 for Guitar, 4 for Ukulele) where each element
+ * is either that string's exact frequency in Hz, or `null` if the string is muted (`f < 0`).
+ */
+export function getVoicingStringFrequencies(
     frets,
     instrument = 'guitar',
     { openMidis = null, pitchShiftSemitones = 0 } = {}
@@ -568,14 +573,20 @@ export function getVoicingFrequencies(
     const baseMidis =
         openMidis ||
         (instrument === 'ukulele' ? UKULELE_OPEN_MIDI : GUITAR_OPEN_MIDI);
-    const freqs = [];
-    for (let i = 0; i < frets.length; i++) {
-        const f = frets[i];
-        if (f >= 0) {
-            freqs.push(midiToFreq(baseMidis[i] + f + pitchShiftSemitones));
-        }
-    }
-    return freqs;
+    return frets.map((f, i) =>
+        f >= 0 ? midiToFreq(baseMidis[i] + f + pitchShiftSemitones) : null
+    );
+}
+
+export function getVoicingFrequencies(
+    frets,
+    instrument = 'guitar',
+    { openMidis = null, pitchShiftSemitones = 0 } = {}
+) {
+    return getVoicingStringFrequencies(frets, instrument, {
+        openMidis,
+        pitchShiftSemitones,
+    }).filter((freq) => freq !== null);
 }
 
 function resolveStandardFretsForChord(chordStr, instrument = 'guitar') {
@@ -731,10 +742,11 @@ export function getChordDiagramData(
         soundOpenMidis = rawGuitarTuning.openMidis;
     }
 
-    const frequencies = getVoicingFrequencies(soundFrets, soundInstrument, {
+    const stringFrequencies = getVoicingStringFrequencies(soundFrets, soundInstrument, {
         openMidis: soundOpenMidis,
         pitchShiftSemitones: soundPitchShift,
     });
+    const frequencies = stringFrequencies.filter((f) => f !== null);
 
     const concertMatches = suggestChordsForVoicing(soundFrets, soundInstrument, {
         maxResults: 1,
@@ -752,6 +764,7 @@ export function getChordDiagramData(
         stringNames: diagramTuning.stringNames,
         isCustomTuning: diagramTuning.isCustom,
         tuningDisplay: diagramTuning.displayStr,
+        stringFrequencies,
         frequencies,
         isSongSpecific,
         customLabel: modeNote,

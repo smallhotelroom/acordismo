@@ -1,9 +1,9 @@
 /**
  * @file src/screens/SongScreen.jsx
- * @version 3.2.0
+ * @version 3.3.0
  */
 import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Music, Square } from 'lucide-react';
+import { ArrowLeft, Music, Sliders, Square } from 'lucide-react';
 import executeQuery from '../shared/database';
 import { AppContext } from '../shared/AppContext';
 import { FREEZE_CHORDS_STORAGE_KEY } from './SettingsScreen';
@@ -11,6 +11,7 @@ import { MetronomeIcon } from './HomeScreen';
 import AutoScrollControl from '../components/AutoScrollControl';
 import ChordDiagramPopover from '../components/ChordDiagramPopover';
 import SongInfoModal from '../components/SongInfoModal';
+import SongStrumModal from '../components/SongStrumModal';
 import { buildSongSheetElements } from '../components/songSheetRenderer';
 import {
     buildTransposedCustomVoicings,
@@ -33,11 +34,13 @@ import {
 } from '../shared/crawlerTransposer';
 import {
     buildSongChordSequence,
+    buildStrumPresetTracks,
     parseBeatsPerBar,
-    strumSequenceChordItem,
+    resizeStrumTracks,
+    triggerPatternStepOnChord,
 } from '../shared/songChordPlayer';
 
-export const __version__ = '3.2.0';
+export const __version__ = '3.3.0';
 
 export default function SongScreen({ routeParams, onNavigate, onBack }) {
     const { selectedSongId, originStr } = routeParams;
@@ -66,6 +69,7 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
     }, [ctxFreezeChords]);
 
     const [songModalVisible, setSongModalVisible] = useState(false);
+    const [strumModalVisible, setStrumModalVisible] = useState(false);
     const [selectedDiagramChord, setSelectedDiagramChord] = useState(null);
     const [activeTranslationLang, setActiveTranslationLang] = useState(null);
     const [speedMenuOpen, setSpeedMenuOpen] = useState(false);
@@ -75,11 +79,54 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
     const [sheetBgColor, setSheetBgColor] = useState('var(--bg-primary, #f3f4f6)');
     const [metroState, setMetroState] = useState(() => getMetronomeState());
 
-    // Phase 1 Song Chord Sequencer state
+    // Phase 2 Song Chord & 6-String Arpeggio Sequencer state
+    const effectiveInstrument = fakeUkeEnabled ? 'ukulele' : chordInstrument;
+    const [strumPresetId, setStrumPresetId] = useState('quarter');
+    const [strumTracks, setStrumTracks] = useState(() =>
+        buildStrumPresetTracks('quarter', effectiveInstrument).tracks
+    );
     const [chordPlayActive, setChordPlayActive] = useState(false);
     const [activeChordSeqIdx, setActiveChordSeqIdx] = useState(null);
     const [activeBeatInChord, setActiveBeatInChord] = useState(0);
-    const playCursorRef = useRef({ seqIdx: 0, beatInChord: 0 });
+    const [activeStepInBar, setActiveStepInBar] = useState(-1);
+    const playCursorRef = useRef({ seqIdx: 0, stepInChord: 0 });
+
+    // Rebuild string rows if instrument switches between 6-string Guitar and 4-string Ukulele
+    useEffect(() => {
+        const expectedLen = effectiveInstrument === 'ukulele' ? 4 : 6;
+        if (strumTracks.length !== expectedLen) {
+            const preset = buildStrumPresetTracks(
+                strumPresetId || 'quarter',
+                effectiveInstrument
+            );
+            setStrumTracks(preset.tracks);
+        }
+    }, [effectiveInstrument, strumPresetId, strumTracks.length]);
+
+    const handleSelectStrumPreset = (nextPresetId) => {
+        const built = buildStrumPresetTracks(nextPresetId, effectiveInstrument);
+        setStrumPresetId(nextPresetId);
+        setStrumTracks(built.tracks);
+        playCursorRef.current.stepInChord = 0;
+    };
+
+    const handleToggleStrumDot = (sIdx, stepIdx) => {
+        setStrumPresetId('custom');
+        setStrumTracks((prev) =>
+            prev.map((row, idx) => {
+                if (idx !== sIdx) return row;
+                const nextSteps = [...row.steps];
+                nextSteps[stepIdx] = !nextSteps[stepIdx];
+                return { ...row, steps: nextSteps };
+            })
+        );
+    };
+
+    const handleChangeStepsPerBar = (nextCount) => {
+        setStrumPresetId('custom');
+        setStrumTracks((prev) => resizeStrumTracks(prev, nextCount));
+        playCursorRef.current.stepInChord = 0;
+    };
 
     useEffect(() => {
         return subscribeMetronomeState((st) => setMetroState(st));
@@ -110,6 +157,7 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
         setActiveTranslationLang(null);
         setChordPlayActive(false);
         setActiveChordSeqIdx(null);
+        setActiveStepInBar(-1);
 
         async function loadSong() {
             try {
@@ -235,7 +283,6 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
         return metroState.bpm || 120;
     }, [songData, metroState.bpm]);
 
-    // Build flat sequence of timed chord events matching every rendered chord token
     const chordSequence = useMemo(() => {
         if (!songData) return [];
         return buildSongChordSequence({
@@ -247,10 +294,14 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
         });
     }, [songData, displayedLyrics, visualOffset, songUseFlats, beatsPerBar]);
 
-    // Keep latest playback config in a ref so the beat timer never stutters when re-rendering
+    const stepsPerBar = Math.max(1, strumTracks[0]?.steps?.length || 4);
+
     const playbackParamsRef = useRef({});
     playbackParamsRef.current = {
         chordSequence,
+        strumTracks,
+        stepsPerBar,
+        beatsPerBar,
         instrument: chordInstrument,
         customVoicings: transposedCustomVoicings,
         songCapo,
@@ -260,6 +311,7 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
         compensateCapo,
         fakeUkeEnabled,
         bpm: effectiveSongBpm,
+        soundMode: metroState.soundMode || 'natural',
     };
 
     const scrollActiveChordIntoView = (seqIdx) => {
@@ -278,7 +330,7 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
         }
     };
 
-    // Quarter-note beat timer for Phase 1 Song Chord Sequencer
+    // Sub-beat timer for Phase 2 6-String Arpeggio & Strum Sequencer
     useEffect(() => {
         if (!chordPlayActive) {
             return;
@@ -289,7 +341,7 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
             return;
         }
 
-        const fireCurrentBeat = () => {
+        const fireCurrentSubStep = () => {
             const params = playbackParamsRef.current;
             const list = params.chordSequence;
             if (!list || list.length === 0) {
@@ -297,23 +349,47 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
                 return;
             }
 
-            let { seqIdx, beatInChord } = playCursorRef.current;
+            let { seqIdx, stepInChord } = playCursorRef.current;
             if (seqIdx < 0 || seqIdx >= list.length) {
                 setChordPlayActive(false);
                 setActiveChordSeqIdx(null);
-                playCursorRef.current = { seqIdx: 0, beatInChord: 0 };
+                setActiveStepInBar(-1);
+                playCursorRef.current = { seqIdx: 0, stepInChord: 0 };
                 return;
             }
 
             const currentItem = list[seqIdx];
+            const totalStepsForChord = Math.max(
+                1,
+                Math.round(
+                    (currentItem.beats / params.beatsPerBar) * params.stepsPerBar
+                )
+            );
+            const startStepInBar = Math.round(
+                ((currentItem.startBeatInBar || 0) / params.beatsPerBar) *
+                    params.stepsPerBar
+            );
+            const currentStepInBar =
+                (startStepInBar + stepInChord) % params.stepsPerBar;
+            const currentBeatInChord = Math.min(
+                currentItem.beats - 1,
+                Math.floor(
+                    (stepInChord / totalStepsForChord) * currentItem.beats
+                )
+            );
+
             setActiveChordSeqIdx(seqIdx);
-            setActiveBeatInChord(beatInChord);
-            if (beatInChord === 0) {
+            setActiveBeatInChord(currentBeatInChord);
+            setActiveStepInBar(currentStepInBar);
+
+            if (stepInChord === 0) {
                 scrollActiveChordIntoView(seqIdx);
             }
 
-            strumSequenceChordItem(currentItem, {
-                beatInChord,
+            triggerPatternStepOnChord(currentItem, {
+                stepInBar: currentStepInBar,
+                stepInChord,
+                strumTracks: params.strumTracks,
                 instrument: params.instrument,
                 customVoicings: params.customVoicings,
                 songCapo: params.songCapo,
@@ -323,36 +399,39 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
                 compensateCapo: params.compensateCapo,
                 fakeUkeEnabled: params.fakeUkeEnabled,
                 bpm: params.bpm,
+                beatsPerBar: params.beatsPerBar,
+                soundMode: params.soundMode,
             });
 
-            // Advance cursor to next quarter-note beat
-            const nextBeat = beatInChord + 1;
-            if (nextBeat < currentItem.beats) {
-                playCursorRef.current = { seqIdx, beatInChord: nextBeat };
+            const nextStep = stepInChord + 1;
+            if (nextStep < totalStepsForChord) {
+                playCursorRef.current = { seqIdx, stepInChord: nextStep };
             } else {
-                playCursorRef.current = { seqIdx: seqIdx + 1, beatInChord: 0 };
+                playCursorRef.current = { seqIdx: seqIdx + 1, stepInChord: 0 };
             }
         };
 
-        // Fire first beat immediately on play/jump
-        fireCurrentBeat();
+        fireCurrentSubStep();
 
-        const intervalMs = (60 / Math.max(30, effectiveSongBpm)) * 1000;
-        const timerId = setInterval(fireCurrentBeat, intervalMs);
+        const barDurationMs =
+            (60 / Math.max(30, effectiveSongBpm)) * beatsPerBar * 1000;
+        const stepIntervalMs = barDurationMs / Math.max(1, stepsPerBar);
+        const timerId = setInterval(fireCurrentSubStep, stepIntervalMs);
         return () => clearInterval(timerId);
-    }, [chordPlayActive, effectiveSongBpm]);
+    }, [chordPlayActive, effectiveSongBpm, beatsPerBar, stepsPerBar]);
 
     const handleToggleChordPlay = () => {
         if (chordPlayActive) {
             setChordPlayActive(false);
             setActiveChordSeqIdx(null);
             setActiveBeatInChord(0);
+            setActiveStepInBar(-1);
         } else {
             if (
                 playCursorRef.current.seqIdx < 0 ||
                 playCursorRef.current.seqIdx >= chordSequence.length
             ) {
-                playCursorRef.current = { seqIdx: 0, beatInChord: 0 };
+                playCursorRef.current = { seqIdx: 0, stepInChord: 0 };
             }
             setChordPlayActive(true);
         }
@@ -398,20 +477,35 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
 
     const songScreenItems = useMemo(() => {
         const handleChordTap = (chordTokenStr, seqIdx) => {
-            // While chord playback is active, tapping any chord jumps the playback cursor there!
             if (chordPlayActive && typeof seqIdx === 'number' && seqIdx >= 0) {
-                playCursorRef.current = { seqIdx, beatInChord: 0 };
+                playCursorRef.current = { seqIdx, stepInChord: 0 };
                 setActiveChordSeqIdx(seqIdx);
                 setActiveBeatInChord(0);
-                strumSequenceChordItem(chordSequence[seqIdx], {
-                    beatInChord: 0,
-                    ...playbackParamsRef.current,
-                });
-                playCursorRef.current = {
-                    seqIdx:
-                        chordSequence[seqIdx]?.beats > 1 ? seqIdx : seqIdx + 1,
-                    beatInChord: chordSequence[seqIdx]?.beats > 1 ? 1 : 0,
-                };
+                const item = chordSequence[seqIdx];
+                if (item) {
+                    const params = playbackParamsRef.current;
+                    const startStepInBar = Math.round(
+                        ((item.startBeatInBar || 0) / params.beatsPerBar) *
+                            params.stepsPerBar
+                    );
+                    setActiveStepInBar(startStepInBar);
+                    triggerPatternStepOnChord(item, {
+                        stepInBar: startStepInBar,
+                        stepInChord: 0,
+                        ...params,
+                    });
+                    const totalStepsForChord = Math.max(
+                        1,
+                        Math.round(
+                            (item.beats / params.beatsPerBar) *
+                                params.stepsPerBar
+                        )
+                    );
+                    playCursorRef.current = {
+                        seqIdx: totalStepsForChord > 1 ? seqIdx : seqIdx + 1,
+                        stepInChord: totalStepsForChord > 1 ? 1 : 0,
+                    };
+                }
                 return;
             }
             if (chordDiagramsEnabled) {
@@ -539,21 +633,12 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
                         </button>
                     )}
 
-                    {/* Phase 1 Song Chord Sequencer Button */}
+                    {/* Phase 2 Split Pill: [ Play/Stop Chords | Open 6-String Arpeggio Roll ] */}
                     {chordSequence.length > 0 && (
-                        <button
-                            type="button"
-                            title={
-                                chordPlayActive
-                                    ? `Stop Chord Playback (${effectiveSongBpm} BPM) — tap any chord in lyrics to jump`
-                                    : `Play Song Chords at ${effectiveSongBpm} BPM (${beatsPerBar}/4)`
-                            }
-                            onClick={handleToggleChordPlay}
+                        <div
                             style={{
                                 display: 'inline-flex',
                                 alignItems: 'center',
-                                gap: 4,
-                                padding: '5px 8px',
                                 borderRadius: 8,
                                 border: chordPlayActive
                                     ? '1px solid #dc2626'
@@ -561,27 +646,67 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
                                 background: chordPlayActive
                                     ? '#dc2626'
                                     : 'var(--bg-primary)',
-                                color: chordPlayActive
-                                    ? '#ffffff'
-                                    : 'var(--text-primary)',
-                                fontWeight: 700,
-                                fontSize: '0.76rem',
-                                cursor: 'pointer',
+                                overflow: 'hidden',
                             }}>
-                            {chordPlayActive ? (
-                                <>
-                                    <Square size={13} />
-                                    {currentPlayingItem
-                                        ? `${currentPlayingItem.displayedChord} (${activeBeatInChord + 1}/${currentPlayingItem.beats})`
-                                        : 'Stop'}
-                                </>
-                            ) : (
-                                <>
-                                    <Music size={14} />
-                                    Chords
-                                </>
-                            )}
-                        </button>
+                            <button
+                                type="button"
+                                title={
+                                    chordPlayActive
+                                        ? `Stop Chord Playback (${effectiveSongBpm} BPM) — tap any chord in lyrics to jump`
+                                        : `Play Song Chords at ${effectiveSongBpm} BPM`
+                                }
+                                onClick={handleToggleChordPlay}
+                                style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: 4,
+                                    padding: '5px 7px',
+                                    border: 'none',
+                                    background: 'transparent',
+                                    color: chordPlayActive
+                                        ? '#ffffff'
+                                        : 'var(--text-primary)',
+                                    fontWeight: 700,
+                                    fontSize: '0.75rem',
+                                    cursor: 'pointer',
+                                }}>
+                                {chordPlayActive ? (
+                                    <>
+                                        <Square size={12} />
+                                        {currentPlayingItem
+                                            ? `${currentPlayingItem.displayedChord} (${activeBeatInChord + 1}/${currentPlayingItem.beats})`
+                                            : 'Stop'}
+                                    </>
+                                ) : (
+                                    <>
+                                        <Music size={13} />
+                                        Chords
+                                    </>
+                                )}
+                            </button>
+
+                            <button
+                                type="button"
+                                title="Edit 6-String Strum & Arpeggio Roll Pattern"
+                                onClick={() => setStrumModalVisible(true)}
+                                style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    padding: '5px 6px',
+                                    border: 'none',
+                                    borderLeft: chordPlayActive
+                                        ? '1px solid rgba(255,255,255,0.28)'
+                                        : '1px solid var(--border-color)',
+                                    background: 'transparent',
+                                    color: chordPlayActive
+                                        ? '#ffffff'
+                                        : 'var(--text-secondary)',
+                                    cursor: 'pointer',
+                                }}>
+                                <Sliders size={13} />
+                            </button>
+                        </div>
                     )}
 
                     <AutoScrollControl
@@ -666,6 +791,23 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
                     onClose={() => setSelectedDiagramChord(null)}
                 />
             )}
+
+            <SongStrumModal
+                visible={strumModalVisible}
+                instrument={effectiveInstrument}
+                onSelectInstrument={setChordInstrument}
+                strumPresetId={strumPresetId}
+                onSelectPreset={handleSelectStrumPreset}
+                strumTracks={strumTracks}
+                onToggleStrumDot={handleToggleStrumDot}
+                onChangeStepsPerBar={handleChangeStepsPerBar}
+                activeStepInBar={activeStepInBar}
+                chordPlayActive={chordPlayActive}
+                onToggleChordPlay={handleToggleChordPlay}
+                effectiveSongBpm={effectiveSongBpm}
+                currentPlayingChord={currentPlayingItem?.displayedChord || null}
+                onClose={() => setStrumModalVisible(false)}
+            />
 
             <SongInfoModal
                 visible={songModalVisible}
