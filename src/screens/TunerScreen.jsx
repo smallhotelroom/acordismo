@@ -13,7 +13,7 @@ import {
     playNoteFrequency,
 } from '../shared/audioEngine';
 
-export const __version__ = '1.0.0';
+export const __version__ = '1.0.1';
 
 const TUNER_SOUND_MODE_KEY = 'acordismo_tuner_sound_mode';
 
@@ -137,7 +137,7 @@ export default function TunerScreen({ onBack }) {
                     <button className="icon-btn" onClick={onBack}>
                         <ArrowLeft size={22} />
                     </button>
-                    <h1 className="header-title">Reference Tuner</h1>
+                    <h1 className="header-title">Acordismo Tuner</h1>
                 </div>
                 <div className="header-actions">
                     {activeStringId && (
