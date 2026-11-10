@@ -1,6 +1,6 @@
 /**
  * @file src/shared/audioEngine.js
- * @version 2.7.0
+ * @version 2.7.1
  * Web Audio API synthesis engine for Acordismo:
  * - Tuner reference string definitions (`GUITAR_STRINGS`, `UKULELE_STRINGS`) & `playNoteFrequency`
  * - Polyphonic guitar/ukulele chord strumming & Reference pitch generator
@@ -11,7 +11,7 @@
  */
 import { APP_DEFAULTS } from './AppContext';
 
-export const __version__ = '2.7.0';
+export const __version__ = '2.7.1';
 
 let audioCtx = null;
 
@@ -28,21 +28,21 @@ export function getAudioContext() {
     return audioCtx;
 }
 
-// --- TUNER STRING CONSTANTS ---
+// --- TUNER STRING CONSTANTS (with unique `id` fields for active button state) ---
 export const GUITAR_STRINGS = [
-    { string: 6, note: 'E2', label: '6E', freq: 82.41, midi: 40 },
-    { string: 5, note: 'A2', label: '5A', freq: 110.0, midi: 45 },
-    { string: 4, note: 'D3', label: '4D', freq: 146.83, midi: 50 },
-    { string: 3, note: 'G3', label: '3G', freq: 196.0, midi: 55 },
-    { string: 2, note: 'B3', label: '2B', freq: 246.94, midi: 59 },
-    { string: 1, note: 'E4', label: '1e', freq: 329.63, midi: 64 },
+    { id: 'g-6E', string: 6, note: 'E2', label: '6E', freq: 82.41, midi: 40 },
+    { id: 'g-5A', string: 5, note: 'A2', label: '5A', freq: 110.0, midi: 45 },
+    { id: 'g-4D', string: 4, note: 'D3', label: '4D', freq: 146.83, midi: 50 },
+    { id: 'g-3G', string: 3, note: 'G3', label: '3G', freq: 196.0, midi: 55 },
+    { id: 'g-2B', string: 2, note: 'B3', label: '2B', freq: 246.94, midi: 59 },
+    { id: 'g-1e', string: 1, note: 'E4', label: '1e', freq: 329.63, midi: 64 },
 ];
 
 export const UKULELE_STRINGS = [
-    { string: 4, note: 'G4', label: '4G', freq: 392.0, midi: 67 },
-    { string: 3, note: 'C4', label: '3C', freq: 261.63, midi: 60 },
-    { string: 2, note: 'E4', label: '2E', freq: 329.63, midi: 64 },
-    { string: 1, note: 'A4', label: '1A', freq: 440.0, midi: 69 },
+    { id: 'u-4G', string: 4, note: 'G4', label: '4G', freq: 392.0, midi: 67 },
+    { id: 'u-3C', string: 3, note: 'C4', label: '3C', freq: 261.63, midi: 60 },
+    { id: 'u-2E', string: 2, note: 'E4', label: '2E', freq: 329.63, midi: 64 },
+    { id: 'u-1A', string: 1, note: 'A4', label: '1A', freq: 440.0, midi: 69 },
 ];
 
 export const MAX_METRONOME_TRACKS = 12;
@@ -187,11 +187,6 @@ export function subscribeMetronomeBeat(listener) {
 
 /**
  * Schedules a single metronome click sound at `time` (in AudioContext seconds).
- * `voice`:
- *   - 'high' (Track A: Downbeat "1" accent)
- *   - 'mid'  (Track B: Main quarter beats)
- *   - 'low'  (Track C: Subdivision off-beats)
- *   - 'sub'  (Track D+: Deep polyrhythm pulse)
  */
 function scheduleMetronomeClickAt(ctx, time, voice = 'high', soundMode = 'natural') {
     if (soundMode === 'synth') {
@@ -408,20 +403,14 @@ export function setMetronomeSubdivision(nextSubdiv) {
     notifyBeatListeners();
 }
 
-/**
- * Toggles a single dot inside the roll editor (Track `trackIdx`, column `stepIdx`).
- */
 export function toggleMetronomeTrackStep(trackIdx, stepIdx) {
     const track = metronomeState.tracks[trackIdx];
     if (!track || stepIdx < 0 || stepIdx >= track.steps.length) return;
     track.steps[stepIdx] = !track.steps[stepIdx];
-    metronomeState.subdivision = 0; // Mark as custom pattern
+    metronomeState.subdivision = 0;
     notifyListeners();
 }
 
-/**
- * Changes the number of steps (1..32) on a single track independently.
- */
 export function setMetronomeTrackStepCount(trackIdx, nextCount) {
     const track = metronomeState.tracks[trackIdx];
     if (!track) return;
@@ -435,7 +424,6 @@ export function setMetronomeTrackStepCount(trackIdx, nextCount) {
         track.steps = track.steps.slice(0, clamped);
     } else {
         while (track.steps.length < clamped) {
-            // If Track A ("+---"), append false so Beat 1 stays the sole downbeat accent unless tapped
             track.steps.push(trackIdx !== 0);
         }
     }
@@ -447,9 +435,6 @@ export function setMetronomeTrackStepCount(trackIdx, nextCount) {
     notifyBeatListeners();
 }
 
-/**
- * Cycles a track's click pitch voice ('high' -> 'mid' -> 'low' -> 'sub') when the user taps its A/B/C badge.
- */
 export function cycleMetronomeTrackVoice(trackIdx) {
     const track = metronomeState.tracks[trackIdx];
     if (!track) return;
@@ -458,9 +443,6 @@ export function cycleMetronomeTrackVoice(trackIdx) {
     notifyListeners();
 }
 
-/**
- * Appends a new polyrhythm track line (up to 12 tracks: A .. L).
- */
 export function addMetronomeTrack() {
     if (metronomeState.tracks.length >= MAX_METRONOME_TRACKS) return;
     const nextIdx = metronomeState.tracks.length;
@@ -485,9 +467,6 @@ export function addMetronomeTrack() {
     notifyBeatListeners();
 }
 
-/**
- * Removes the bottom-most track line (down to 1 track).
- */
 export function removeLastMetronomeTrack() {
     if (metronomeState.tracks.length <= 1) return;
     metronomeState.tracks.pop();

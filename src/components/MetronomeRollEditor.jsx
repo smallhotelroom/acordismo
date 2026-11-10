@@ -1,8 +1,8 @@
 /**
  * @file src/components/MetronomeRollEditor.jsx
- * @version 2.0.0
+ * @version 2.1.0
  * Multi-View Polyrhythm Roll Editor for the Acordismo Metronome:
- * - Header: "Roll pattern (tap dots, A follows bpm)" + 3-Mode View Switcher + (- Line / + Line)
+ * - Top Control Bar: [ Landscape | Portrait | Circular ] view selector + [ - Line | + Line ]
  * - Mode 1 ('horizontal' / Landscape): Horizontal tracks, time flows left-to-right.
  * - Mode 2 ('vertical'   / Portrait):  Transposed columns (A | B | C...), time flows top-to-bottom.
  * - Mode 3 ('circular'   / Circular):  Concentric Euclidean rhythm rings, time orbits clockwise from 12 o'clock.
@@ -13,7 +13,7 @@ import {
     MAX_METRONOME_TRACKS,
 } from '../shared/audioEngine';
 
-export const __version__ = '2.0.0';
+export const __version__ = '2.1.0';
 
 const VIEW_MODE_STORAGE_KEY = 'acordismo_metronome_view_mode';
 
@@ -522,7 +522,6 @@ export default function MetronomeRollEditor({
                                     ? 6.2
                                     : 7.5;
 
-                        // Compute polygon points for active dots on this ring (Euclidean geometry visual!)
                         const activeCoords = [];
                         const stepCoords = track.steps.map((hasDot, stepIdx) => {
                             const angleRad =
@@ -595,14 +594,12 @@ export default function MetronomeRollEditor({
                                                 onToggleStep &&
                                                 onToggleStep(trackIdx, stepIdx)
                                             }>
-                                            {/* Invisible larger hit target for easy thumb tapping */}
                                             <circle
                                                 cx={x}
                                                 cy={y}
                                                 r={Math.max(10, nodeRadius + 3)}
                                                 fill="transparent"
                                             />
-                                            {/* Outer glow ring when playhead hits this node */}
                                             {isPlayheadHere && (
                                                 <circle
                                                     cx={x}
@@ -716,126 +713,112 @@ export default function MetronomeRollEditor({
 
     return (
         <div>
-            {/* Micro-header: "Roll pattern (tap dots, A follows bpm)" + 3-View Switcher + (-/+ Line) */}
+            {/* Top Bar: Clickable [ Landscape | Portrait | Circular ] on Left + [ - Line | + Line ] on Right */}
             <div
                 style={{
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
-                    flexWrap: 'wrap',
-                    gap: 4,
-                    marginBottom: 5,
-                    fontSize: '0.74rem',
-                    color: 'var(--text-secondary)',
+                    gap: 6,
+                    marginBottom: 6,
                 }}>
-                <span style={{ fontWeight: 600 }}>
-                    Roll pattern{' '}
-                    <span style={{ opacity: 0.78, fontWeight: 400 }}>
-                        (tap dots, A follows bpm)
-                    </span>
-                </span>
+                {/* 3-Mode Visual Switcher with explicit labels */}
+                <div
+                    style={{
+                        display: 'inline-flex',
+                        background: 'var(--bg-primary)',
+                        padding: 2,
+                        borderRadius: 6,
+                        border: '1px solid var(--border-color)',
+                    }}>
+                    {[
+                        {
+                            id: 'horizontal',
+                            label: 'Landscape',
+                            title: 'Landscape Roll (Left → Right)',
+                        },
+                        {
+                            id: 'vertical',
+                            label: 'Portrait',
+                            title: 'Portrait Roll (Top → Bottom)',
+                        },
+                        {
+                            id: 'circular',
+                            label: 'Circular',
+                            title: 'Circular Euclidean Necklace (Clockwise)',
+                        },
+                    ].map((m) => {
+                        const active = viewMode === m.id;
+                        return (
+                            <button
+                                key={m.id}
+                                type="button"
+                                title={m.title}
+                                onClick={() => setViewMode(m.id)}
+                                style={{
+                                    padding: '4px 9px',
+                                    fontSize: '0.74rem',
+                                    fontWeight: 700,
+                                    borderRadius: 4,
+                                    border: 'none',
+                                    background: active
+                                        ? 'var(--accent-color)'
+                                        : 'transparent',
+                                    color: active
+                                        ? '#ffffff'
+                                        : 'var(--text-secondary)',
+                                    cursor: 'pointer',
+                                }}>
+                                {m.label}
+                            </button>
+                        );
+                    })}
+                </div>
 
-                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-                    {/* 3-Mode Visual Switcher: Landscape (═) | Portrait (║) | Circular (◎) */}
-                    <div
+                {/* - Line / + Line */}
+                <div style={{ display: 'inline-flex', gap: 4 }}>
+                    <button
+                        type="button"
+                        disabled={tracks.length <= 1}
+                        onClick={onRemoveTrack}
+                        title="Remove bottom track line"
                         style={{
-                            display: 'inline-flex',
-                            background: 'var(--bg-primary)',
-                            padding: 1.5,
-                            borderRadius: 5,
+                            padding: '4px 8px',
+                            fontSize: '0.73rem',
+                            fontWeight: 700,
+                            borderRadius: 6,
                             border: '1px solid var(--border-color)',
+                            background: 'var(--bg-primary)',
+                            color: 'var(--text-primary)',
+                            opacity: tracks.length <= 1 ? 0.35 : 1,
+                            cursor: tracks.length <= 1 ? 'default' : 'pointer',
                         }}>
-                        {[
-                            {
-                                id: 'horizontal',
-                                icon: '═',
-                                title: 'Landscape Roll (Left → Right)',
-                            },
-                            {
-                                id: 'vertical',
-                                icon: '║',
-                                title: 'Portrait Roll (Top → Bottom)',
-                            },
-                            {
-                                id: 'circular',
-                                icon: '◎',
-                                title: 'Circular Euclidean Necklace (Clockwise)',
-                            },
-                        ].map((m) => {
-                            const active = viewMode === m.id;
-                            return (
-                                <button
-                                    key={m.id}
-                                    type="button"
-                                    title={m.title}
-                                    onClick={() => setViewMode(m.id)}
-                                    style={{
-                                        padding: '1px 6px',
-                                        fontSize: '0.72rem',
-                                        fontWeight: 800,
-                                        borderRadius: 3.5,
-                                        border: 'none',
-                                        background: active
-                                            ? 'var(--accent-color)'
-                                            : 'transparent',
-                                        color: active
-                                            ? '#ffffff'
-                                            : 'var(--text-secondary)',
-                                        cursor: 'pointer',
-                                        lineHeight: 1.2,
-                                    }}>
-                                    {m.icon}
-                                </button>
-                            );
-                        })}
-                    </div>
-
-                    {/* - Line / + Line */}
-                    <div style={{ display: 'inline-flex', gap: 3 }}>
-                        <button
-                            type="button"
-                            disabled={tracks.length <= 1}
-                            onClick={onRemoveTrack}
-                            title="Remove bottom track line"
-                            style={{
-                                padding: '1px 5px',
-                                fontSize: '0.69rem',
-                                fontWeight: 700,
-                                borderRadius: 4,
-                                border: '1px solid var(--border-color)',
-                                background: 'var(--bg-primary)',
-                                color: 'var(--text-primary)',
-                                opacity: tracks.length <= 1 ? 0.35 : 1,
-                                cursor:
-                                    tracks.length <= 1 ? 'default' : 'pointer',
-                            }}>
-                            - Line
-                        </button>
-                        <button
-                            type="button"
-                            disabled={tracks.length >= MAX_METRONOME_TRACKS}
-                            onClick={onAddTrack}
-                            title="Add polyrhythm track line"
-                            style={{
-                                padding: '1px 5px',
-                                fontSize: '0.69rem',
-                                fontWeight: 700,
-                                borderRadius: 4,
-                                border: '1px solid var(--border-color)',
-                                background: 'var(--bg-primary)',
-                                color: 'var(--text-primary)',
-                                opacity:
-                                    tracks.length >= MAX_METRONOME_TRACKS
-                                        ? 0.35
-                                        : 1,
-                                cursor:
-                                    tracks.length >= MAX_METRONOME_TRACKS
-                                        ? 'default'
-                                        : 'pointer',
-                            }}>
-                            + Line
-                        </button>
-                    </div>
+                        - Line
+                    </button>
+                    <button
+                        type="button"
+                        disabled={tracks.length >= MAX_METRONOME_TRACKS}
+                        onClick={onAddTrack}
+                        title="Add polyrhythm track line"
+                        style={{
+                            padding: '4px 8px',
+                            fontSize: '0.73rem',
+                            fontWeight: 700,
+                            borderRadius: 6,
+                            border: '1px solid var(--border-color)',
+                            background: 'var(--bg-primary)',
+                            color: 'var(--text-primary)',
+                            opacity:
+                                tracks.length >= MAX_METRONOME_TRACKS
+                                    ? 0.35
+                                    : 1,
+                            cursor:
+                                tracks.length >= MAX_METRONOME_TRACKS
+                                    ? 'default'
+                                    : 'pointer',
+                        }}>
+                        + Line
+                    </button>
                 </div>
             </div>
 
