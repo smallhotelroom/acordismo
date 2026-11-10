@@ -1,9 +1,9 @@
 /**
  * @file src/screens/SongScreen.jsx
- * @version 3.1.0
+ * @version 3.2.0
  */
 import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Music, Square } from 'lucide-react';
 import executeQuery from '../shared/database';
 import { AppContext } from '../shared/AppContext';
 import { FREEZE_CHORDS_STORAGE_KEY } from './SettingsScreen';
@@ -31,8 +31,13 @@ import {
     deduceAcordismoSongUseFlats,
     stripCrawlerTabSections,
 } from '../shared/crawlerTransposer';
+import {
+    buildSongChordSequence,
+    parseBeatsPerBar,
+    strumSequenceChordItem,
+} from '../shared/songChordPlayer';
 
-export const __version__ = '3.1.0';
+export const __version__ = '3.2.0';
 
 export default function SongScreen({ routeParams, onNavigate, onBack }) {
     const { selectedSongId, originStr } = routeParams;
@@ -70,6 +75,12 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
     const [sheetBgColor, setSheetBgColor] = useState('var(--bg-primary, #f3f4f6)');
     const [metroState, setMetroState] = useState(() => getMetronomeState());
 
+    // Phase 1 Song Chord Sequencer state
+    const [chordPlayActive, setChordPlayActive] = useState(false);
+    const [activeChordSeqIdx, setActiveChordSeqIdx] = useState(null);
+    const [activeBeatInChord, setActiveBeatInChord] = useState(0);
+    const playCursorRef = useRef({ seqIdx: 0, beatInChord: 0 });
+
     useEffect(() => {
         return subscribeMetronomeState((st) => setMetroState(st));
     }, []);
@@ -97,6 +108,8 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
     useEffect(() => {
         let isMounted = true;
         setActiveTranslationLang(null);
+        setChordPlayActive(false);
+        setActiveChordSeqIdx(null);
 
         async function loadSong() {
             try {
@@ -211,6 +224,140 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
         [parsedSections.customVoicings, visualOffset, songUseFlats]
     );
 
+    const beatsPerBar = useMemo(
+        () => parseBeatsPerBar(songData?.time_signature),
+        [songData]
+    );
+
+    const effectiveSongBpm = useMemo(() => {
+        const rawBpm = Number(songData?.bpm || 0);
+        if (rawBpm >= 30 && rawBpm <= 260) return rawBpm;
+        return metroState.bpm || 120;
+    }, [songData, metroState.bpm]);
+
+    // Build flat sequence of timed chord events matching every rendered chord token
+    const chordSequence = useMemo(() => {
+        if (!songData) return [];
+        return buildSongChordSequence({
+            displayedLyrics,
+            isCrawlerOrigin: Number(songData.origin_id || 0) > 0,
+            visualOffset,
+            songUseFlats,
+            beatsPerBar,
+        });
+    }, [songData, displayedLyrics, visualOffset, songUseFlats, beatsPerBar]);
+
+    // Keep latest playback config in a ref so the beat timer never stutters when re-rendering
+    const playbackParamsRef = useRef({});
+    playbackParamsRef.current = {
+        chordSequence,
+        instrument: chordInstrument,
+        customVoicings: transposedCustomVoicings,
+        songCapo,
+        songTuning: songData?.tuning || null,
+        vocalTransposition: transposition,
+        visualOffset,
+        compensateCapo,
+        fakeUkeEnabled,
+        bpm: effectiveSongBpm,
+    };
+
+    const scrollActiveChordIntoView = (seqIdx) => {
+        const container = scrollContainerRef.current;
+        if (!container) return;
+        const el = container.querySelector(`[data-chord-seq-idx="${seqIdx}"]`);
+        if (!el) return;
+        const containerRect = container.getBoundingClientRect();
+        const elRect = el.getBoundingClientRect();
+        const relTop = elRect.top - containerRect.top;
+        if (relTop < 56 || relTop > containerRect.height * 0.72) {
+            container.scrollTo({
+                top: Math.max(0, container.scrollTop + relTop - containerRect.height * 0.28),
+                behavior: 'smooth',
+            });
+        }
+    };
+
+    // Quarter-note beat timer for Phase 1 Song Chord Sequencer
+    useEffect(() => {
+        if (!chordPlayActive) {
+            return;
+        }
+        const { chordSequence: seq } = playbackParamsRef.current;
+        if (!seq || seq.length === 0) {
+            setChordPlayActive(false);
+            return;
+        }
+
+        const fireCurrentBeat = () => {
+            const params = playbackParamsRef.current;
+            const list = params.chordSequence;
+            if (!list || list.length === 0) {
+                setChordPlayActive(false);
+                return;
+            }
+
+            let { seqIdx, beatInChord } = playCursorRef.current;
+            if (seqIdx < 0 || seqIdx >= list.length) {
+                setChordPlayActive(false);
+                setActiveChordSeqIdx(null);
+                playCursorRef.current = { seqIdx: 0, beatInChord: 0 };
+                return;
+            }
+
+            const currentItem = list[seqIdx];
+            setActiveChordSeqIdx(seqIdx);
+            setActiveBeatInChord(beatInChord);
+            if (beatInChord === 0) {
+                scrollActiveChordIntoView(seqIdx);
+            }
+
+            strumSequenceChordItem(currentItem, {
+                beatInChord,
+                instrument: params.instrument,
+                customVoicings: params.customVoicings,
+                songCapo: params.songCapo,
+                songTuning: params.songTuning,
+                vocalTransposition: params.vocalTransposition,
+                visualOffset: params.visualOffset,
+                compensateCapo: params.compensateCapo,
+                fakeUkeEnabled: params.fakeUkeEnabled,
+                bpm: params.bpm,
+            });
+
+            // Advance cursor to next quarter-note beat
+            const nextBeat = beatInChord + 1;
+            if (nextBeat < currentItem.beats) {
+                playCursorRef.current = { seqIdx, beatInChord: nextBeat };
+            } else {
+                playCursorRef.current = { seqIdx: seqIdx + 1, beatInChord: 0 };
+            }
+        };
+
+        // Fire first beat immediately on play/jump
+        fireCurrentBeat();
+
+        const intervalMs = (60 / Math.max(30, effectiveSongBpm)) * 1000;
+        const timerId = setInterval(fireCurrentBeat, intervalMs);
+        return () => clearInterval(timerId);
+    }, [chordPlayActive, effectiveSongBpm]);
+
+    const handleToggleChordPlay = () => {
+        if (chordPlayActive) {
+            setChordPlayActive(false);
+            setActiveChordSeqIdx(null);
+            setActiveBeatInChord(0);
+        } else {
+            if (
+                playCursorRef.current.seqIdx < 0 ||
+                playCursorRef.current.seqIdx >= chordSequence.length
+            ) {
+                playCursorRef.current = { seqIdx: 0, beatInChord: 0 };
+            }
+            setChordPlayActive(true);
+        }
+    };
+
     const deducedKeyDisplay = useMemo(() => {
         if (!songData) return null;
         const originId = songData.origin_id;
@@ -249,29 +396,33 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
             : `${guessedOrig.key} (guessed, ${guessedOrig.confidence}%)`;
     }, [songData, mainSheetLyrics, visualOffset]);
 
-    const songScreenItems = useMemo(
-        () =>
-            buildSongSheetElements({
-                songData,
-                displayedLyrics,
-                isTranslationView: Boolean(activeTranslationObj),
-                songCapo,
-                compensateCapo,
-                fakeUkeEnabled,
-                parsedTuning,
-                visualOffset,
-                songUseFlats,
-                freezeChordsEnabled,
-                onChordTap: chordDiagramsEnabled
-                    ? (chordTokenStr) => setSelectedDiagramChord(chordTokenStr)
-                    : null,
-                sheetBgColor,
-                palette,
-            }),
-        [
+    const songScreenItems = useMemo(() => {
+        const handleChordTap = (chordTokenStr, seqIdx) => {
+            // While chord playback is active, tapping any chord jumps the playback cursor there!
+            if (chordPlayActive && typeof seqIdx === 'number' && seqIdx >= 0) {
+                playCursorRef.current = { seqIdx, beatInChord: 0 };
+                setActiveChordSeqIdx(seqIdx);
+                setActiveBeatInChord(0);
+                strumSequenceChordItem(chordSequence[seqIdx], {
+                    beatInChord: 0,
+                    ...playbackParamsRef.current,
+                });
+                playCursorRef.current = {
+                    seqIdx:
+                        chordSequence[seqIdx]?.beats > 1 ? seqIdx : seqIdx + 1,
+                    beatInChord: chordSequence[seqIdx]?.beats > 1 ? 1 : 0,
+                };
+                return;
+            }
+            if (chordDiagramsEnabled) {
+                setSelectedDiagramChord(chordTokenStr);
+            }
+        };
+
+        return buildSongSheetElements({
             songData,
             displayedLyrics,
-            activeTranslationObj,
+            isTranslationView: Boolean(activeTranslationObj),
             songCapo,
             compensateCapo,
             fakeUkeEnabled,
@@ -279,11 +430,30 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
             visualOffset,
             songUseFlats,
             freezeChordsEnabled,
-            chordDiagramsEnabled,
+            onChordTap:
+                chordDiagramsEnabled || chordPlayActive ? handleChordTap : null,
+            activeChordSeqIdx: chordPlayActive ? activeChordSeqIdx : null,
             sheetBgColor,
             palette,
-        ]
-    );
+        });
+    }, [
+        songData,
+        displayedLyrics,
+        activeTranslationObj,
+        songCapo,
+        compensateCapo,
+        fakeUkeEnabled,
+        parsedTuning,
+        visualOffset,
+        songUseFlats,
+        freezeChordsEnabled,
+        chordDiagramsEnabled,
+        chordPlayActive,
+        activeChordSeqIdx,
+        chordSequence,
+        sheetBgColor,
+        palette,
+    ]);
 
     const handleTouchStart = (e) => {
         if (e.touches.length === 2) {
@@ -324,11 +494,23 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
         }
     };
 
+    const currentPlayingItem =
+        chordPlayActive &&
+        activeChordSeqIdx !== null &&
+        chordSequence[activeChordSeqIdx]
+            ? chordSequence[activeChordSeqIdx]
+            : null;
+
     return (
         <>
             <header className="app-header" style={{ position: 'relative', zIndex: 20000 }}>
                 <div className="header-left">
-                    <button className="icon-btn" onClick={onBack}>
+                    <button
+                        className="icon-btn"
+                        onClick={() => {
+                            setChordPlayActive(false);
+                            onBack();
+                        }}>
                         <ArrowLeft size={22} />
                     </button>
                     <h1 className="header-title">{headerTitle}</h1>
@@ -354,6 +536,51 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
                             }}>
                             <MetronomeIcon size={15} />
                             {metroState.bpm}
+                        </button>
+                    )}
+
+                    {/* Phase 1 Song Chord Sequencer Button */}
+                    {chordSequence.length > 0 && (
+                        <button
+                            type="button"
+                            title={
+                                chordPlayActive
+                                    ? `Stop Chord Playback (${effectiveSongBpm} BPM) — tap any chord in lyrics to jump`
+                                    : `Play Song Chords at ${effectiveSongBpm} BPM (${beatsPerBar}/4)`
+                            }
+                            onClick={handleToggleChordPlay}
+                            style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 4,
+                                padding: '5px 8px',
+                                borderRadius: 8,
+                                border: chordPlayActive
+                                    ? '1px solid #dc2626'
+                                    : '1px solid var(--border-color)',
+                                background: chordPlayActive
+                                    ? '#dc2626'
+                                    : 'var(--bg-primary)',
+                                color: chordPlayActive
+                                    ? '#ffffff'
+                                    : 'var(--text-primary)',
+                                fontWeight: 700,
+                                fontSize: '0.76rem',
+                                cursor: 'pointer',
+                            }}>
+                            {chordPlayActive ? (
+                                <>
+                                    <Square size={13} />
+                                    {currentPlayingItem
+                                        ? `${currentPlayingItem.displayedChord} (${activeBeatInChord + 1}/${currentPlayingItem.beats})`
+                                        : 'Stop'}
+                                </>
+                            ) : (
+                                <>
+                                    <Music size={14} />
+                                    Chords
+                                </>
+                            )}
                         </button>
                     )}
 

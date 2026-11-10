@@ -1,8 +1,9 @@
 /**
  * @file src/components/songSheetRenderer.jsx
- * @version 1.1.0
+ * @version 1.2.0
  * Renders song sheet lines (curated `(...)` chord groups, standalone/crawler chord lines,
  * `[choir]` backing vocal blocks, and top capo/drop/tuning directives) into React elements.
+ * Supports highlighting the currently strumming chord (`activeChordSeqIdx`) during song playback.
  */
 import React from 'react';
 import {
@@ -18,7 +19,7 @@ import {
     stripOuterPunctuation,
 } from '../shared/crawlerTransposer';
 
-export const __version__ = '1.1.0';
+export const __version__ = '1.2.0';
 
 export function renderLyricWithChoir(text, choirColor, baseKey) {
     if (!text || !text.includes('[')) {
@@ -58,7 +59,9 @@ export function renderCrawlerChordLineNodes(
     useFlats,
     palette,
     startKey,
-    onChordClick
+    onChordClick,
+    seqCounterRef,
+    activeChordSeqIdx
 ) {
     const nodes = [];
     let keyCounter = startKey;
@@ -80,18 +83,32 @@ export function renderCrawlerChordLineNodes(
                     visualOffset,
                     useFlats
                 );
+                const mySeqIdx = seqCounterRef ? seqCounterRef.current++ : -1;
+                const isPlayingThisChord =
+                    activeChordSeqIdx !== null &&
+                    activeChordSeqIdx !== undefined &&
+                    activeChordSeqIdx === mySeqIdx;
+
                 nodes.push(
                     <strong
                         key={keyCounter++}
+                        data-chord-seq-idx={mySeqIdx >= 0 ? mySeqIdx : undefined}
                         style={{
-                            color: palette.chord,
+                            color: isPlayingThisChord ? '#ffffff' : palette.chord,
+                            backgroundColor: isPlayingThisChord
+                                ? 'var(--accent-color)'
+                                : 'transparent',
+                            borderRadius: isPlayingThisChord ? 4 : 0,
+                            padding: isPlayingThisChord ? '0 3px' : 0,
+                            margin: isPlayingThisChord ? '0 -3px' : 0,
                             cursor: onChordClick ? 'pointer' : 'inherit',
+                            transition: 'background-color 0.08s ease',
                         }}
                         onClick={
                             onChordClick
                                 ? (e) => {
                                       e.stopPropagation();
-                                      onChordClick(transposedChord);
+                                      onChordClick(transposedChord, mySeqIdx);
                                   }
                                 : undefined
                         }>
@@ -122,6 +139,7 @@ export function buildSongSheetElements({
     songUseFlats = false,
     freezeChordsEnabled = true,
     onChordTap = null,
+    activeChordSeqIdx = null,
     sheetBgColor = 'var(--bg-primary)',
     palette,
 }) {
@@ -132,6 +150,7 @@ export function buildSongSheetElements({
     const preChordItems = [];
     const sections = [];
     let currentSection = null;
+    const seqCounterRef = { current: 0 };
 
     if (!isTranslationView) {
         const topDirectives = [];
@@ -179,6 +198,41 @@ export function buildSongSheetElements({
     const lines = String(displayedLyrics || '').split('\n');
     let counter = 0;
 
+    const renderPlayableChordSpan = (transposedToken, tokKey) => {
+        const mySeqIdx = seqCounterRef.current++;
+        const isPlayingThisChord =
+            activeChordSeqIdx !== null &&
+            activeChordSeqIdx !== undefined &&
+            activeChordSeqIdx === mySeqIdx;
+
+        return (
+            <span
+                key={tokKey}
+                data-chord-seq-idx={mySeqIdx}
+                style={{
+                    color: isPlayingThisChord ? '#ffffff' : palette.chord,
+                    backgroundColor: isPlayingThisChord
+                        ? 'var(--accent-color)'
+                        : 'transparent',
+                    borderRadius: isPlayingThisChord ? 4 : 0,
+                    padding: isPlayingThisChord ? '0 3px' : 0,
+                    margin: isPlayingThisChord ? '0 -3px' : 0,
+                    cursor: onChordTap ? 'pointer' : 'inherit',
+                    transition: 'background-color 0.08s ease',
+                }}
+                onClick={
+                    onChordTap
+                        ? (e) => {
+                              e.stopPropagation();
+                              onChordTap(transposedToken, mySeqIdx);
+                          }
+                        : undefined
+                }>
+                {transposedToken}
+            </span>
+        );
+    };
+
     lines.forEach((lineText, lineIndex) => {
         const lineNodes = [];
         let hasChordsOnLine = false;
@@ -192,7 +246,9 @@ export function buildSongSheetElements({
                     songUseFlats,
                     palette,
                     counter,
-                    onChordTap
+                    onChordTap,
+                    seqCounterRef,
+                    activeChordSeqIdx
                 );
                 lineNodes.push(...nodes);
                 counter = nextKey;
@@ -209,7 +265,9 @@ export function buildSongSheetElements({
                 songUseFlats,
                 palette,
                 counter,
-                onChordTap
+                onChordTap,
+                seqCounterRef,
+                activeChordSeqIdx
             );
             lineNodes.push(...nodes);
             counter = nextKey;
@@ -277,22 +335,10 @@ export function buildSongSheetElements({
                                 songUseFlats
                             );
                             innerTokens.push(
-                                <span
-                                    key={`ch-${tokIdx++}`}
-                                    style={{
-                                        color: palette.chord,
-                                        cursor: onChordTap ? 'pointer' : 'inherit',
-                                    }}
-                                    onClick={
-                                        onChordTap
-                                            ? (e) => {
-                                                  e.stopPropagation();
-                                                  onChordTap(transposedToken);
-                                              }
-                                            : undefined
-                                    }>
-                                    {transposedToken}
-                                </span>
+                                renderPlayableChordSpan(
+                                    transposedToken,
+                                    `ch-${tokIdx++}`
+                                )
                             );
                             innerTokens.push(
                                 <span
@@ -310,22 +356,10 @@ export function buildSongSheetElements({
                                 songUseFlats
                             );
                             innerTokens.push(
-                                <span
-                                    key={`ch-${tokIdx++}`}
-                                    style={{
-                                        color: palette.chord,
-                                        cursor: onChordTap ? 'pointer' : 'inherit',
-                                    }}
-                                    onClick={
-                                        onChordTap
-                                            ? (e) => {
-                                                  e.stopPropagation();
-                                                  onChordTap(transposedToken);
-                                              }
-                                            : undefined
-                                    }>
-                                    {transposedToken}
-                                </span>
+                                renderPlayableChordSpan(
+                                    transposedToken,
+                                    `ch-${tokIdx++}`
+                                )
                             );
                         }
                         innerDone = true;
