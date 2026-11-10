@@ -1,11 +1,11 @@
 /**
  * @file src/screens/MetronomeScreen.jsx
- * @version 2.0.0
+ * @version 2.1.0
  * Full-screen Metronome with compact 5-row layout and interactive Polyrhythm Roll Editor:
  * 1) Click: Natural/Synth + Keep on exit
  * 2) Master BPMs (- / BPM / + and range slider)
  * 3) Start / Stop Metronome
- * 4) Beat subdivision (quick 4/4): Quarter (1/4), Eighth (1/8), Triplet (1/3), Sixteenth (1/16)
+ * 4) Beat subdivision: Quarter (1/4), Eighth (1/8), Triplet (1/3), Sixteenth (1/16)
  * 5) Multi-line Polyrhythm Roll Editor (MetronomeRollEditor)
  */
 import React, { useContext, useEffect, useState } from 'react';
@@ -28,7 +28,7 @@ import {
     toggleMetronomeTrackStep,
 } from '../shared/audioEngine';
 
-export const __version__ = '2.0.0';
+export const __version__ = '2.1.0';
 
 export default function MetronomeScreen({ onBack }) {
     const { darkMode, setDarkMode } = useContext(AppContext);
@@ -278,7 +278,7 @@ export default function MetronomeScreen({ onBack }) {
                         )}
                     </button>
 
-                    {/* ROW 4: Beat subdivision (quick 4/4) */}
+                    {/* ROW 4: Beat subdivision */}
                     <div
                         style={{
                             padding: '10px 14px',
@@ -293,7 +293,7 @@ export default function MetronomeScreen({ onBack }) {
                                 color: 'var(--text-secondary)',
                                 marginBottom: 8,
                             }}>
-                            Beat subdivision (quick 4/4)
+                            Beat subdivision
                         </div>
                         <div
                             style={{

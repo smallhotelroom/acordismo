@@ -1,20 +1,29 @@
 /**
  * @file src/shared/audioEngine.js
- * @version 2.5.0
+ * @version 2.6.0
  * Web Audio API synthesis engine for Acordismo:
  * - Tuner reference string definitions (`GUITAR_STRINGS`, `UKULELE_STRINGS`) & `playNoteFrequency`
  * - Polyphonic guitar/ukulele chord strumming & Reference pitch generator
- * - Multi-track Polyrhythm Metronome scheduler with quick 4/4 presets:
- *   - 1 (1/4 Quarter):   1 track  (4 steps)  -> AAAA
- *   - 2 (1/8 Eighth):    2 tracks (8 steps)  -> ABABABAB
- *   - 3 (1/3 Triplet):   2 tracks (12 steps) -> ABBABBABBABB
- *   - 4 (1/16 Sixteenth): 2 tracks (16 steps) -> ABBBABBBABBBABBB
- * - Full per-track step-count editing (1..16 steps per track), voice cycling ('high'|'mid'|'low'),
- *   and up to 4 simultaneous polyrhythm tracks (A, B, C, D).
+ * - Multi-track Polyrhythm Metronome scheduler with 3-tier quick presets:
+ *   - 1 (1/4 Quarter):
+ *       A (4): +--- (High downbeat accent)
+ *       B (4): -+++ (Mid quarter beats)
+ *   - 2 (1/8 Eighth):
+ *       A (4): +---
+ *       B (4): -+++
+ *       C (8): -+-+-+-+ (Low off-beat eighths)
+ *   - 3 (1/3 Triplet):
+ *       A (4): +---
+ *       B (4): -+++
+ *       C (12): -++-++-++-++ (Low triplet subdivisions)
+ *   - 4 (1/16 Sixteenth):
+ *       A (4): +---
+ *       B (4): -+++
+ *       C (16): -+++-+++-+++-+++ (Low sixteenth subdivisions)
  */
 import { APP_DEFAULTS } from './AppContext';
 
-export const __version__ = '2.5.0';
+export const __version__ = '2.6.0';
 
 let audioCtx = null;
 
@@ -49,50 +58,51 @@ export const UKULELE_STRINGS = [
 ];
 
 const TRACK_LABELS = ['A', 'B', 'C', 'D'];
-const VOICE_ORDER = ['high', 'low', 'mid'];
+const VOICE_ORDER = ['high', 'mid', 'low'];
 
 /**
- * Builds the default multi-track roll pattern for the quick 4/4 subdivision buttons:
- * - 1 (1/4):  1 track of 4 steps (AAAA)
- * - 2 (1/8):  2 tracks of 8 steps (ABABABAB)
- * - 3 (1/3):  2 tracks of 12 steps (ABBABBABBABB)
- * - 4 (1/16): 2 tracks of 16 steps (ABBBABBBABBBABBB)
+ * Builds the multi-track roll pattern for the Beat Subdivision buttons:
+ * - Track A (4 steps, 'high'): `+---` (Beat 1 Downbeat Accent)
+ * - Track B (4 steps, 'mid'):  `-+++` (Beats 2, 3, 4 Quarter Pulse)
+ * - Track C (4*sub steps, 'low', when sub > 1): complementary off-beat subdivisions
+ *   - 1/8  (8 steps):  `-+-+-+-+`
+ *   - 1/3  (12 steps): `-++-++-++-++`
+ *   - 1/16 (16 steps): `-+++-+++-+++-+++`
  */
 export function buildQuick44Tracks(subdivision = 1) {
     const sub = Number(subdivision) || 1;
-    if (sub <= 1) {
-        return [
-            {
-                id: 'A',
-                label: 'A',
-                voice: 'high',
-                steps: [true, true, true, true],
-            },
-        ];
-    }
-
-    const totalSteps = 4 * sub; // 8 for 1/8, 12 for 1/3, 16 for 1/16
-    const topSteps = [];
-    const bottomSteps = [];
-
-    for (let i = 0; i < totalSteps; i++) {
-        const isMainBeat = i % sub === 0;
-        topSteps.push(isMainBeat);
-        bottomSteps.push(!isMainBeat);
-    }
-
-    return [
+    const baseTracks = [
         {
             id: 'A',
             label: 'A',
             voice: 'high',
-            steps: topSteps,
+            steps: [true, false, false, false], // +--- (4)
         },
         {
             id: 'B',
             label: 'B',
+            voice: 'mid',
+            steps: [false, true, true, true], // -+++ (4)
+        },
+    ];
+
+    if (sub <= 1) {
+        return baseTracks;
+    }
+
+    const totalSubSteps = 4 * sub; // 8 for 1/8, 12 for 1/3, 16 for 1/16
+    const cSteps = [];
+    for (let i = 0; i < totalSubSteps; i++) {
+        cSteps.push(i % sub !== 0);
+    }
+
+    return [
+        ...baseTracks,
+        {
+            id: 'C',
+            label: 'C',
             voice: 'low',
-            steps: bottomSteps,
+            steps: cSteps,
         },
     ];
 }
@@ -184,9 +194,6 @@ export function subscribeMetronomeState(listener) {
     return () => listeners.delete(listener);
 }
 
-/**
- * Subscribes to beat/step ticks (used by `MetronomeScreen.jsx`).
- */
 export function subscribeMetronomeBeat(listener) {
     beatListeners.add(listener);
     return () => beatListeners.delete(listener);
@@ -194,7 +201,10 @@ export function subscribeMetronomeBeat(listener) {
 
 /**
  * Schedules a single metronome click sound at `time` (in AudioContext seconds).
- * `voice`: 'high' (Track A), 'mid' (Track C), or 'low' (Track B).
+ * `voice`:
+ *   - 'high' (Track A: Downbeat "1" accent)
+ *   - 'mid'  (Track B: Main quarter beats 2, 3, 4)
+ *   - 'low'  (Track C: Subdivision off-beats)
  */
 function scheduleMetronomeClickAt(ctx, time, voice = 'high', soundMode = 'natural') {
     const isHigh = voice === 'high';
@@ -204,8 +214,8 @@ function scheduleMetronomeClickAt(ctx, time, voice = 'high', soundMode = 'natura
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
         osc.type = 'triangle';
-        const freq = isHigh ? 1046.5 : isMid ? 830.61 : 659.25; // C6 / G#5 / E5
-        const peakGain = isHigh ? 0.34 : isMid ? 0.26 : 0.2;
+        const freq = isHigh ? 1174.66 : isMid ? 880.0 : 659.25; // D6 (A) / A5 (B) / E5 (C)
+        const peakGain = isHigh ? 0.36 : isMid ? 0.27 : 0.18;
         osc.frequency.setValueAtTime(freq, time);
 
         gain.gain.setValueAtTime(0.0001, time);
@@ -223,9 +233,9 @@ function scheduleMetronomeClickAt(ctx, time, voice = 'high', soundMode = 'natura
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.type = 'sine';
-    const startFreq = isHigh ? 1320 : isMid ? 1060 : 840;
-    const endFreq = isHigh ? 520 : isMid ? 430 : 340;
-    const peakGain = isHigh ? 0.42 : isMid ? 0.32 : 0.24;
+    const startFreq = isHigh ? 1480 : isMid ? 1080 : 780;
+    const endFreq = isHigh ? 580 : isMid ? 430 : 320;
+    const peakGain = isHigh ? 0.45 : isMid ? 0.32 : 0.2;
     osc.frequency.setValueAtTime(startFreq, time);
     osc.frequency.exponentialRampToValueAtTime(endFreq, time + 0.028);
 
@@ -274,7 +284,7 @@ function runSchedulerTick() {
                 scheduleMetronomeClickAt(
                     ctx,
                     stepTime,
-                    track.voice || (tIdx === 0 ? 'high' : 'low'),
+                    track.voice || (tIdx === 0 ? 'high' : tIdx === 1 ? 'mid' : 'low'),
                     metronomeState.soundMode
                 );
             }
@@ -412,7 +422,7 @@ export function setMetronomeTrackStepCount(trackIdx, nextCount) {
 }
 
 /**
- * Cycles a track's click pitch voice ('high' -> 'low' -> 'mid') when the user taps its left A/B/C badge.
+ * Cycles a track's click pitch voice ('high' -> 'mid' -> 'low') when the user taps its left A/B/C badge.
  */
 export function cycleMetronomeTrackVoice(trackIdx) {
     const track = metronomeState.tracks[trackIdx];
@@ -429,9 +439,10 @@ export function addMetronomeTrack() {
     if (metronomeState.tracks.length >= 4) return;
     const nextIdx = metronomeState.tracks.length;
     const label = TRACK_LABELS[nextIdx] || String.fromCharCode(65 + nextIdx);
-    const defaultVoice = nextIdx === 0 ? 'high' : nextIdx === 1 ? 'low' : 'mid';
+    const defaultVoice =
+        nextIdx === 0 ? 'high' : nextIdx === 1 ? 'mid' : 'low';
     const firstLen = metronomeState.tracks[0]?.steps.length || 4;
-    const defaultStepsCount = firstLen === 4 && nextIdx >= 1 ? 3 : 4;
+    const defaultStepsCount = firstLen === 4 && nextIdx >= 2 ? 3 : 4;
 
     metronomeState.tracks.push({
         id: label,
@@ -530,9 +541,6 @@ export function playReferenceNote(
     osc2.stop(now + duration + 0.02);
 }
 
-/**
- * Alias used by `TunerScreen.jsx` for playing reference string tones (e.g. `playNoteFrequency(freq)`).
- */
 export function playNoteFrequency(freqHz, options = {}) {
     if (typeof options === 'number') {
         return playReferenceNote(freqHz, {
