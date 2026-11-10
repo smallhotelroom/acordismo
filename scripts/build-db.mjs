@@ -1,15 +1,16 @@
 #!/usr/bin/env node
 /**
  * @file scripts/build-db.mjs
- * @version 5.0.0
+ * @version 5.1.0
  */
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import crypto from 'node:crypto';
 import { spawnSync } from 'node:child_process';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import initSqlJs from 'sql.js';
+import * as schemaMod from '../src/shared/songSchema.js';
 import {
     SCHEMA_SQL,
     INDEX_SQL,
@@ -22,25 +23,11 @@ import {
 import { parseAcordismoConfigYaml } from '../src/shared/acordismoConfig.js';
 import { hasCrawlerSongAndChords } from '../src/shared/crawlerTransposer.js';
 
-export const __version__ = '5.0.0';
+export const __version__ = '5.1.0';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const ROOT_DIR = path.resolve(__dirname, '..');
-
-const EXTERNAL_SCHEMA_PATH = path.resolve(
-    ROOT_DIR,
-    '../smallhotelroom.github.io/src/shared/songSchema.js'
-);
-
-export async function loadMasterSongSchema() {
-    if (!fs.existsSync(EXTERNAL_SCHEMA_PATH)) {
-        throw new Error(
-            `Master songSchema.js not found at ${EXTERNAL_SCHEMA_PATH}. Please ensure smallhotelroom.github.io is cloned alongside acordismo.`
-        );
-    }
-    return await import(pathToFileURL(EXTERNAL_SCHEMA_PATH).href);
-}
 
 function getGitShortCommit() {
     try {
@@ -73,7 +60,6 @@ function validateSongFrontmatterAndSections(
     bodyStartLine,
     rawFileName,
     fullPath,
-    schemaMod,
     isOfficialLayer = false
 ) {
     const errors = [];
@@ -316,7 +302,6 @@ function queryAll(db, sql, params = []) {
 function buildLayerDatabase(
     SQL,
     layerConfig,
-    schemaMod,
     { noCache = false, gitCommit = null } = {}
 ) {
     console.log(`\n========================================`);
@@ -412,7 +397,6 @@ function buildLayerDatabase(
                     bodyStartLine || 1,
                     baseName,
                     fullPath,
-                    schemaMod,
                     isOfficialLayer
                 );
                 if (schemaErrors.length > 0) {
@@ -880,8 +864,6 @@ async function main() {
     const noCache = args.includes('--no-cache') || args.includes('--clean-cache');
     const gitCommit = getGitShortCommit();
 
-    const schemaMod = await loadMasterSongSchema();
-
     const configPath = path.join(ROOT_DIR, 'acordismo-config.yaml');
     if (!fs.existsSync(configPath)) {
         console.error(`Error: acordismo-config.yaml not found at ${configPath}`);
@@ -893,7 +875,7 @@ async function main() {
 
     const builtDbs = [];
     for (const layer of config.layers) {
-        const db = buildLayerDatabase(SQL, layer, schemaMod, { noCache, gitCommit });
+        const db = buildLayerDatabase(SQL, layer, { noCache, gitCommit });
         if (db) {
             builtDbs.push(db);
         }

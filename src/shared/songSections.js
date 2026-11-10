@@ -1,6 +1,6 @@
 /**
  * @file src/shared/songSections.js
- * @version 1.3.0
+ * @version 1.4.0
  * Parses Markdown `## Section` blocks inside song contents into:
  * - `mainContent`: Primary chord & lyric sheet (before the first `##` header)
  * - `translations`: Array of `{ lang, content }` for language translations (e.g. `## Español`)
@@ -11,10 +11,10 @@ import {
     FINGERING_SECTION_HEADER_REGEX,
     NOTES_SECTION_HEADER_REGEX,
     SECTION_HEADER_REGEX,
-} from '../../../smallhotelroom.github.io/src/shared/songSchema.js';
-import { transposeChordToken } from '../../../smallhotelroom.github.io/src/shared/chordTransposer.js';
+} from './songSchema.js';
+import { transposeChordToken } from './chordTransposer.js';
 
-export const __version__ = '1.3.0';
+export const __version__ = '1.4.0';
 
 function parseRuntimeFingeringLine(rawLine = '') {
     const trimmed = String(rawLine || '').replace(/\s+#.*$/, '').trim();
@@ -67,10 +67,6 @@ function parseRuntimeFingeringLine(rawLine = '') {
     return { chordName, instrument, frets, label };
 }
 
-/**
- * Splits raw song contents into structured sections based on `## Header` lines,
- * and parses any `## Chords` / `## Fingerings` definitions into `customVoicings`.
- */
 export function parseSongSections(rawContents = '', primaryLang = 'Original') {
     const normalized = String(rawContents || '').replace(/\r\n/g, '\n');
     const lines = normalized.split('\n');
@@ -140,10 +136,6 @@ export function parseSongSections(rawContents = '', primaryLang = 'Original') {
     };
 }
 
-/**
- * Maps a song's `customVoicings` to the currently displayed (possibly shifted) chord names,
- * while retaining `originalFrets` so concert-pitch strumming always plays the exact original posture + capo/tuning!
- */
 export function buildTransposedCustomVoicings(
     customVoicings,
     visualOffset = 0,

@@ -1,6 +1,6 @@
 /**
  * @file src/screens/SongScreen.jsx
- * @version 3.0.0
+ * @version 3.1.0
  */
 import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft } from 'lucide-react';
@@ -21,8 +21,10 @@ import {
     setMetronomePlaying,
     subscribeMetronomeState,
 } from '../shared/audioEngine';
-import { SYNTAX_PALETTE } from '@shr-shared/chordTransposer.js';
-import { parseInstrumentTuning } from '../../../smallhotelroom.github.io/src/shared/songSchema.js';
+import {
+    SYNTAX_PALETTE,
+    parseInstrumentTuning,
+} from '../shared/songSchema.js';
 import {
     deduceAcordismoSongKey,
     deduceAcordismoSongKeyInfo,
@@ -30,7 +32,7 @@ import {
     stripCrawlerTabSections,
 } from '../shared/crawlerTransposer';
 
-export const __version__ = '3.0.0';
+export const __version__ = '3.1.0';
 
 export default function SongScreen({ routeParams, onNavigate, onBack }) {
     const { selectedSongId, originStr } = routeParams;
@@ -72,7 +74,6 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
         return subscribeMetronomeState((st) => setMetroState(st));
     }, []);
 
-    // Pinch-to-zoom and double-tap reset state initialized to defaultFontSize from Settings
     const [fontSize, setFontSize] = useState(defaultFontSize);
     const pinchStartDistRef = useRef(null);
     const pinchStartSizeRef = useRef(defaultFontSize);
@@ -139,8 +140,6 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
         };
     }, [selectedSongId]);
 
-    // Total semitone shift applied to displayed chord names:
-    // (1) Compensate Capo/Drop/Alternate + (2) Fake Uke (-5) + (3) Vocal Transposition
     const songCapo = Number(songData?.capo || 0);
     const visualOffset = useMemo(() => {
         const capoComp = compensateCapo || fakeUkeEnabled ? songCapo : 0;

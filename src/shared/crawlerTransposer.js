@@ -1,40 +1,24 @@
 /**
  * @file src/shared/crawlerTransposer.js
- * @version 1.1.0
- * Crawler-specific (OrigenZK / OrigenLK) chord line detection, ASCII tablature stripping,
- * mixed-text chord extraction, and harmonic analysis wrappers for Acordismo.
- * Keeps `smallhotelroom.github.io/src/shared/chordTransposer.js` 100% pure for curated songs.
+ * @version 1.5.0
+ * Crawler-specific chord line heuristics, ASCII tablature stripper, and key deduction adapter.
+ * Imports core harmony/chord logic directly from local `./chordTransposer.js`.
  */
 import {
     deduceSongKey,
     deduceSongKeyInfo,
     deduceSongUseFlats,
-    extractCuratedChordsFromLyrics,
     parseChordToken,
-    transposeChordToken,
-} from '../../../smallhotelroom.github.io/src/shared/chordTransposer.js';
+} from './chordTransposer.js';
 
-export const __version__ = '1.1.0';
-
-/**
- * Checks if a parsed chord is an unambiguous musical chord (e.g. F#, Am, G7, D/F#, Bb)
- * as opposed to a bare single capital letter (A-G) that could be a normal word ("A") in a lyric line.
- */
-function isUnambiguousChord(parsed) {
-    if (!parsed) return false;
-    return (
-        parsed.rootStr.length > 1 ||
-        parsed.quality.length > 0 ||
-        parsed.bassStr !== null
-    );
-}
+export const __version__ = '1.5.0';
 
 /**
- * Cleans punctuation attached to a token in a crawler line (e.g. "(Am", "F#)", "G,")
- * while keeping internal chord slashes and modifiers intact.
+ * Splits leading and trailing punctuation (such as `(`, `)`, `[`, `]`, `,`, `:`, `;`)
+ * from a whitespace-delimited token so standalone chord tokens can be tested cleanly.
  */
-export function stripOuterPunctuation(rawWord) {
-    const match = /^([([,:;-]*)(.*?)([)\],:;.!-]*)$/.exec(rawWord);
+export function stripOuterPunctuation(rawWord = '') {
+    const match = /^([([{"'¡¿]*)(.*?)([)\]}"'.,;:!?]*)$/.exec(String(rawWord || ''));
     if (!match) {
         return { prefix: '', core: rawWord, suffix: '' };
     }
@@ -45,236 +29,161 @@ export function stripOuterPunctuation(rawWord) {
     };
 }
 
+const CRAWLER_SECTION_PREFIX_REGEX =
+    /^(?:intro|int|outro|verso|verse|estribillo|coro|chorus|puente|bridge|solo|punteo|interludio|interlude|pre-?estribillo|pre-?chorus|riff|acordes|chords|final|coda|instrumental|inst|parte\s*\d+|estrofa)\s*[:.-]?\s*/i;
+
+const CRAWLER_ANNOTATION_REGEX =
+    /^(?:x\d+|\d+x|bis|rep(?:etir)?|arpegio|rasgueo|palm\s*mute|pm|mute|fade\s*out|rit\.?)$/i;
+
 /**
- * Detects whether a line in a crawler song is an ASCII guitar/bass tablature line
- * (e.g. "e|---0---2---|", "|---5h7---|", "------3-5-3------") or a pure divider line.
+ * Detects whether a line in a curated song (without `(...)` groups) is a standalone chord line.
  */
-export function isAsciiTabLine(lineText) {
-    if (!lineText || typeof lineText !== 'string') {
+export function isStandaloneChordLine(lineText = '') {
+    const trimmed = String(lineText || '').trim();
+    if (!trimmed) return false;
+
+    const withoutPrefix = trimmed.replace(CRAWLER_SECTION_PREFIX_REGEX, '').trim();
+    if (!withoutPrefix) return false;
+
+    const words = withoutPrefix.split(/\s+/).filter(Boolean);
+    if (words.length === 0) return false;
+
+    let chordCount = 0;
+    for (const w of words) {
+        const { core } = stripOuterPunctuation(w);
+        if (!core) continue;
+        if (parseChordToken(core) !== null) {
+            chordCount++;
+        } else if (!CRAWLER_ANNOTATION_REGEX.test(core)) {
+            return false;
+        }
+    }
+    return chordCount > 0;
+}
+
+/**
+ * Detects whether a line in a crawler song (`origin_id > 0`) is a chord line.
+ * Handles inline remarks like `Intro: A B C F# (I will learn this better)` or `Am  F  C  G  x2`.
+ */
+export function isCrawlerChordLine(lineText = '') {
+    const trimmed = String(lineText || '').trim();
+    if (!trimmed || trimmed.length > 140) return false;
+
+    // Exclude ASCII guitar/bass tablature lines (e.g. e|---0---2---|)
+    if (/^[eEbBgGdDaA1-6]?\|[-0-9hHpPbBrRsS/\\~xX*+|:\s]{4,}/.test(trimmed)) {
         return false;
     }
-    const trimmed = lineText.trim();
-    if (!trimmed) {
+    if (/^[-|0-9hHpPbBrRsS/\\~xX\s]{8,}$/.test(trimmed) && trimmed.includes('---')) {
         return false;
     }
 
-    // 1. Classic string prefix followed by pipe or dashes: e|, B|, G|, D|, A|, E|, 1|, 2|, etc.
-    if (/^[eEBGDAa1-6][#b]?\s*[|:].*[-─]{2,}/.test(trimmed)) {
-        return true;
-    }
-    if (/^[eEBGDAa1-6][#b]?\s*[-─]{3,}/.test(trimmed)) {
-        return true;
-    }
+    // Strip parenthetical remarks and section prefixes before counting chords vs non-chord words
+    const strippedParens = trimmed.replace(/\([^)]*\)/g, ' ');
+    const withoutPrefix = strippedParens.replace(CRAWLER_SECTION_PREFIX_REGEX, '').trim();
+    if (!withoutPrefix) return false;
 
-    // 2. Pipe-delimited ASCII tab measure: |---0---2---| or ||--5--||
-    if (/^\|+[-0-9hHpPbBrRsSvVxX/\\~()*|.\s]{4,}\|*$/.test(trimmed) && trimmed.includes('--')) {
-        return true;
-    }
+    const words = withoutPrefix.split(/\s+/).filter(Boolean);
+    if (words.length === 0) return false;
 
-    // 3. Dash-heavy line consisting almost exclusively of tab characters (-, digits, |, h, p, b, /, \, ~, x)
-    const dashCount = (trimmed.match(/-/g) || []).length;
-    if (dashCount >= 4) {
-        const nonSpaceLen = trimmed.replace(/\s+/g, '').length;
-        const tabCharsLen = (
-            trimmed.match(/[-0-9|eEBGDAhHpPbBrRsSvVxX/\\~()*.:]/g) || []
-        ).length;
-        if (nonSpaceLen > 0 && tabCharsLen / nonSpaceLen >= 0.8) {
-            return true;
+    let chordCount = 0;
+    let nonChordCount = 0;
+
+    for (const w of words) {
+        const { core } = stripOuterPunctuation(w);
+        if (!core) continue;
+        if (parseChordToken(core) !== null) {
+            chordCount++;
+        } else if (!CRAWLER_ANNOTATION_REGEX.test(core)) {
+            nonChordCount++;
         }
     }
 
+    if (chordCount === 0) return false;
+    if (nonChordCount === 0) return true;
+
+    // Allow a line with a section label + predominantly chords
+    return chordCount >= 2 && chordCount >= nonChordCount * 2;
+}
+
+/**
+ * Detects if a line is an ASCII tablature staff line (e.g. `e|---0---3---|` or `G|---2---|`).
+ */
+export function isAsciiTabLine(lineText = '') {
+    const trimmed = String(lineText || '').trim();
+    if (!trimmed) return false;
+    if (/^[eEbBgGdDaA1-6]{1,2}\s*[|:][-0-9hHpPbBrRsS/\\~xX*+|:\s]{3,}/.test(trimmed)) {
+        return true;
+    }
+    const dashCount = (trimmed.match(/-/g) || []).length;
+    if (dashCount >= 6 && /^[-|0-9hHpPbBrRsS/\\~xX*+:\s()[\]]+$/.test(trimmed)) {
+        return true;
+    }
     return false;
 }
 
 /**
- * Strips ASCII tablature blocks from crawler song contents while preserving all chord and lyric lines.
- * Also removes orphan "Riff:" / "Solo:" / "Tab:" single-line headers that immediately preceded a removed tab block,
- * and collapses 3+ consecutive empty lines down to a clean single empty line.
+ * Strips contiguous ASCII tablature blocks from crawler songs while preserving chord & lyric lines.
  */
-export function stripCrawlerTabSections(contents = '') {
-    const rawLines = String(contents || '').replace(/\r\n/g, '\n').split('\n');
-    const keptLines = [];
-    let removedTabInCurrentBlock = false;
+export function stripCrawlerTabSections(rawText = '') {
+    const lines = String(rawText || '').replace(/\r\n/g, '\n').split('\n');
+    const out = [];
+    let i = 0;
 
-    for (let i = 0; i < rawLines.length; i++) {
-        const line = rawLines[i];
-        if (isAsciiTabLine(line)) {
-            removedTabInCurrentBlock = true;
-            // If the immediately preceding kept line was just a short tab/riff header (e.g. "Riff 1:", "Solo:", "Punteo:")
-            // with no chords on it, pop it so we don't leave an empty header behind!
-            if (keptLines.length > 0) {
-                const prev = keptLines[keptLines.length - 1].trim();
-                if (
-                    prev &&
-                    !isCrawlerChordLine(prev) &&
-                    /^(?:riff|solo|punteo|tab|tablatura|arpegio|intro\s*tab|bajo|bass)[\s0-9:.-]*$/i.test(
-                        prev
-                    )
-                ) {
-                    keptLines.pop();
-                }
+    while (i < lines.length) {
+        if (isAsciiTabLine(lines[i])) {
+            while (i < lines.length && (isAsciiTabLine(lines[i]) || !lines[i].trim())) {
+                i++;
+            }
+            if (out.length > 0 && out[out.length - 1].trim() !== '') {
+                out.push('');
             }
             continue;
         }
-
-        if (line.trim() === '') {
-            if (removedTabInCurrentBlock) {
-                removedTabInCurrentBlock = false;
-                if (keptLines.length === 0 || keptLines[keptLines.length - 1].trim() === '') {
-                    continue;
-                }
-            }
-        } else {
-            removedTabInCurrentBlock = false;
-        }
-
-        keptLines.push(line);
+        out.push(lines[i]);
+        i++;
     }
 
-    return keptLines
+    return out
         .join('\n')
         .replace(/\n{3,}/g, '\n\n')
         .replace(/^[\s\n]+|[\s\n]+$/g, '');
 }
 
 /**
- * Determines if a crawler line (`OrigenZK` / `OrigenLK`) contains chords—either:
- * 1) A pure chord line (100% chords and optional repeat markers like x2, |), OR
- * 2) A mixed instruction + chord line like:
- *    - "play twice: A B C F#"
- *    - "Intro: A B C F# (I will learn this better)"
- *    while rejecting ASCII guitar tab lines (`e|---(12)---|`) and normal lyric sentences.
+ * Checks whether a crawler song contains actual playable chords (and isn't just an ASCII tab or empty text).
  */
-export function isCrawlerChordLine(lineText) {
-    if (!lineText || typeof lineText !== 'string') {
-        return false;
-    }
-    const trimmed = lineText.trim();
-    if (!trimmed) {
-        return false;
-    }
-    // Reject ASCII tablature lines
-    if (isAsciiTabLine(trimmed) || trimmed.includes('--') || /[eBGDAE]\|/.test(trimmed)) {
-        return false;
-    }
-
-    const rawWords = trimmed.split(/\s+/);
-    let validChordCount = 0;
-    let unambiguousChordCount = 0;
-    let nonChordWordCount = 0;
-    let currentConsecutiveChords = 0;
-    let maxConsecutiveChords = 0;
-
-    for (const rawWord of rawWords) {
-        const { core } = stripOuterPunctuation(rawWord);
-        if (!core) continue;
-
-        const parsed = parseChordToken(core);
-        if (parsed !== null) {
-            validChordCount++;
-            if (isUnambiguousChord(parsed)) {
-                unambiguousChordCount++;
-            }
-            currentConsecutiveChords++;
-            if (currentConsecutiveChords > maxConsecutiveChords) {
-                maxConsecutiveChords = currentConsecutiveChords;
-            }
-        } else if (/^(?:x\d+|\d+x|\||\/|-)$/i.test(core)) {
-            continue;
-        } else {
-            nonChordWordCount++;
-            currentConsecutiveChords = 0;
+export function hasCrawlerSongAndChords(rawText = '') {
+    const stripped = stripCrawlerTabSections(rawText);
+    if (!stripped) return false;
+    const lines = stripped.split('\n');
+    for (const line of lines) {
+        if (isCrawlerChordLine(line)) {
+            return true;
         }
     }
-
-    if (validChordCount === 0) {
-        return false;
-    }
-
-    if (nonChordWordCount === 0) {
-        return true;
-    }
-
-    if (maxConsecutiveChords >= 3) {
-        return true;
-    }
-    if (maxConsecutiveChords >= 2 && unambiguousChordCount >= 1) {
-        return true;
-    }
-
     return false;
 }
 
 /**
- * Returns true (`1`) if a crawler song has actual chords (after stripping ASCII guitar tabs),
- * or false (`0`) if the song is exclusively ASCII tablature or chordless text.
- */
-export function hasCrawlerSongAndChords(contents = '') {
-    const stripped = stripCrawlerTabSections(contents);
-    if (!stripped) {
-        return false;
-    }
-    const lines = stripped.split('\n');
-    let chordLineCount = 0;
-    let lyricOrTextLineCount = 0;
-
-    for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed) continue;
-        if (isCrawlerChordLine(trimmed)) {
-            chordLineCount++;
-        } else {
-            lyricOrTextLineCount++;
-        }
-    }
-
-    // Must have at least 1 chord line AND (either lyrics/text or multiple chord lines)
-    return chordLineCount >= 1 && (lyricOrTextLineCount >= 1 || chordLineCount >= 2);
-}
-
-/**
- * Strict check for lines that are 100% bare chords & spaces.
- */
-export function isStandaloneChordLine(lineText) {
-    if (!lineText || typeof lineText !== 'string') {
-        return false;
-    }
-    const trimmed = lineText.trim();
-    if (!trimmed || trimmed.includes('(') || trimmed.includes(')') || trimmed.includes('[')) {
-        return false;
-    }
-    const tokens = trimmed.split(/\s+/);
-    return tokens.length > 0 && tokens.every((tok) => parseChordToken(tok) !== null);
-}
-
-/**
- * Extracts all parsed chord objects from a crawler song (or hybrid song).
+ * Extracts parsed chord objects from crawler songs (or mixed standalone lines).
  */
 export function extractCrawlerChordsFromLyrics(lyrics = '') {
     const parsedChords = [];
-    for (const line of String(lyrics).split('\n')) {
-        if (isCrawlerChordLine(line)) {
-            for (const rawWord of line.trim().split(/\s+/)) {
-                const { core } = stripOuterPunctuation(rawWord);
-                if (core) {
-                    const parsed = parseChordToken(core);
-                    if (parsed) {
-                        parsedChords.push(parsed);
-                    }
-                }
+    const lines = String(lyrics || '').split('\n');
+
+    for (const line of lines) {
+        if (!isCrawlerChordLine(line)) continue;
+        const words = line.split(/\s+/).filter(Boolean);
+        for (const w of words) {
+            const { core } = stripOuterPunctuation(w);
+            if (!core) continue;
+            const parsed = parseChordToken(core);
+            if (parsed) {
+                parsedChords.push(parsed);
             }
         }
     }
     return parsedChords;
-}
-
-/**
- * Resolves the appropriate chord extractor based on whether the song is from a crawler layer.
- */
-function getExtractorForOrigin(originId = 0) {
-    return Number(originId || 0) > 0
-        ? extractCrawlerChordsFromLyrics
-        : extractCuratedChordsFromLyrics;
 }
 
 export function deduceAcordismoSongUseFlats(
@@ -283,11 +192,12 @@ export function deduceAcordismoSongUseFlats(
     songKeyHint = null,
     originId = 0
 ) {
+    const isCrawler = Number(originId || 0) > 0;
     return deduceSongUseFlats(
         lyrics,
         semitones,
         songKeyHint,
-        getExtractorForOrigin(originId)
+        isCrawler ? extractCrawlerChordsFromLyrics : null
     );
 }
 
@@ -297,11 +207,12 @@ export function deduceAcordismoSongKeyInfo(
     songKeyHint = null,
     originId = 0
 ) {
+    const isCrawler = Number(originId || 0) > 0;
     return deduceSongKeyInfo(
         lyrics,
         semitones,
         songKeyHint,
-        getExtractorForOrigin(originId)
+        isCrawler ? extractCrawlerChordsFromLyrics : null
     );
 }
 
@@ -311,20 +222,11 @@ export function deduceAcordismoSongKey(
     songKeyHint = null,
     originId = 0
 ) {
+    const isCrawler = Number(originId || 0) > 0;
     return deduceSongKey(
         lyrics,
         semitones,
         songKeyHint,
-        getExtractorForOrigin(originId)
+        isCrawler ? extractCrawlerChordsFromLyrics : null
     );
-}
-
-export function transposeCrawlerChordLine(lineText, semitones = 0, useFlats = false) {
-    return lineText.replace(/\S+/g, (rawWord) => {
-        const { prefix, core, suffix } = stripOuterPunctuation(rawWord);
-        if (core && parseChordToken(core) !== null) {
-            return `${prefix}${transposeChordToken(core, semitones, useFlats)}${suffix}`;
-        }
-        return rawWord;
-    });
 }

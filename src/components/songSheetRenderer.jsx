@@ -1,6 +1,6 @@
 /**
  * @file src/components/songSheetRenderer.jsx
- * @version 1.0.0
+ * @version 1.1.0
  * Renders song sheet lines (curated `(...)` chord groups, standalone/crawler chord lines,
  * `[choir]` backing vocal blocks, and top capo/drop/tuning directives) into React elements.
  */
@@ -11,19 +11,15 @@ import {
     isValidParenChordGroup,
     parseChordToken,
     transposeChordToken,
-} from '@shr-shared/chordTransposer.js';
+} from '../shared/chordTransposer.js';
 import {
     isCrawlerChordLine,
     isStandaloneChordLine,
     stripOuterPunctuation,
 } from '../shared/crawlerTransposer';
 
-export const __version__ = '1.0.0';
+export const __version__ = '1.1.0';
 
-/**
- * Renders plain lyric segments while highlighting any [choir / backing vocal] blocks
- * using the shared SYNTAX_PALETTE choir color.
- */
 export function renderLyricWithChoir(text, choirColor, baseKey) {
     if (!text || !text.includes('[')) {
         return <span key={baseKey}>{text}</span>;
@@ -56,9 +52,6 @@ export function renderLyricWithChoir(text, choirColor, baseKey) {
     return <span key={baseKey}>{parts}</span>;
 }
 
-/**
- * Renders a crawler/standalone chord line (e.g. "Intro: A B C F# (I will learn this better)" or "Am  F  C  G").
- */
 export function renderCrawlerChordLineNodes(
     lineText,
     visualOffset,
@@ -117,9 +110,6 @@ export function renderCrawlerChordLineNodes(
     return { nodes, nextKey: keyCounter };
 }
 
-/**
- * Builds the complete array of React nodes for a song sheet (top directives + sticky chord sections).
- */
 export function buildSongSheetElements({
     songData,
     displayedLyrics,

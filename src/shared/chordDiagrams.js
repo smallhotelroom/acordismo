@@ -1,18 +1,12 @@
 /**
  * @file src/shared/chordDiagrams.js
- * @version 1.3.0
+ * @version 1.4.0
  * Guitar (6-string) and Ukulele (4-string) chord voicing generator for Acordismo.
- * - Supports song-specific `## Chords` / `## Fingerings` overrides and custom `tuning:`
- * - When `fakeUkeEnabled` ("Guitar Shapes on Ukulele (-5)") is ON: locks to a 4-string Ukulele
- *   diagram projecting the top 4 strings (D G B e -> G C E A) of the guitar shape, with a mode note.
- * - When `compensateCapo` ("Compensate Capo / Drop / Alternate") is ON for a song with custom `tuning:`:
- *   reverts chord diagrams to standard-tuning postures (ignoring alternate-tuning custom postures for display)
- *   while keeping the original alternate-tuning posture for true concert-pitch Strum audio!
  */
 import {
     parseChordToken,
     transposeChordToken,
-} from '../../../smallhotelroom.github.io/src/shared/chordTransposer.js';
+} from './chordTransposer.js';
 import {
     GUITAR_OPEN_MIDI,
     GUITAR_OPEN_PITCH_CLASSES,
@@ -22,9 +16,9 @@ import {
     UKULELE_STRING_NAMES,
     parseInstrumentTuning,
     suggestChordsForVoicing,
-} from '../../../smallhotelroom.github.io/src/shared/songSchema.js';
+} from './songSchema.js';
 
-export const __version__ = '1.3.0';
+export const __version__ = '1.4.0';
 
 export { GUITAR_STRING_NAMES, UKULELE_STRING_NAMES };
 
@@ -603,9 +597,6 @@ function resolveStandardFretsForChord(chordStr, instrument = 'guitar') {
     return frets;
 }
 
-/**
- * Resolves any chord string into a complete diagram descriptor AND exact concert-pitch Strum frequencies.
- */
 export function getChordDiagramData(
     chordStr,
     instrument = 'guitar',
@@ -625,18 +616,11 @@ export function getChordDiagramData(
         return null;
     }
 
-    // Check if the song has a non-standard alternate guitar tuning
     const rawGuitarTuning = parseInstrumentTuning(songTuning, 'guitar');
     const songHasAlternateTuning = rawGuitarTuning.valid && rawGuitarTuning.isCustom;
 
-    // 1) Special Mode: "Guitar Shapes on Ukulele (-5)" (`fakeUkeEnabled`)
-    // Forces 4-string Ukulele diagram (G C E A) and projects the top 4 strings (D G B e)
-    // of the displayed Guitar shape onto the Ukulele!
     const effectiveInstrument = fakeUkeEnabled ? 'ukulele' : instrument;
 
-    // 2) "Compensate Capo / Drop / Alternate" (`compensateCapo`):
-    // When enabled on a song with an alternate tuning, revert the displayed diagram to the
-    // standard-tuning posture (bypassing alternate-tuning custom postures for display).
     const revertAlternateToStandard =
         Boolean(compensateCapo || fakeUkeEnabled) && songHasAlternateTuning;
 
@@ -648,7 +632,6 @@ export function getChordDiagramData(
     let isSongSpecific = false;
 
     if (fakeUkeEnabled) {
-        // Project top 4 strings (indices 2..5: D G B e) of the guitar shape onto Ukulele (G C E A)
         let guitarSourceFrets = null;
         if (!revertAlternateToStandard && customGuitarEntry && Array.isArray(customGuitarEntry.frets)) {
             guitarSourceFrets = customGuitarEntry.frets;
@@ -677,7 +660,6 @@ export function getChordDiagramData(
             frets = resolveStandardFretsForChord(cleanChord, 'ukulele');
         }
     } else {
-        // Guitar (6 strings)
         if (revertAlternateToStandard) {
             frets = resolveStandardFretsForChord(cleanChord, 'guitar');
             modeNote = 'Standard tuning posture (Alternate tuning compensated)';
@@ -704,8 +686,6 @@ export function getChordDiagramData(
 
     const { baseFret, barre } = analyzeFretWindow(frets);
 
-    // --- CONCERT-PITCH STRUM SOUND CALCULATION ---
-    // Settings 1 (Compensate Capo/Drop/Alternate) & 2 (Fake Uke -5) NEVER alter the concert Strum sound!
     const soundShiftFromCapoAndVocal = Number(songCapo || 0) + Number(vocalTransposition || 0);
     let soundInstrument = effectiveInstrument;
     let soundFrets = frets;
@@ -715,8 +695,6 @@ export function getChordDiagramData(
     let soundPitchShift = soundShiftFromCapoAndVocal;
 
     if (fakeUkeEnabled) {
-        // On Ukulele (G4 C4 E4 A4), the top 4 guitar strings (D3 G3 B3 E4) are natively +5 semitones higher,
-        // which automatically cancels out the -5 Fake Uke shift and sounds in true concert pitch!
         soundInstrument = 'ukulele';
         soundOpenMidis = UKULELE_OPEN_MIDI;
         soundFrets = frets;
@@ -726,8 +704,6 @@ export function getChordDiagramData(
         customGuitarEntry &&
         Array.isArray(customGuitarEntry.originalFrets)
     ) {
-        // Even if revertAlternateToStandard is ON for the visual diagram, Strum plays the song's
-        // authentic original posture in its original tuning + capo + vocalTransposition!
         soundInstrument = 'guitar';
         soundFrets = customGuitarEntry.originalFrets;
         soundCustomTuningStr = songTuning;

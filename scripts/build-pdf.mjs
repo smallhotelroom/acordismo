@@ -1,23 +1,15 @@
 #!/usr/bin/env node
 /**
  * @file scripts/build-pdf.mjs
- * @version 2.9.0
+ * @version 3.0.0
  * Builds printable LaTeX/PDF songbooks from Acordismo SQLite databases.
- * Features:
- * - Vertically & horizontally centered cover page (with explicit line break below acordismo-logo.svg)
- * - Initial Table of Contents (Band - Song order)
- * - Notepad/App-faithful monospace layout (zero left indent unless spaces exist, natural line height)
- * - Optional continuous same-page unindexed translation subsections (`Band - Song (Lang)`)
- *   (default OFF via `pdf.include_translations: false`, enable with `--translations`)
- * - Short '-' separator for "Band - Song"
- * - 2-column back-of-book alphabetical Song Index (Song titles + clickable page numbers only)
- * - Defaults to color palette (`SYNTAX_PALETTE.light`), or B/W (`SYNTAX_PALETTE.pdfBw`) with `--bw`.
  */
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import initSqlJs from 'sql.js';
+import * as transposerMod from '../src/shared/chordTransposer.js';
 import {
     FALLBACK_ACORDISMO_CONFIG,
     parseAcordismoConfigYaml,
@@ -29,16 +21,11 @@ import {
 } from '../src/shared/crawlerTransposer.js';
 import { parseSongSections } from '../src/shared/songSections.js';
 
-export const __version__ = '2.9.0';
+export const __version__ = '3.0.0';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const ROOT_DIR = path.resolve(__dirname, '..');
-
-const EXTERNAL_TRANSPOSER_PATH = path.resolve(
-    ROOT_DIR,
-    '../smallhotelroom.github.io/src/shared/chordTransposer.js'
-);
 
 const LATEX_ESCAPE_MAP = {
     '\\': '\\textbackslash{}',
@@ -54,15 +41,6 @@ const LATEX_ESCAPE_MAP = {
     '-': '-\\kern0pt{}',
 };
 
-async function loadSharedTransposer() {
-    if (!fs.existsSync(EXTERNAL_TRANSPOSER_PATH)) {
-        throw new Error(
-            `Master chordTransposer.js not found at ${EXTERNAL_TRANSPOSER_PATH}.`
-        );
-    }
-    return await import(pathToFileURL(EXTERNAL_TRANSPOSER_PATH).href);
-}
-
 function loadPdfConfig() {
     const configPath = path.join(ROOT_DIR, 'acordismo-config.yaml');
     if (fs.existsSync(configPath)) {
@@ -71,10 +49,6 @@ function loadPdfConfig() {
     return FALLBACK_ACORDISMO_CONFIG.pdf;
 }
 
-/**
- * Escapes special LaTeX characters via dictionary lookup.
- * When `preserveSpaces` is true, spaces become `\hspace*{0.6em}` for exact monospace alignment.
- */
 export function escapeLatex(str, preserveSpaces = false) {
     const escaped = String(str || '')
         .replace(/\t/g, '    ')
@@ -83,9 +57,6 @@ export function escapeLatex(str, preserveSpaces = false) {
     return preserveSpaces ? escaped.replace(/ /g, '\\hspace*{0.6em}') : escaped;
 }
 
-/**
- * Formats [choir] blocks inside lyric text into italic `\textcolor{acChoir}{\textit{...}}`.
- */
 function formatLyricSegmentLatex(text) {
     if (!text) return '';
     if (!text.includes('[')) {
@@ -111,11 +82,8 @@ function formatLyricSegmentLatex(text) {
     return parts.join('');
 }
 
-/**
- * Formats a crawler/standalone chord line (where chords are not in canonical parentheses).
- */
-function formatCrawlerChordLineLatex(lineText, transposerMod, semitones, useFlats) {
-    const { parseChordToken, transposeChordToken } = transposerMod;
+function formatCrawlerChordLineLatex(lineText, mod, semitones, useFlats) {
+    const { parseChordToken, transposeChordToken } = mod;
     const tokenRegex = /(\S+)|(\s+)/g;
     let match;
     let out = '';
@@ -139,16 +107,9 @@ function formatCrawlerChordLineLatex(lineText, transposerMod, semitones, useFlat
     return out;
 }
 
-/**
- * Converts a single song's (or section's) text into notepad-faithful monospace LaTeX lines:
- * - Zero left indentation unless spaces are actually present in the line
- * - Strips trailing blank lines at the end to prevent blank overflow pages
- * - Exact single-line blank spacing on internal empty lines
- * - Syntax highlighting matching SongScreen
- */
 export function formatSongContentsToLatex(
     contents,
-    transposerMod,
+    mod = transposerMod,
     {
         semitones = 0,
         frontmatterCapo = 0,
@@ -163,7 +124,7 @@ export function formatSongContentsToLatex(
         deduceSongUseFlats,
         isValidParenChordGroup,
         transposeChordToken,
-    } = transposerMod;
+    } = mod;
 
     const targetText = isRawSection ? contents : parseSongSections(contents).mainContent;
     const trimmedContents = String(targetText || '')
@@ -187,7 +148,6 @@ export function formatSongContentsToLatex(
 
     for (const lineText of lines) {
         if (lineText.trim().length === 0) {
-            // Exact notepad empty line height
             latexLines.push(`\\noindent\\strut\\par`);
             continue;
         }
@@ -198,7 +158,7 @@ export function formatSongContentsToLatex(
             if (isCrawlerChordLine(lineText)) {
                 lineOut = formatCrawlerChordLineLatex(
                     lineText,
-                    transposerMod,
+                    mod,
                     semitones,
                     useFlats
                 );
@@ -208,7 +168,7 @@ export function formatSongContentsToLatex(
         } else if (!lineText.includes('(') && isStandaloneChordLine(lineText)) {
             lineOut = formatCrawlerChordLineLatex(
                 lineText,
-                transposerMod,
+                mod,
                 semitones,
                 useFlats
             );
@@ -353,7 +313,6 @@ async function main() {
         throw new Error(`Database not found at ${dbPath}. Run 'npm run db:build' first.`);
     }
 
-    const transposerMod = await loadSharedTransposer();
     const { SYNTAX_PALETTE } = transposerMod;
 
     const SQL = await initSqlJs();
@@ -384,7 +343,6 @@ async function main() {
     const coverLogoFile = prepareCoverLogoPng(outDir);
     const palettePreamble = buildLatexPalettePreamble(SYNTAX_PALETTE, useColor);
 
-    // 1. Build Song Sections (ordered by Band - Song) + Optional Continuous Same-Page Translation Subsections
     let translationCount = 0;
     const songSections = songs.map((s, idx) => {
         const labelId = `song:${idx + 1}`;
@@ -428,7 +386,6 @@ ${bodyLatex}
                     }
                 );
 
-                // Flows continuously on the same page if at least 5 lines fit; otherwise starts at top of next page
                 blocks.push(
                     `
 \\vspace{1.4em}
@@ -447,7 +404,6 @@ ${trBodyLatex}
         return blocks.join('\n\n');
     });
 
-    // 2. Build Back-of-Book 2-Column Alphabetical Song Index (Song titles only + page number)
     const songsByTitle = [...songs]
         .map((s, idx) => ({ ...s, labelId: `song:${idx + 1}` }))
         .sort(

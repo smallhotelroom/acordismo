@@ -1,15 +1,15 @@
 /**
  * @file src/components/SongInfoModal.jsx
- * @version 1.0.0
+ * @version 1.1.0
  * Modal displaying song metadata, BPM metronome trigger, deduced key, custom tuning,
  * interactive language translation switcher (e.g. "Lang: English / Español"), and featuring band links.
  */
 import React from 'react';
-import { transposeChordToken } from '@shr-shared/chordTransposer.js';
+import { transposeChordToken } from '../shared/chordTransposer.js';
 import { MetronomeIcon } from '../screens/HomeScreen';
 import { setMetronomeBpm, setMetronomePlaying } from '../shared/audioEngine';
 
-export const __version__ = '1.0.0';
+export const __version__ = '1.1.0';
 
 /**
  * Formats initNote: only Setting 3 (`vocalTransposition`) affects the singing pitch & initNote!

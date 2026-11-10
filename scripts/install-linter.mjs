@@ -1,37 +1,31 @@
 #!/usr/bin/env node
 /**
  * @file scripts/install-linter.mjs
- * @version 2.6.0
+ * @version 2.7.0
  * Installs the Acordismo / Small Hotel Room VS Code Linter & Syntax Decorator extension
  * into `~/.vscode/extensions/smallhotelroom.acordismo-song-linter-<version>` AND registers
- * it inside `~/.vscode/extensions/extensions.json` (plus via `code --install-extension` if available)
- * so modern VS Code (1.145+) always recognizes and activates it immediately.
+ * it inside `~/.vscode/extensions/extensions.json`, loading `songSchema.js` and
+ * `chordTransposer.js` directly from `acordismo/src/shared/`.
  */
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import { spawnSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
-export const __version__ = '2.6.0';
+export const __version__ = '2.7.0';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const ROOT_DIR = path.resolve(__dirname, '..');
 
-const EXTERNAL_SCHEMA_PATH = path.resolve(
+const LOCAL_SCHEMA_PATH = path.resolve(ROOT_DIR, 'src/shared/songSchema.js');
+const LOCAL_TRANSPOSER_PATH = path.resolve(
     ROOT_DIR,
-    '../smallhotelroom.github.io/src/shared/songSchema.js'
-);
-const EXTERNAL_TRANSPOSER_PATH = path.resolve(
-    ROOT_DIR,
-    '../smallhotelroom.github.io/src/shared/chordTransposer.js'
+    'src/shared/chordTransposer.js'
 );
 
-if (!fs.existsSync(EXTERNAL_SCHEMA_PATH)) {
-    console.error(
-        `❌ Error: Master songSchema.js not found at ${EXTERNAL_SCHEMA_PATH}`
-    );
+if (!fs.existsSync(LOCAL_SCHEMA_PATH)) {
+    console.error(`❌ Error: songSchema.js not found at ${LOCAL_SCHEMA_PATH}`);
     process.exit(1);
 }
 
@@ -84,8 +78,8 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 
-const SCHEMA_PATH = ${JSON.stringify(EXTERNAL_SCHEMA_PATH)};
-const TRANSPOSER_PATH = ${JSON.stringify(EXTERNAL_TRANSPOSER_PATH)};
+const SCHEMA_PATH = ${JSON.stringify(LOCAL_SCHEMA_PATH)};
+const TRANSPOSER_PATH = ${JSON.stringify(LOCAL_TRANSPOSER_PATH)};
 `;
 
 const extensionBody = String.raw`
@@ -632,7 +626,6 @@ function deactivate() {
 module.exports = { activate, deactivate };
 `;
 
-// 2. Write the canonical extension folder (`~/.vscode/extensions/smallhotelroom.acordismo-song-linter-2.6.0`)
 fs.mkdirSync(EXT_DIR, { recursive: true });
 fs.writeFileSync(
     path.join(EXT_DIR, 'package.json'),
@@ -645,7 +638,6 @@ fs.writeFileSync(
     'utf8'
 );
 
-// 3. Register directly in `~/.vscode/extensions/extensions.json` so VS Code 1.145+ recognizes it immediately
 let extensionsRegistry = [];
 if (fs.existsSync(EXT_JSON_PATH)) {
     try {
@@ -693,5 +685,5 @@ console.log(`✅ Installed & registered ${EXT_ID} v${__version__} in:`);
 console.log(`   Folder:   ${EXT_DIR}`);
 console.log(`   Registry: ${EXT_JSON_PATH}`);
 console.log(
-    `💡 Reload VS Code ('Developer: Reload Window') — ${EXT_ID} v${__version__} is now registered in extensions.json!`
+    `💡 Reload VS Code ('Developer: Reload Window') — Linter now loads songSchema.js directly from Acordismo!`
 );
