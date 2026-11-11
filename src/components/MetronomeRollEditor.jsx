@@ -1,11 +1,13 @@
 /**
  * @file src/components/MetronomeRollEditor.jsx
- * @version 2.1.0
+ * @version 2.2.0
  * Multi-View Polyrhythm Roll Editor for the Acordismo Metronome:
- * - Top Control Bar: [ Landscape | Portrait | Circular ] view selector + [ - Line | + Line ]
- * - Mode 1 ('horizontal' / Landscape): Horizontal tracks, time flows left-to-right.
- * - Mode 2 ('vertical'   / Portrait):  Transposed columns (A | B | C...), time flows top-to-bottom.
- * - Mode 3 ('circular'   / Circular):  Concentric Euclidean rhythm rings, time orbits clockwise from 12 o'clock.
+ * - Top Control Bar: [ Circular | Landscape | Portrait ] view selector (defaults to Circular) + [ - Line | + Line ]
+ * - Smart Auto-Switch between Landscape and Portrait when cell dimensions get too small
+ *   (e.g. > 16 divisions in Landscape auto-switches to Portrait; > 5 lines in Portrait auto-switches to Landscape).
+ * - Mode 1 ('circular'   / Circular):  Concentric Euclidean rhythm rings, time orbits clockwise from 12 o'clock.
+ * - Mode 2 ('horizontal' / Landscape): Horizontal tracks, time flows left-to-right (up to 16 divisions fit cleanly).
+ * - Mode 3 ('vertical'   / Portrait):  Transposed columns (A | B | C...), time flows top-to-bottom, growing proportionally in height with more divisions.
  */
 import React, { useState } from 'react';
 import {
@@ -13,9 +15,12 @@ import {
     MAX_METRONOME_TRACKS,
 } from '../shared/audioEngine';
 
-export const __version__ = '2.1.0';
+export const __version__ = '2.2.0';
 
 const VIEW_MODE_STORAGE_KEY = 'acordismo_metronome_view_mode';
+const LANDSCAPE_MAX_COMFORTABLE_STEPS = 16;
+const PORTRAIT_MAX_COMFORTABLE_TRACKS = 5;
+const MIN_CELL_SIZE_PX = 26;
 
 const TRACK_COLORS = {
     high: {
@@ -148,14 +153,14 @@ export default function MetronomeRollEditor({
         if (typeof localStorage !== 'undefined') {
             const saved = localStorage.getItem(VIEW_MODE_STORAGE_KEY);
             if (
+                saved === 'circular' ||
                 saved === 'horizontal' ||
-                saved === 'vertical' ||
-                saved === 'circular'
+                saved === 'vertical'
             ) {
                 return saved;
             }
         }
-        return 'horizontal';
+        return 'circular';
     });
 
     const setViewMode = (mode) => {
@@ -171,299 +176,50 @@ export default function MetronomeRollEditor({
 
     const masterBeats = tracks[0]?.steps?.length || 4;
 
-    // --- 2.1 LANDSCAPE VIEW (Horizontal rows, left-to-right time) ---
-    const renderHorizontalView = () => (
-        <div
-            style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 5,
-                padding: '7px',
-                borderRadius: 8,
-                background: 'var(--bg-primary)',
-                border: '1px solid var(--border-color)',
-                overflowX: 'auto',
-            }}>
-            {tracks.map((track, trackIdx) => {
-                const palette = getTrackPalette(track, trackIdx);
-                const activeStepIdx = isPlaying
-                    ? (currentStepByTrack[trackIdx] ?? -1)
-                    : -1;
-                const numSteps = track.steps.length;
-
-                return (
-                    <div
-                        key={track.id || trackIdx}
-                        style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 5,
-                        }}>
-                        {/* Voice Pitch Badge (A / B / C...) */}
-                        <button
-                            type="button"
-                            onClick={() =>
-                                onCycleTrackVoice && onCycleTrackVoice(trackIdx)
-                            }
-                            title={`Track ${track.label} (${palette.name}) — tap to cycle click voice`}
-                            style={{
-                                width: 22,
-                                height: 26,
-                                padding: 0,
-                                borderRadius: 5,
-                                border: `1px solid ${palette.activeBorder}`,
-                                background: palette.badgeBg,
-                                color: palette.badgeText,
-                                fontWeight: 800,
-                                fontSize: '0.72rem',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                flexShrink: 0,
-                                cursor: 'pointer',
-                                userSelect: 'none',
-                            }}>
-                            {track.label || String.fromCharCode(65 + trackIdx)}
-                        </button>
-
-                        {/* Horizontal Time Loop Blocks */}
-                        <div
-                            style={{
-                                display: 'flex',
-                                flex: 1,
-                                gap: numSteps >= 16 ? 1.5 : numSteps >= 12 ? 2 : 3,
-                                minWidth: numSteps > 16 ? numSteps * 15 : 0,
-                            }}>
-                            {track.steps.map((hasDot, stepIdx) => {
-                                const isPlayheadHere = activeStepIdx === stepIdx;
-                                const isBeatBoundary =
-                                    numSteps > masterBeats &&
-                                    numSteps % masterBeats === 0 &&
-                                    stepIdx > 0 &&
-                                    stepIdx % (numSteps / masterBeats) === 0;
-
-                                return (
-                                    <button
-                                        key={stepIdx}
-                                        type="button"
-                                        title={`Track ${track.label}, Step ${stepIdx + 1}/${numSteps}`}
-                                        onClick={() =>
-                                            onToggleStep &&
-                                            onToggleStep(trackIdx, stepIdx)
-                                        }
-                                        style={{
-                                            flex: 1,
-                                            height: 26,
-                                            padding: 0,
-                                            marginLeft: isBeatBoundary ? 2 : 0,
-                                            borderRadius: 4,
-                                            border: `1px solid ${
-                                                isPlayheadHere
-                                                    ? palette.activeBorder
-                                                    : 'var(--border-color)'
-                                            }`,
-                                            background: isPlayheadHere
-                                                ? palette.activeBg
-                                                : 'var(--bg-surface)',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            cursor: 'pointer',
-                                        }}>
-                                        <span
-                                            style={{
-                                                width:
-                                                    numSteps >= 20
-                                                        ? 4.5
-                                                        : numSteps >= 12
-                                                          ? 5.5
-                                                          : 7.5,
-                                                height:
-                                                    numSteps >= 20
-                                                        ? 4.5
-                                                        : numSteps >= 12
-                                                          ? 5.5
-                                                          : 7.5,
-                                                borderRadius: '50%',
-                                                background: hasDot
-                                                    ? palette.dot
-                                                    : 'var(--border-color)',
-                                                opacity: hasDot ? 1 : 0.32,
-                                                transform:
-                                                    isPlayheadHere && hasDot
-                                                        ? 'scale(1.25)'
-                                                        : 'scale(1)',
-                                            }}
-                                        />
-                                    </button>
-                                );
-                            })}
-                        </div>
-
-                        <StepCounterPill
-                            numSteps={numSteps}
-                            trackIdx={trackIdx}
-                            onChangeTrackSteps={onChangeTrackSteps}
-                        />
-                    </div>
-                );
-            })}
-        </div>
-    );
-
-    // --- 2.2 TRANSPOSED PORTRAIT VIEW (Vertical columns, top-to-bottom time) ---
-    const renderVerticalView = () => {
-        const maxStepsAcrossTracks = Math.max(
-            ...tracks.map((t) => t.steps.length),
-            4
+    // Smart auto-switch wrapper when changing subdivisions on a track
+    const handleStepCountChangeWithAutoFit = (trackIdx, nextSteps) => {
+        if (onChangeTrackSteps) {
+            onChangeTrackSteps(trackIdx, nextSteps);
+        }
+        const otherMaxSteps = tracks.reduce(
+            (max, t, idx) => (idx === trackIdx ? max : Math.max(max, t.steps.length)),
+            0
         );
-        const colHeight = Math.max(180, Math.min(340, maxStepsAcrossTracks * 18));
+        const newMaxSteps = Math.max(otherMaxSteps, nextSteps);
 
-        return (
-            <div
-                style={{
-                    display: 'flex',
-                    gap: 8,
-                    padding: '8px',
-                    borderRadius: 8,
-                    background: 'var(--bg-primary)',
-                    border: '1px solid var(--border-color)',
-                    overflowX: 'auto',
-                    justifyContent:
-                        tracks.length <= 4 ? 'space-around' : 'flex-start',
-                }}>
-                {tracks.map((track, trackIdx) => {
-                    const palette = getTrackPalette(track, trackIdx);
-                    const activeStepIdx = isPlaying
-                        ? (currentStepByTrack[trackIdx] ?? -1)
-                        : -1;
-                    const numSteps = track.steps.length;
-
-                    return (
-                        <div
-                            key={track.id || trackIdx}
-                            style={{
-                                display: 'flex',
-                                flexDirection: 'column',
-                                alignItems: 'center',
-                                gap: 5,
-                                flex: 1,
-                                minWidth: 52,
-                                maxWidth: 88,
-                            }}>
-                            {/* Top Header: Track Badge + Step Counter */}
-                            <div
-                                style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: 4,
-                                }}>
-                                <button
-                                    type="button"
-                                    onClick={() =>
-                                        onCycleTrackVoice &&
-                                        onCycleTrackVoice(trackIdx)
-                                    }
-                                    title={`Track ${track.label} (${palette.name}) — tap to cycle click voice`}
-                                    style={{
-                                        width: 22,
-                                        height: 24,
-                                        padding: 0,
-                                        borderRadius: 5,
-                                        border: `1px solid ${palette.activeBorder}`,
-                                        background: palette.badgeBg,
-                                        color: palette.badgeText,
-                                        fontWeight: 800,
-                                        fontSize: '0.72rem',
-                                        cursor: 'pointer',
-                                    }}>
-                                    {track.label ||
-                                        String.fromCharCode(65 + trackIdx)}
-                                </button>
-                                <StepCounterPill
-                                    numSteps={numSteps}
-                                    trackIdx={trackIdx}
-                                    onChangeTrackSteps={onChangeTrackSteps}
-                                />
-                            </div>
-
-                            {/* Vertical Time Column (Top-to-Bottom proportional blocks) */}
-                            <div
-                                style={{
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    width: '100%',
-                                    height: colHeight,
-                                    gap: numSteps >= 16 ? 1.5 : 2.5,
-                                }}>
-                                {track.steps.map((hasDot, stepIdx) => {
-                                    const isPlayheadHere =
-                                        activeStepIdx === stepIdx;
-                                    const isBeatBoundary =
-                                        numSteps > masterBeats &&
-                                        numSteps % masterBeats === 0 &&
-                                        stepIdx > 0 &&
-                                        stepIdx % (numSteps / masterBeats) === 0;
-
-                                    return (
-                                        <button
-                                            key={stepIdx}
-                                            type="button"
-                                            title={`Track ${track.label}, Step ${stepIdx + 1}/${numSteps}`}
-                                            onClick={() =>
-                                                onToggleStep &&
-                                                onToggleStep(trackIdx, stepIdx)
-                                            }
-                                            style={{
-                                                flex: 1,
-                                                width: '100%',
-                                                padding: 0,
-                                                marginTop: isBeatBoundary
-                                                    ? 2
-                                                    : 0,
-                                                borderRadius: 4,
-                                                border: `1px solid ${
-                                                    isPlayheadHere
-                                                        ? palette.activeBorder
-                                                        : 'var(--border-color)'
-                                                }`,
-                                                background: isPlayheadHere
-                                                    ? palette.activeBg
-                                                    : 'var(--bg-surface)',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'center',
-                                                cursor: 'pointer',
-                                            }}>
-                                            <span
-                                                style={{
-                                                    width:
-                                                        numSteps >= 20
-                                                            ? 5
-                                                            : 7,
-                                                    height:
-                                                        numSteps >= 20
-                                                            ? 5
-                                                            : 7,
-                                                    borderRadius: '50%',
-                                                    background: hasDot
-                                                        ? palette.dot
-                                                        : 'var(--border-color)',
-                                                    opacity: hasDot ? 1 : 0.32,
-                                                }}
-                                            />
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    );
-                })}
-            </div>
-        );
+        if (
+            viewMode === 'horizontal' &&
+            newMaxSteps > LANDSCAPE_MAX_COMFORTABLE_STEPS
+        ) {
+            // Too many horizontal divisions for Landscape width -> auto-switch to Portrait!
+            setViewMode('vertical');
+        } else if (
+            viewMode === 'vertical' &&
+            newMaxSteps <= LANDSCAPE_MAX_COMFORTABLE_STEPS &&
+            tracks.length > PORTRAIT_MAX_COMFORTABLE_TRACKS
+        ) {
+            // Steps now fit comfortably in Landscape while Portrait has many columns -> switch to Landscape
+            setViewMode('horizontal');
+        }
     };
 
-    // --- 2.3 CIRCULAR VIEW (Concentric Euclidean Rhythm Necklace, clockwise from 12 o'clock) ---
+    // Smart auto-switch wrapper when adding a new polyrhythm line
+    const handleAddTrackWithAutoFit = () => {
+        const nextTrackCount = tracks.length + 1;
+        const maxSteps = Math.max(...tracks.map((t) => t.steps.length), 4);
+        if (onAddTrack) {
+            onAddTrack();
+        }
+        if (
+            viewMode === 'vertical' &&
+            nextTrackCount > PORTRAIT_MAX_COMFORTABLE_TRACKS &&
+            maxSteps <= LANDSCAPE_MAX_COMFORTABLE_STEPS
+        ) {
+            setViewMode('horizontal');
+        }
+    };
+
+    // --- 1. CIRCULAR VIEW (Concentric Euclidean Rhythm Necklace, clockwise from 12 o'clock) ---
     const renderCircularView = () => {
         const size = 224;
         const cx = size / 2;
@@ -701,7 +457,9 @@ export default function MetronomeRollEditor({
                                 <StepCounterPill
                                     numSteps={track.steps.length}
                                     trackIdx={trackIdx}
-                                    onChangeTrackSteps={onChangeTrackSteps}
+                                    onChangeTrackSteps={
+                                        handleStepCountChangeWithAutoFit
+                                    }
                                 />
                             </div>
                         );
@@ -711,9 +469,311 @@ export default function MetronomeRollEditor({
         );
     };
 
+    // --- 2. LANDSCAPE VIEW (Horizontal rows, left-to-right time, constant 26px row height) ---
+    const renderHorizontalView = () => (
+        <div
+            style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 5,
+                padding: '7px',
+                borderRadius: 8,
+                background: 'var(--bg-primary)',
+                border: '1px solid var(--border-color)',
+                overflowX: 'auto',
+            }}>
+            {tracks.map((track, trackIdx) => {
+                const palette = getTrackPalette(track, trackIdx);
+                const activeStepIdx = isPlaying
+                    ? (currentStepByTrack[trackIdx] ?? -1)
+                    : -1;
+                const numSteps = track.steps.length;
+
+                return (
+                    <div
+                        key={track.id || trackIdx}
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 5,
+                        }}>
+                        {/* Voice Pitch Badge (A / B / C...) */}
+                        <button
+                            type="button"
+                            onClick={() =>
+                                onCycleTrackVoice && onCycleTrackVoice(trackIdx)
+                            }
+                            title={`Track ${track.label} (${palette.name}) — tap to cycle click voice`}
+                            style={{
+                                width: 22,
+                                height: MIN_CELL_SIZE_PX,
+                                padding: 0,
+                                borderRadius: 5,
+                                border: `1px solid ${palette.activeBorder}`,
+                                background: palette.badgeBg,
+                                color: palette.badgeText,
+                                fontWeight: 800,
+                                fontSize: '0.72rem',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                flexShrink: 0,
+                                cursor: 'pointer',
+                                userSelect: 'none',
+                            }}>
+                            {track.label || String.fromCharCode(65 + trackIdx)}
+                        </button>
+
+                        {/* Horizontal Time Loop Blocks */}
+                        <div
+                            style={{
+                                display: 'flex',
+                                flex: 1,
+                                gap: numSteps >= 16 ? 1.5 : numSteps >= 12 ? 2 : 3,
+                                minWidth:
+                                    numSteps > LANDSCAPE_MAX_COMFORTABLE_STEPS
+                                        ? numSteps * 18
+                                        : 0,
+                            }}>
+                            {track.steps.map((hasDot, stepIdx) => {
+                                const isPlayheadHere = activeStepIdx === stepIdx;
+                                const isBeatBoundary =
+                                    numSteps > masterBeats &&
+                                    numSteps % masterBeats === 0 &&
+                                    stepIdx > 0 &&
+                                    stepIdx % (numSteps / masterBeats) === 0;
+
+                                return (
+                                    <button
+                                        key={stepIdx}
+                                        type="button"
+                                        title={`Track ${track.label}, Step ${stepIdx + 1}/${numSteps}`}
+                                        onClick={() =>
+                                            onToggleStep &&
+                                            onToggleStep(trackIdx, stepIdx)
+                                        }
+                                        style={{
+                                            flex: 1,
+                                            height: MIN_CELL_SIZE_PX,
+                                            padding: 0,
+                                            marginLeft: isBeatBoundary ? 2 : 0,
+                                            borderRadius: 4,
+                                            border: `1px solid ${
+                                                isPlayheadHere
+                                                    ? palette.activeBorder
+                                                    : 'var(--border-color)'
+                                            }`,
+                                            background: isPlayheadHere
+                                                ? palette.activeBg
+                                                : 'var(--bg-surface)',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            cursor: 'pointer',
+                                        }}>
+                                        <span
+                                            style={{
+                                                width:
+                                                    numSteps >= 20
+                                                        ? 4.5
+                                                        : numSteps >= 12
+                                                          ? 5.5
+                                                          : 7.5,
+                                                height:
+                                                    numSteps >= 20
+                                                        ? 4.5
+                                                        : numSteps >= 12
+                                                          ? 5.5
+                                                          : 7.5,
+                                                borderRadius: '50%',
+                                                background: hasDot
+                                                    ? palette.dot
+                                                    : 'var(--border-color)',
+                                                opacity: hasDot ? 1 : 0.32,
+                                                transform:
+                                                    isPlayheadHere && hasDot
+                                                        ? 'scale(1.25)'
+                                                        : 'scale(1)',
+                                            }}
+                                        />
+                                    </button>
+                                );
+                            })}
+                        </div>
+
+                        <StepCounterPill
+                            numSteps={numSteps}
+                            trackIdx={trackIdx}
+                            onChangeTrackSteps={
+                                handleStepCountChangeWithAutoFit
+                            }
+                        />
+                    </div>
+                );
+            })}
+        </div>
+    );
+
+    // --- 3. TRANSPOSED PORTRAIT VIEW (Vertical columns, grows proportionally in height with more divisions) ---
+    const renderVerticalView = () => {
+        const maxStepsAcrossTracks = Math.max(
+            ...tracks.map((t) => t.steps.length),
+            4
+        );
+        // Grow proportionally in height with no artificial cap so every division keeps at least MIN_CELL_SIZE_PX (26px)
+        const colHeight = Math.max(
+            140,
+            maxStepsAcrossTracks * (MIN_CELL_SIZE_PX + 2.5)
+        );
+
+        return (
+            <div
+                style={{
+                    display: 'flex',
+                    gap: 8,
+                    padding: '8px',
+                    borderRadius: 8,
+                    background: 'var(--bg-primary)',
+                    border: '1px solid var(--border-color)',
+                    overflowX: 'auto',
+                    justifyContent:
+                        tracks.length <= 4 ? 'space-around' : 'flex-start',
+                }}>
+                {tracks.map((track, trackIdx) => {
+                    const palette = getTrackPalette(track, trackIdx);
+                    const activeStepIdx = isPlaying
+                        ? (currentStepByTrack[trackIdx] ?? -1)
+                        : -1;
+                    const numSteps = track.steps.length;
+
+                    return (
+                        <div
+                            key={track.id || trackIdx}
+                            style={{
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                gap: 5,
+                                flex: 1,
+                                minWidth: 54,
+                                maxWidth: 92,
+                            }}>
+                            {/* Top Header: Track Badge + Step Counter */}
+                            <div
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 4,
+                                }}>
+                                <button
+                                    type="button"
+                                    onClick={() =>
+                                        onCycleTrackVoice &&
+                                        onCycleTrackVoice(trackIdx)
+                                    }
+                                    title={`Track ${track.label} (${palette.name}) — tap to cycle click voice`}
+                                    style={{
+                                        width: 22,
+                                        height: 24,
+                                        padding: 0,
+                                        borderRadius: 5,
+                                        border: `1px solid ${palette.activeBorder}`,
+                                        background: palette.badgeBg,
+                                        color: palette.badgeText,
+                                        fontWeight: 800,
+                                        fontSize: '0.72rem',
+                                        cursor: 'pointer',
+                                    }}>
+                                    {track.label ||
+                                        String.fromCharCode(65 + trackIdx)}
+                                </button>
+                                <StepCounterPill
+                                    numSteps={numSteps}
+                                    trackIdx={trackIdx}
+                                    onChangeTrackSteps={
+                                        handleStepCountChangeWithAutoFit
+                                    }
+                                />
+                            </div>
+
+                            {/* Vertical Time Column (Top-to-Bottom proportional blocks with minimum square height) */}
+                            <div
+                                style={{
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    width: '100%',
+                                    height: colHeight,
+                                    gap: 2.5,
+                                }}>
+                                {track.steps.map((hasDot, stepIdx) => {
+                                    const isPlayheadHere =
+                                        activeStepIdx === stepIdx;
+                                    const isBeatBoundary =
+                                        numSteps > masterBeats &&
+                                        numSteps % masterBeats === 0 &&
+                                        stepIdx > 0 &&
+                                        stepIdx % (numSteps / masterBeats) === 0;
+
+                                    return (
+                                        <button
+                                            key={stepIdx}
+                                            type="button"
+                                            title={`Track ${track.label}, Step ${stepIdx + 1}/${numSteps}`}
+                                            onClick={() =>
+                                                onToggleStep &&
+                                                onToggleStep(trackIdx, stepIdx)
+                                            }
+                                            style={{
+                                                flex: 1,
+                                                minHeight: MIN_CELL_SIZE_PX - 2,
+                                                width: '100%',
+                                                padding: 0,
+                                                marginTop: isBeatBoundary
+                                                    ? 3
+                                                    : 0,
+                                                borderRadius: 4,
+                                                border: `1px solid ${
+                                                    isPlayheadHere
+                                                        ? palette.activeBorder
+                                                        : 'var(--border-color)'
+                                                }`,
+                                                background: isPlayheadHere
+                                                    ? palette.activeBg
+                                                    : 'var(--bg-surface)',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                cursor: 'pointer',
+                                            }}>
+                                            <span
+                                                style={{
+                                                    width: 7,
+                                                    height: 7,
+                                                    borderRadius: '50%',
+                                                    background: hasDot
+                                                        ? palette.dot
+                                                        : 'var(--border-color)',
+                                                    opacity: hasDot ? 1 : 0.32,
+                                                    transform:
+                                                        isPlayheadHere && hasDot
+                                                            ? 'scale(1.25)'
+                                                            : 'scale(1)',
+                                                }}
+                                            />
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+        );
+    };
+
     return (
         <div>
-            {/* Top Bar: Clickable [ Landscape | Portrait | Circular ] on Left + [ - Line | + Line ] on Right */}
+            {/* Top Bar: Clickable [ Circular | Landscape | Portrait ] on Left + [ - Line | + Line ] on Right */}
             <div
                 style={{
                     display: 'flex',
@@ -722,7 +782,7 @@ export default function MetronomeRollEditor({
                     gap: 6,
                     marginBottom: 6,
                 }}>
-                {/* 3-Mode Visual Switcher with explicit labels */}
+                {/* 3-Mode Visual Switcher in new order: Circular, Landscape, Portrait */}
                 <div
                     style={{
                         display: 'inline-flex',
@@ -733,6 +793,11 @@ export default function MetronomeRollEditor({
                     }}>
                     {[
                         {
+                            id: 'circular',
+                            label: 'Circular',
+                            title: 'Circular Euclidean Necklace (Clockwise)',
+                        },
+                        {
                             id: 'horizontal',
                             label: 'Landscape',
                             title: 'Landscape Roll (Left → Right)',
@@ -741,11 +806,6 @@ export default function MetronomeRollEditor({
                             id: 'vertical',
                             label: 'Portrait',
                             title: 'Portrait Roll (Top → Bottom)',
-                        },
-                        {
-                            id: 'circular',
-                            label: 'Circular',
-                            title: 'Circular Euclidean Necklace (Clockwise)',
                         },
                     ].map((m) => {
                         const active = viewMode === m.id;
@@ -798,7 +858,7 @@ export default function MetronomeRollEditor({
                     <button
                         type="button"
                         disabled={tracks.length >= MAX_METRONOME_TRACKS}
-                        onClick={onAddTrack}
+                        onClick={handleAddTrackWithAutoFit}
                         title="Add polyrhythm track line"
                         style={{
                             padding: '4px 8px',
@@ -824,9 +884,9 @@ export default function MetronomeRollEditor({
 
             {viewMode === 'vertical'
                 ? renderVerticalView()
-                : viewMode === 'circular'
-                  ? renderCircularView()
-                  : renderHorizontalView()}
+                : viewMode === 'horizontal'
+                  ? renderHorizontalView()
+                  : renderCircularView()}
         </div>
     );
 }
