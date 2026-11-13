@@ -1,6 +1,6 @@
 /**
  * @file src/screens/SettingsScreen.jsx
- * @version 3.12.1
+ * @version 3.12.2
  */
 import React, { useContext, useEffect, useRef, useState } from 'react';
 import {
@@ -26,7 +26,7 @@ import { APP_DEFAULTS, AppContext } from '../shared/AppContext';
 import { COLOR_THEMES } from '../shared/songSchema.js';
 import pkg from '../../package.json';
 
-export const __version__ = '3.12.1';
+export const __version__ = '3.12.2';
 
 export const FREEZE_CHORDS_STORAGE_KEY = 'acordismo_freeze_chords';
 export const HIDE_CRAWLER_TABS_STORAGE_KEY = 'acordismo_hide_crawler_tabs';
@@ -217,22 +217,22 @@ export default function SettingsScreen({ onBack }) {
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'space-between',
-                        flexWrap: 'wrap',
                         padding: 15,
                         gap: 10,
                         borderBottom: '1px solid var(--border-color)',
                     }}>
-                    <div>
+                    <div style={{ minWidth: 0 }}>
                         <strong>Color Theme</strong>
                         <div style={{ fontSize: '0.86rem', color: 'var(--text-secondary)' }}>
                             {colorTheme === 'shr'
-                                ? 'Green accents and chords'
-                                : 'Blue accents and chords'}
+                                ? 'Green palette'
+                                : 'Blue palette'}
                         </div>
                     </div>
                     <div
                         style={{
                             display: 'inline-flex',
+                            flexShrink: 0,
                             background: 'var(--bg-primary)',
                             padding: 3,
                             borderRadius: 8,
@@ -249,7 +249,7 @@ export default function SettingsScreen({ onBack }) {
                                         setColorTheme(themeOpt.id)
                                     }
                                     style={{
-                                        padding: '6px 12px',
+                                        padding: '6px 11px',
                                         borderRadius: 6,
                                         border: 'none',
                                         fontWeight: 700,
