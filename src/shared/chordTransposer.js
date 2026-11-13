@@ -1,8 +1,9 @@
 /**
  * @file src/shared/chordTransposer.js
- * @version 5.1.0
+ * @version 5.1.1
  * Pure canonical chord parser, harmonic key/enharmonic analyzer, and parenthetical transposer
  * (hosted in Acordismo). Contains zero crawler-specific heuristics.
+ * Biases enharmonic ties toward Sharps (`#`) when letter collisions are equal.
  */
 import {
     SHARP_NOTES,
@@ -15,7 +16,7 @@ import {
     SYNTAX_PALETTE,
 } from './songSchema.js';
 
-export const __version__ = '5.1.0';
+export const __version__ = '5.1.1';
 
 export {
     SHARP_NOTES,
@@ -29,8 +30,8 @@ export {
 };
 
 const MAJOR_SCALE_INTERVALS = [0, 2, 4, 5, 7, 9, 11];
-const FLAT_TONICS = new Set([5, 10, 3, 8, 1]); // F, Bb, Eb, Ab, Db
-const SHARP_TONICS = new Set([7, 2, 9, 4, 11]); // G, D, A, E, B
+const FLAT_TONICS = new Set([5, 10, 3]); // F, Bb, Eb (true guitar flat keys; Ab/Db tie-break to G#/C# when collision-free)
+const SHARP_TONICS = new Set([7, 2, 9, 4, 11, 6, 1, 8]); // G, D, A, E, B, F#, C#, G#
 
 export function mod12(n) {
     return ((n % 12) + 12) % 12;
@@ -311,6 +312,12 @@ export function deduceSongUseFlats(
         return false;
     }
 
+    // 1. If untransposed (semitones === 0), preserve the song's written accidental preference first
+    if (mod12(semitones) === 0 && originalFlatsCount !== originalSharpsCount) {
+        return originalFlatsCount > originalSharpsCount;
+    }
+
+    // 2. If one palette strictly reduces letter collisions (e.g. F & Bb vs A & A#), pick that palette
     const sharpEval = evaluatePaletteCollisions(
         SHARP_NOTES,
         pitchClassCounts,
@@ -329,8 +336,14 @@ export function deduceSongUseFlats(
         return flatEval.weightedCollisionScore < sharpEval.weightedCollisionScore;
     }
 
-    if (mod12(semitones) === 0 && originalFlatsCount !== originalSharpsCount) {
-        return originalFlatsCount > originalSharpsCount;
+    // 3. When collisions are tied (e.g. 0 collisions in both A#m/G#/F# and Bbm/Ab/Gb),
+    // only use flats for natural flat tonics (F, Bb, Eb) if they also contain natural chords;
+    // if every single chord in the song is a black key (like A#m G# F# C#), bias toward Sharps!
+    const allChordsAreBlackKeys = [...rootPitchClassSet].every((pc) =>
+        [1, 3, 6, 8, 10].includes(pc)
+    );
+    if (allChordsAreBlackKeys) {
+        return false;
     }
 
     if (songKeyHint && typeof songKeyHint === 'string') {
@@ -355,12 +368,7 @@ export function deduceSongUseFlats(
         return false;
     }
 
-    const flatSignatureWeight =
-        (pitchClassCounts.get(10) || 0) + (pitchClassCounts.get(3) || 0);
-    const sharpSignatureWeight =
-        (pitchClassCounts.get(6) || 0) + (pitchClassCounts.get(1) || 0);
-
-    return flatSignatureWeight > sharpSignatureWeight;
+    return false;
 }
 
 export function deduceSongKeyInfo(
