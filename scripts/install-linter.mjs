@@ -1,19 +1,20 @@
 #!/usr/bin/env node
 /**
  * @file scripts/install-linter.mjs
- * @version 2.8.1
+ * @version 2.8.2
  * Installs the Acordismo / Small Hotel Room VS Code Linter & Syntax Decorator extension
  * into `~/.vscode/extensions/smallhotelroom.acordismo-song-linter-<version>` AND registers
  * it inside `~/.vscode/extensions/extensions.json`, loading `songSchema.js` and
  * `chordTransposer.js` directly from `acordismo/src/shared/`.
- * Supports live switching between "Basic" (`basic`, default) and "Small Hotel Room" (`shr`).
+ * Supports live switching between "Basic" (`basic`, default) and "Small Hotel Room" (`shr`),
+ * plus multi-line `[choir]` block decoration.
  */
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
-export const __version__ = '2.8.1';
+export const __version__ = '2.8.2';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -400,6 +401,7 @@ function lintAndDecorateEditor(editor, diagnosticCollection) {
         const rangesChoir = [];
 
         let currentSectionType = 'main';
+        let inChoirBlock = false;
         const seenHeaders = new Set();
 
         const {
@@ -415,8 +417,13 @@ function lintAndDecorateEditor(editor, diagnosticCollection) {
         for (let docLineIdx = bodyStartIdx; docLineIdx < doc.lineCount; docLineIdx++) {
             const lineText = doc.lineAt(docLineIdx).text;
 
+            if (!lineText.trim()) {
+                inChoirBlock = false;
+            }
+
             // Section Header (## ...)
             if (lineText.startsWith('##')) {
+                inChoirBlock = false;
                 const secMatch = SECTION_HEADER_REGEX
                     ? SECTION_HEADER_REGEX.exec(lineText)
                     : /^##\s+(.+?)\s*$/.exec(lineText);
@@ -536,18 +543,41 @@ function lintAndDecorateEditor(editor, diagnosticCollection) {
                 continue;
             }
 
-            // Highlight [choir / instrumental] blocks on lyric & translation lines
-            const choirRe = /\[[^\]]+\]/g;
-            let cMatch;
-            while ((cMatch = choirRe.exec(lineText)) !== null) {
-                rangesChoir.push(
-                    new vscode.Range(
-                        docLineIdx,
-                        cMatch.index,
-                        docLineIdx,
-                        cMatch.index + cMatch[0].length
-                    )
-                );
+            // Highlight single-line AND multi-line [choir / instrumental] blocks
+            let choirCursor = 0;
+            while (choirCursor < lineText.length) {
+                if (inChoirBlock) {
+                    const closeIdx = lineText.indexOf(']', choirCursor);
+                    if (closeIdx === -1) {
+                        rangesChoir.push(
+                            new vscode.Range(
+                                docLineIdx,
+                                choirCursor,
+                                docLineIdx,
+                                lineText.length
+                            )
+                        );
+                        choirCursor = lineText.length;
+                    } else {
+                        rangesChoir.push(
+                            new vscode.Range(
+                                docLineIdx,
+                                choirCursor,
+                                docLineIdx,
+                                closeIdx + 1
+                            )
+                        );
+                        choirCursor = closeIdx + 1;
+                        inChoirBlock = false;
+                    }
+                } else {
+                    const openIdx = lineText.indexOf('[', choirCursor);
+                    if (openIdx === -1) {
+                        break;
+                    }
+                    inChoirBlock = true;
+                    choirCursor = openIdx;
+                }
             }
 
             // Scan (...) blocks on main / translation lines

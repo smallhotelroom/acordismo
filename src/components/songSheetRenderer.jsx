@@ -1,9 +1,9 @@
 /**
  * @file src/components/songSheetRenderer.jsx
- * @version 1.2.0
+ * @version 1.2.1
  * Renders song sheet lines (curated `(...)` chord groups, standalone/crawler chord lines,
- * `[choir]` backing vocal blocks, and top capo/drop/tuning directives) into React elements.
- * Supports highlighting the currently strumming chord (`activeChordSeqIdx`) during song playback.
+ * single-line AND multi-line `[choir]` backing vocal blocks, and top capo/drop/tuning directives)
+ * into React elements. Supports highlighting the currently strumming chord (`activeChordSeqIdx`).
  */
 import React from 'react';
 import {
@@ -19,37 +19,84 @@ import {
     stripOuterPunctuation,
 } from '../shared/crawlerTransposer';
 
-export const __version__ = '1.2.0';
+export const __version__ = '1.2.1';
 
-export function renderLyricWithChoir(text, choirColor, baseKey) {
-    if (!text || !text.includes('[')) {
+/**
+ * Renders lyric text while tracking `[` and `]` across lines via `choirStateRef`
+ * so multi-line `[without a sense of confidence\nand I'm convinced...]` blocks
+ * are italicized and colored properly on every line.
+ */
+export function renderLyricWithChoir(
+    text,
+    choirColor,
+    baseKey,
+    choirStateRef = null
+) {
+    if (!text) {
         return <span key={baseKey}>{text}</span>;
     }
+
+    const inChoirAtStart = Boolean(choirStateRef && choirStateRef.inChoir);
+    if (!inChoirAtStart && !text.includes('[')) {
+        return <span key={baseKey}>{text}</span>;
+    }
+
     const parts = [];
-    const regex = /\[[^\]]+\]/g;
-    let lastIdx = 0;
-    let match;
+    let cursor = 0;
     let subIdx = 0;
-    while ((match = regex.exec(text)) !== null) {
-        if (match.index > lastIdx) {
-            parts.push(
-                <span key={`${baseKey}-t-${subIdx++}`}>
-                    {text.slice(lastIdx, match.index)}
-                </span>
-            );
+    let inChoir = inChoirAtStart;
+
+    while (cursor < text.length) {
+        if (inChoir) {
+            const closeIdx = text.indexOf(']', cursor);
+            if (closeIdx === -1) {
+                // Remains inside `[...]` across the newline into the next line
+                parts.push(
+                    <em
+                        key={`${baseKey}-c-${subIdx++}`}
+                        style={{ color: choirColor, fontStyle: 'italic' }}>
+                        {text.slice(cursor)}
+                    </em>
+                );
+                cursor = text.length;
+            } else {
+                parts.push(
+                    <em
+                        key={`${baseKey}-c-${subIdx++}`}
+                        style={{ color: choirColor, fontStyle: 'italic' }}>
+                        {text.slice(cursor, closeIdx + 1)}
+                    </em>
+                );
+                cursor = closeIdx + 1;
+                inChoir = false;
+            }
+        } else {
+            const openIdx = text.indexOf('[', cursor);
+            if (openIdx === -1) {
+                parts.push(
+                    <span key={`${baseKey}-t-${subIdx++}`}>
+                        {text.slice(cursor)}
+                    </span>
+                );
+                cursor = text.length;
+            } else {
+                if (openIdx > cursor) {
+                    parts.push(
+                        <span key={`${baseKey}-t-${subIdx++}`}>
+                            {text.slice(cursor, openIdx)}
+                        </span>
+                    );
+                }
+                cursor = openIdx;
+                inChoir = true;
+            }
         }
-        parts.push(
-            <em
-                key={`${baseKey}-c-${subIdx++}`}
-                style={{ color: choirColor, fontStyle: 'italic' }}>
-                {match[0]}
-            </em>
-        );
-        lastIdx = match.index + match[0].length;
     }
-    if (lastIdx < text.length) {
-        parts.push(<span key={`${baseKey}-t-${subIdx++}`}>{text.slice(lastIdx)}</span>);
+
+    if (choirStateRef) {
+        choirStateRef.inChoir = inChoir;
     }
+
     return <span key={baseKey}>{parts}</span>;
 }
 
@@ -151,6 +198,7 @@ export function buildSongSheetElements({
     const sections = [];
     let currentSection = null;
     const seqCounterRef = { current: 0 };
+    const choirStateRef = { inChoir: false };
 
     if (!isTranslationView) {
         const topDirectives = [];
@@ -234,6 +282,11 @@ export function buildSongSheetElements({
     };
 
     lines.forEach((lineText, lineIndex) => {
+        if (!lineText.trim()) {
+            // Blank line resets any unclosed `[` state defensively
+            choirStateRef.inChoir = false;
+        }
+
         const lineNodes = [];
         let hasChordsOnLine = false;
 
@@ -254,7 +307,12 @@ export function buildSongSheetElements({
                 counter = nextKey;
             } else {
                 lineNodes.push(
-                    renderLyricWithChoir(lineText, palette.choir, counter++)
+                    renderLyricWithChoir(
+                        lineText,
+                        palette.choir,
+                        counter++,
+                        choirStateRef
+                    )
                 );
             }
         } else if (!lineText.includes('(') && isStandaloneChordLine(lineText)) {
@@ -293,7 +351,8 @@ export function buildSongSheetElements({
                             re1.lastIndex - array1[0].length
                         ),
                         palette.choir,
-                        counter
+                        counter,
+                        choirStateRef
                     )
                 );
 
@@ -382,7 +441,8 @@ export function buildSongSheetElements({
                 renderLyricWithChoir(
                     lineText.slice(outerLastIndex, lineText.length),
                     palette.choir,
-                    counter
+                    counter,
+                    choirStateRef
                 )
             );
             counter += 1;
