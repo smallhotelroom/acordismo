@@ -1,18 +1,19 @@
 #!/usr/bin/env node
 /**
  * @file scripts/install-linter.mjs
- * @version 2.7.0
+ * @version 2.8.0
  * Installs the Acordismo / Small Hotel Room VS Code Linter & Syntax Decorator extension
  * into `~/.vscode/extensions/smallhotelroom.acordismo-song-linter-<version>` AND registers
  * it inside `~/.vscode/extensions/extensions.json`, loading `songSchema.js` and
  * `chordTransposer.js` directly from `acordismo/src/shared/`.
+ * Supports live switching between "Small Hotel Room" (`shr`, default) and "Original 2026" (`original-2026`).
  */
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
-export const __version__ = '2.7.0';
+export const __version__ = '2.8.0';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -67,6 +68,30 @@ const extPackageJson = {
     categories: ['Linters'],
     activationEvents: ['onLanguage:markdown', 'onLanguage:plaintext', '*'],
     main: './extension.cjs',
+    contributes: {
+        commands: [
+            {
+                command: 'acordismoSongLinter.toggleColorScheme',
+                title: 'Acordismo: Toggle Song Linter Color Scheme (Small Hotel Room / Original 2026)',
+            },
+        ],
+        configuration: {
+            title: 'Acordismo Song Linter',
+            properties: {
+                'acordismoSongLinter.colorScheme': {
+                    type: 'string',
+                    enum: ['shr', 'original-2026'],
+                    enumDescriptions: [
+                        'Small Hotel Room (Default: #569400 SHR Green chords, Blue [choir], Greenish (...) tint)',
+                        'Original 2026 (Classic: Blue chords, Green [choir], Blueish (...) tint)',
+                    ],
+                    default: 'shr',
+                    description:
+                        'Color scheme for inline chords, [choir] blocks, and parenthetical chord groups.',
+                },
+            },
+        },
+    },
 };
 
 const extensionHeader = `/**
@@ -88,6 +113,7 @@ let transposerMod = null;
 let schemaMtime = 0;
 let transposerMtime = 0;
 let decorationTypes = null;
+let currentSchemeId = null;
 
 function evaluateEsmFile(filePath, injectedModules = {}) {
     const rawCode = fs.readFileSync(filePath, 'utf8');
@@ -153,6 +179,22 @@ function evaluateEsmFile(filePath, injectedModules = {}) {
     return mod.exports;
 }
 
+function getConfiguredSchemeId() {
+    const cfg = vscode.workspace.getConfiguration('acordismoSongLinter');
+    const val = cfg.get('colorScheme', 'shr');
+    return val === 'original-2026' ? 'original-2026' : 'shr';
+}
+
+function resolveActivePalette(mod, schemeId) {
+    if (mod && typeof mod.getSyntaxPalette === 'function') {
+        return mod.getSyntaxPalette(schemeId);
+    }
+    if (mod && mod.SYNTAX_PALETTE_BY_THEME && mod.SYNTAX_PALETTE_BY_THEME[schemeId]) {
+        return mod.SYNTAX_PALETTE_BY_THEME[schemeId];
+    }
+    return mod ? mod.SYNTAX_PALETTE : null;
+}
+
 function createDecorationTypes(SYNTAX_PALETTE) {
     const dark = SYNTAX_PALETTE.dark;
     const light = SYNTAX_PALETTE.light;
@@ -200,14 +242,26 @@ function ensureModulesFresh() {
     try {
         const sStat = fs.statSync(SCHEMA_PATH);
         const tStat = fs.statSync(TRANSPOSER_PATH);
-        if (!schemaMod || sStat.mtimeMs !== schemaMtime || tStat.mtimeMs !== transposerMtime) {
+        const desiredSchemeId = getConfiguredSchemeId();
+        const filesChanged =
+            !schemaMod ||
+            sStat.mtimeMs !== schemaMtime ||
+            tStat.mtimeMs !== transposerMtime;
+        const schemeChanged = desiredSchemeId !== currentSchemeId || !decorationTypes;
+
+        if (filesChanged) {
             schemaMod = evaluateEsmFile(SCHEMA_PATH);
             transposerMod = evaluateEsmFile(TRANSPOSER_PATH, { songSchema: schemaMod });
             schemaMtime = sStat.mtimeMs;
             transposerMtime = tStat.mtimeMs;
+        }
+
+        if (filesChanged || schemeChanged) {
             disposeDecorations();
-            if (schemaMod.SYNTAX_PALETTE) {
-                decorationTypes = createDecorationTypes(schemaMod.SYNTAX_PALETTE);
+            currentSchemeId = desiredSchemeId;
+            const palette = resolveActivePalette(schemaMod, currentSchemeId);
+            if (palette) {
+                decorationTypes = createDecorationTypes(palette);
             }
         }
     } catch (err) {
@@ -604,6 +658,29 @@ function activate(context) {
         }
     };
 
+    const refreshAllVisibleEditors = () => {
+        ensureModulesFresh();
+        vscode.window.visibleTextEditors.forEach((ed) => triggerUpdate(ed));
+    };
+
+    const toggleCmd = vscode.commands.registerCommand(
+        'acordismoSongLinter.toggleColorScheme',
+        async () => {
+            const curr = getConfiguredSchemeId();
+            const next = curr === 'shr' ? 'original-2026' : 'shr';
+            await vscode.workspace
+                .getConfiguration('acordismoSongLinter')
+                .update('colorScheme', next, vscode.ConfigurationTarget.Global);
+            vscode.window.showInformationMessage(
+                'Acordismo Song Linter color scheme set to: ' +
+                    (next === 'shr'
+                        ? 'Small Hotel Room (#569400)'
+                        : 'Original 2026 (#2563eb)')
+            );
+        }
+    );
+    context.subscriptions.push(toggleCmd);
+
     if (vscode.window.activeTextEditor) {
         triggerUpdate(vscode.window.activeTextEditor);
     }
@@ -614,6 +691,11 @@ function activate(context) {
             const active = vscode.window.activeTextEditor;
             if (active && e.document === active.document) {
                 triggerUpdate(active);
+            }
+        }),
+        vscode.workspace.onDidChangeConfiguration((e) => {
+            if (e.affectsConfiguration('acordismoSongLinter.colorScheme')) {
+                refreshAllVisibleEditors();
             }
         })
     );
