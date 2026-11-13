@@ -1,19 +1,19 @@
 #!/usr/bin/env node
 /**
  * @file scripts/install-linter.mjs
- * @version 2.8.0
+ * @version 2.8.1
  * Installs the Acordismo / Small Hotel Room VS Code Linter & Syntax Decorator extension
  * into `~/.vscode/extensions/smallhotelroom.acordismo-song-linter-<version>` AND registers
  * it inside `~/.vscode/extensions/extensions.json`, loading `songSchema.js` and
  * `chordTransposer.js` directly from `acordismo/src/shared/`.
- * Supports live switching between "Small Hotel Room" (`shr`, default) and "Original 2026" (`original-2026`).
+ * Supports live switching between "Basic" (`basic`, default) and "Small Hotel Room" (`shr`).
  */
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
-export const __version__ = '2.8.0';
+export const __version__ = '2.8.1';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -72,7 +72,7 @@ const extPackageJson = {
         commands: [
             {
                 command: 'acordismoSongLinter.toggleColorScheme',
-                title: 'Acordismo: Toggle Song Linter Color Scheme (Small Hotel Room / Original 2026)',
+                title: 'Acordismo: Toggle Song Linter Color Scheme (Basic / Small Hotel Room)',
             },
         ],
         configuration: {
@@ -80,12 +80,12 @@ const extPackageJson = {
             properties: {
                 'acordismoSongLinter.colorScheme': {
                     type: 'string',
-                    enum: ['shr', 'original-2026'],
+                    enum: ['basic', 'shr'],
                     enumDescriptions: [
-                        'Small Hotel Room (Default: #569400 SHR Green chords, Blue [choir], Greenish (...) tint)',
-                        'Original 2026 (Classic: Blue chords, Green [choir], Blueish (...) tint)',
+                        'Basic (Default: Blue chords, Green [choir], Purple modifiers, Blueish (...) tint)',
+                        'Small Hotel Room (SHR Green chords, Blue [choir], Brown modifiers, Greenish (...) tint)',
                     ],
-                    default: 'shr',
+                    default: 'basic',
                     description:
                         'Color scheme for inline chords, [choir] blocks, and parenthetical chord groups.',
                 },
@@ -181,8 +181,8 @@ function evaluateEsmFile(filePath, injectedModules = {}) {
 
 function getConfiguredSchemeId() {
     const cfg = vscode.workspace.getConfiguration('acordismoSongLinter');
-    const val = cfg.get('colorScheme', 'shr');
-    return val === 'original-2026' ? 'original-2026' : 'shr';
+    const val = cfg.get('colorScheme', 'basic');
+    return val === 'shr' ? 'shr' : 'basic';
 }
 
 function resolveActivePalette(mod, schemeId) {
@@ -667,7 +667,7 @@ function activate(context) {
         'acordismoSongLinter.toggleColorScheme',
         async () => {
             const curr = getConfiguredSchemeId();
-            const next = curr === 'shr' ? 'original-2026' : 'shr';
+            const next = curr === 'basic' ? 'shr' : 'basic';
             await vscode.workspace
                 .getConfiguration('acordismoSongLinter')
                 .update('colorScheme', next, vscode.ConfigurationTarget.Global);
@@ -675,7 +675,7 @@ function activate(context) {
                 'Acordismo Song Linter color scheme set to: ' +
                     (next === 'shr'
                         ? 'Small Hotel Room (#569400)'
-                        : 'Original 2026 (#2563eb)')
+                        : 'Basic (#2563eb)')
             );
         }
     );

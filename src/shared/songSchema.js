@@ -1,14 +1,14 @@
 /**
  * @file src/shared/songSchema.js
- * @version 3.1.0
+ * @version 3.1.1
  * Single Source of Truth (hosted in Acordismo) for Frontmatter Schema, Draconian
  * Case-Sensitive Chord Grammar, Custom Tuning Parser (`parseInstrumentTuning`),
  * Markdown `##` Section & Harmonic Fingering Postures Schema, Reverse Chord Voicing
  * Identification (`suggestChordsForVoicing`), Default Posture Previewer (`getDefaultPostureForChord`),
- * and Theme-Aware Syntax Highlighting Palettes (`Small Hotel Room` default + `Original 2026`).
+ * and Theme-Aware Syntax Highlighting Palettes (`Basic` default + `Small Hotel Room`).
  */
 
-export const __version__ = '3.1.0';
+export const __version__ = '3.1.1';
 
 export const BASE_REQUIRED_KEYS = [];
 
@@ -1027,7 +1027,15 @@ export const validateMarkdownSections = (
 };
 
 // --- THEME-AWARE SYNTAX HIGHLIGHTING PALETTES (Linter + SongScreen + PDF) ---
+// Order: Basic (Default), Small Hotel Room
 export const COLOR_THEMES = [
+  {
+    id: 'basic',
+    label: 'Basic',
+    accentColor: '#2563eb',
+    accentHover: '#1d4ed8',
+    accentRgb: '37, 99, 235',
+  },
   {
     id: 'shr',
     label: 'Small Hotel Room',
@@ -1035,45 +1043,11 @@ export const COLOR_THEMES = [
     accentHover: '#457a00',
     accentRgb: '86, 148, 0',
   },
-  {
-    id: 'original-2026',
-    label: 'Original 2026',
-    accentColor: '#2563eb',
-    accentHover: '#1d4ed8',
-    accentRgb: '37, 99, 235',
-  },
 ];
 
 export const SYNTAX_PALETTE_BY_THEME = {
-  // Default: "Small Hotel Room" (Chords = SHR Green, [choir] = Blue, Greenish (...) tint)
-  shr: {
-    dark: {
-      parenBg: 'rgba(118, 199, 0, 0.08)',
-      parenSymbol: '#b392f0',
-      chord: '#76c700',
-      modifier: '#b392f0',
-      directive: '#d29922',
-      choir: '#79c0ff',
-    },
-    light: {
-      parenBg: 'rgba(86, 148, 0, 0.08)',
-      parenSymbol: '#6e40c9',
-      chord: '#569400',
-      modifier: '#6e40c9',
-      directive: '#b45309',
-      choir: '#0969da',
-    },
-    pdfBw: {
-      parenBg: 'transparent',
-      parenSymbol: '#6e6e6e',
-      chord: '#000000',
-      modifier: '#6e6e6e',
-      directive: '#4b5563',
-      choir: '#525252',
-    },
-  },
-  // Classic: "Original 2026" (Chords = Blue, [choir] = Green, Blueish (...) tint)
-  'original-2026': {
+  // 1. Default: "Basic" (Chords = Blue, [choir] = Green, Purple modifiers, Blueish (...) tint)
+  basic: {
     dark: {
       parenBg: 'rgba(121, 192, 255, 0.06)',
       parenSymbol: '#b392f0',
@@ -1099,14 +1073,42 @@ export const SYNTAX_PALETTE_BY_THEME = {
       choir: '#525252',
     },
   },
+  // 2. "Small Hotel Room" (Chords = SHR Green, [choir] = Blue, Brown modifiers, Greenish (...) tint)
+  shr: {
+    dark: {
+      parenBg: 'rgba(118, 199, 0, 0.08)',
+      parenSymbol: '#c69055',
+      chord: '#76c700',
+      modifier: '#c69055',
+      directive: '#d29922',
+      choir: '#79c0ff',
+    },
+    light: {
+      parenBg: 'rgba(86, 148, 0, 0.08)',
+      parenSymbol: '#8b5a2b',
+      chord: '#569400',
+      modifier: '#8b5a2b',
+      directive: '#b45309',
+      choir: '#0969da',
+    },
+    pdfBw: {
+      parenBg: 'transparent',
+      parenSymbol: '#6e6e6e',
+      chord: '#000000',
+      modifier: '#6e6e6e',
+      directive: '#4b5563',
+      choir: '#525252',
+    },
+  },
 };
 
-export const getSyntaxPalette = (themeId = 'shr') => {
-  return SYNTAX_PALETTE_BY_THEME[themeId] || SYNTAX_PALETTE_BY_THEME.shr;
+export const getSyntaxPalette = (themeId = 'basic') => {
+  if (themeId === 'shr') return SYNTAX_PALETTE_BY_THEME.shr;
+  return SYNTAX_PALETTE_BY_THEME.basic;
 };
 
-// Default export for Linter / PDF backwards compatibility (defaults to "Small Hotel Room")
-export const SYNTAX_PALETTE = SYNTAX_PALETTE_BY_THEME.shr;
+// Default export for Linter / PDF backwards compatibility (defaults to "Basic")
+export const SYNTAX_PALETTE = SYNTAX_PALETTE_BY_THEME.basic;
 
 export const validateAlphabeticalOrder = (keys) => {
   const sortedKeys = [...keys].sort();

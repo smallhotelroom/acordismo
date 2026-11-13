@@ -1,6 +1,6 @@
 /**
  * @file src/screens/SettingsScreen.jsx
- * @version 3.12.0
+ * @version 3.12.1
  */
 import React, { useContext, useEffect, useRef, useState } from 'react';
 import {
@@ -26,7 +26,7 @@ import { APP_DEFAULTS, AppContext } from '../shared/AppContext';
 import { COLOR_THEMES } from '../shared/songSchema.js';
 import pkg from '../../package.json';
 
-export const __version__ = '3.12.0';
+export const __version__ = '3.12.1';
 
 export const FREEZE_CHORDS_STORAGE_KEY = 'acordismo_freeze_chords';
 export const HIDE_CRAWLER_TABS_STORAGE_KEY = 'acordismo_hide_crawler_tabs';
@@ -66,7 +66,7 @@ function formatLayerSubtitle(layer, hideCrawlerTabsEnabled) {
 
 export default function SettingsScreen({ onBack }) {
     const {
-        colorTheme = 'shr',
+        colorTheme = 'basic',
         setColorTheme,
         compensateCapo,
         setCompensateCapo,
@@ -225,9 +225,9 @@ export default function SettingsScreen({ onBack }) {
                     <div>
                         <strong>Color Theme</strong>
                         <div style={{ fontSize: '0.86rem', color: 'var(--text-secondary)' }}>
-                            {colorTheme === 'original-2026'
-                                ? 'Original 2026 (classic blue accents & chords)'
-                                : 'Small Hotel Room (official #569400 green accents & chords)'}
+                            {colorTheme === 'shr'
+                                ? 'Green accents and chords'
+                                : 'Blue accents and chords'}
                         </div>
                     </div>
                     <div

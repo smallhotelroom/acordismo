@@ -1,6 +1,6 @@
 /**
  * @file src/components/SongStrumModal.jsx
- * @version 1.1.0
+ * @version 1.1.1
  * Phase 2 6-String (Guitar) / 4-String (Ukulele) Strum & Arpeggio Roll Editor Modal for SongScreen.
  * Theme-aware: Bass strings follow `--accent-color` (SHR Green / Original 2026 Blue),
  * and treble strings use the complementary accent.
@@ -10,7 +10,7 @@ import { Pause, Play, X } from 'lucide-react';
 import { AppContext } from '../shared/AppContext';
 import { STRUM_PRESETS } from '../shared/songChordPlayer';
 
-export const __version__ = '1.1.0';
+export const __version__ = '1.1.1';
 
 export default function SongStrumModal({
     visible,
@@ -29,7 +29,7 @@ export default function SongStrumModal({
     onClose,
 }) {
     const appCtx = useContext(AppContext);
-    const isShr = (appCtx?.colorTheme || 'shr') !== 'original-2026';
+    const isShr = appCtx?.colorTheme === 'shr';
 
     if (!visible) {
         return null;

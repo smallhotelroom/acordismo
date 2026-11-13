@@ -1,6 +1,6 @@
 /**
  * @file src/shared/AppContext.jsx
- * @version 3.4.0
+ * @version 3.4.1
  */
 import React, { createContext, useEffect, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
@@ -9,7 +9,7 @@ import { parseAcordismoConfigYaml } from './acordismoConfig';
 import rawConfigYaml from '../../acordismo-config.yaml?raw';
 import { COLOR_THEMES } from './songSchema.js';
 
-export const __version__ = '3.4.0';
+export const __version__ = '3.4.1';
 
 export const ACORDISMO_CONFIG = parseAcordismoConfigYaml(rawConfigYaml);
 export const APP_DEFAULTS = ACORDISMO_CONFIG.app;
@@ -30,19 +30,19 @@ const CHORD_INSTRUMENT_STORAGE_KEY = 'acordismo_chord_instrument';
 const DEFAULT_FONT_SIZE_STORAGE_KEY = 'acordismo_default_font_size';
 
 export function AppProvider({ children }) {
-    // 0) Color Theme ('shr' = Small Hotel Room default, 'original-2026' = Original 2026 Blue)
+    // 0) Color Theme ('basic' = Basic default, 'shr' = Small Hotel Room)
     const [colorTheme, setColorThemeState] = useState(() => {
         if (typeof localStorage !== 'undefined') {
             const saved = localStorage.getItem(COLOR_THEME_STORAGE_KEY);
-            if (saved === 'shr' || saved === 'original-2026') {
+            if (saved === 'shr' || saved === 'basic') {
                 return saved;
             }
         }
-        return APP_DEFAULTS?.default_color_theme || 'shr';
+        return APP_DEFAULTS?.default_color_theme === 'shr' ? 'shr' : 'basic';
     });
 
     const setColorTheme = (nextTheme) => {
-        const valid = nextTheme === 'original-2026' ? 'original-2026' : 'shr';
+        const valid = nextTheme === 'shr' ? 'shr' : 'basic';
         setColorThemeState(valid);
         if (typeof localStorage !== 'undefined') {
             localStorage.setItem(COLOR_THEME_STORAGE_KEY, valid);

@@ -1,10 +1,10 @@
 /**
  * @file src/components/MetronomeRollEditor.jsx
- * @version 2.3.0
+ * @version 2.3.1
  * Multi-View Polyrhythm Roll Editor for the Acordismo Metronome:
  * - Top Control Bar: [ Circular | Landscape | Portrait ] view selector (defaults to Circular) + [ - Line | + Line ]
- * - Theme-aware Track Palettes: Track A ('high') follows `--accent-color` (SHR Green or Original 2026 Blue),
- *   and Track B ('mid') uses the complementary color (Blue in SHR, Green in Original 2026).
+ * - Theme-aware Track Palettes: Track A ('high') follows `--accent-color`, Track B ('mid') uses the complementary
+ *   Blue/Green, and Track D+ ('sub') uses warm Brown in Small Hotel Room mode vs Purple in Basic mode.
  * - Smart Auto-Switch between Landscape and Portrait when cell dimensions get too small.
  */
 import React, { useContext, useState } from 'react';
@@ -14,22 +14,22 @@ import {
     MAX_METRONOME_TRACKS,
 } from '../shared/audioEngine';
 
-export const __version__ = '2.3.0';
+export const __version__ = '2.3.1';
 
 const VIEW_MODE_STORAGE_KEY = 'acordismo_metronome_view_mode';
 const LANDSCAPE_MAX_COMFORTABLE_STEPS = 16;
 const PORTRAIT_MAX_COMFORTABLE_TRACKS = 5;
 const MIN_CELL_SIZE_PX = 26;
 
-function getTrackPalette(track, trackIdx, colorTheme = 'shr') {
-    const isShr = colorTheme !== 'original-2026';
+function getTrackPalette(track, trackIdx, colorTheme = 'basic') {
+    const isShr = colorTheme === 'shr';
     const palettes = {
         high: {
             name: 'High pitch (Downbeat)',
             dot: 'var(--accent-color)',
-            activeBg: 'rgba(var(--accent-rgb, 86, 148, 0), 0.25)',
+            activeBg: 'rgba(var(--accent-rgb, 37, 99, 235), 0.25)',
             activeBorder: 'var(--accent-color)',
-            badgeBg: 'rgba(var(--accent-rgb, 86, 148, 0), 0.15)',
+            badgeBg: 'rgba(var(--accent-rgb, 37, 99, 235), 0.15)',
             badgeText: 'var(--accent-color)',
         },
         mid: isShr
@@ -57,14 +57,23 @@ function getTrackPalette(track, trackIdx, colorTheme = 'shr') {
             badgeBg: 'rgba(245, 158, 11, 0.16)',
             badgeText: '#f59e0b',
         },
-        sub: {
-            name: 'Sub pitch (Polyrhythm)',
-            dot: '#a855f7',
-            activeBg: 'rgba(168, 85, 247, 0.25)',
-            activeBorder: '#a855f7',
-            badgeBg: 'rgba(168, 85, 247, 0.16)',
-            badgeText: '#a855f7',
-        },
+        sub: isShr
+            ? {
+                  name: 'Sub pitch (Polyrhythm)',
+                  dot: '#a16207',
+                  activeBg: 'rgba(161, 98, 7, 0.25)',
+                  activeBorder: '#a16207',
+                  badgeBg: 'rgba(161, 98, 7, 0.16)',
+                  badgeText: '#a16207',
+              }
+            : {
+                  name: 'Sub pitch (Polyrhythm)',
+                  dot: '#a855f7',
+                  activeBg: 'rgba(168, 85, 247, 0.25)',
+                  activeBorder: '#a855f7',
+                  badgeBg: 'rgba(168, 85, 247, 0.16)',
+                  badgeText: '#a855f7',
+              },
     };
 
     if (track?.voice && palettes[track.voice]) {
@@ -159,7 +168,7 @@ export default function MetronomeRollEditor({
     onRemoveTrack,
 }) {
     const appCtx = useContext(AppContext);
-    const colorTheme = appCtx?.colorTheme || 'shr';
+    const colorTheme = appCtx?.colorTheme || 'basic';
 
     const [viewMode, setViewModeState] = useState(() => {
         if (typeof localStorage !== 'undefined') {

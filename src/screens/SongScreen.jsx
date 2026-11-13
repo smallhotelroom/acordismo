@@ -1,6 +1,6 @@
 /**
  * @file src/screens/SongScreen.jsx
- * @version 3.4.0
+ * @version 3.4.1
  */
 import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Music, Sliders, Square } from 'lucide-react';
@@ -40,12 +40,12 @@ import {
     triggerPatternStepOnChord,
 } from '../shared/songChordPlayer';
 
-export const __version__ = '3.4.0';
+export const __version__ = '3.4.1';
 
 export default function SongScreen({ routeParams, onNavigate, onBack }) {
     const { selectedSongId, originStr } = routeParams;
     const {
-        colorTheme = 'shr',
+        colorTheme = 'basic',
         compensateCapo = false,
         fakeUkeEnabled = false,
         transposition,
