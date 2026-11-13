@@ -1,8 +1,9 @@
 /**
  * @file src/screens/TunerScreen.jsx
- * @version 1.0.0
+ * @version 1.0.2
  * 10-Button Reference Ear Tuner (6 Guitar strings + 4 Ukulele strings)
- * with Natural/Synth tone selector and optional hands-free Repeat Loop.
+ * with Natural/Synth tone selector, optional hands-free Repeat Loop,
+ * and theme-aware accent styling (Small Hotel Room / Original 2026).
  */
 import React, { useContext, useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Moon, Repeat, Square, Sun, Volume2 } from 'lucide-react';
@@ -13,7 +14,7 @@ import {
     playNoteFrequency,
 } from '../shared/audioEngine';
 
-export const __version__ = '1.0.1';
+export const __version__ = '1.0.2';
 
 const TUNER_SOUND_MODE_KEY = 'acordismo_tuner_sound_mode';
 
@@ -97,23 +98,25 @@ export default function TunerScreen({ onBack }) {
                     padding: '14px 10px',
                     borderRadius: 10,
                     border: isActive
-                        ? '2px solid #2563eb'
+                        ? '2px solid var(--accent-color)'
                         : '1px solid var(--border-color)',
                     background: isActive
-                        ? 'rgba(37, 99, 235, 0.14)'
+                        ? 'rgba(var(--accent-rgb, 86, 148, 0), 0.14)'
                         : 'var(--bg-surface)',
                     color: 'var(--text-primary)',
                     cursor: 'pointer',
                     transition: 'all 0.12s ease',
                     boxShadow: isActive
-                        ? '0 0 0 3px rgba(37, 99, 235, 0.2)'
+                        ? '0 0 0 3px rgba(var(--accent-rgb, 86, 148, 0), 0.2)'
                         : 'none',
                 }}>
                 <div
                     style={{
                         fontSize: '1.35rem',
                         fontWeight: 800,
-                        color: isActive ? '#2563eb' : 'var(--text-primary)',
+                        color: isActive
+                            ? 'var(--accent-color)'
+                            : 'var(--text-primary)',
                     }}>
                     {strObj.label}
                 </div>
@@ -189,10 +192,12 @@ export default function TunerScreen({ onBack }) {
                                         textTransform: 'capitalize',
                                         border:
                                             soundMode === m
-                                                ? '1px solid #2563eb'
+                                                ? '1px solid var(--accent-color)'
                                                 : '1px solid var(--border-color)',
                                         background:
-                                            soundMode === m ? '#2563eb' : 'transparent',
+                                            soundMode === m
+                                                ? 'var(--accent-color)'
+                                                : 'transparent',
                                         color:
                                             soundMode === m
                                                 ? '#ffffff'
@@ -223,9 +228,11 @@ export default function TunerScreen({ onBack }) {
                             fontWeight: 700,
                             fontSize: '0.82rem',
                             border: loopEnabled
-                                ? '1px solid #2563eb'
+                                ? '1px solid var(--accent-color)'
                                 : '1px solid var(--border-color)',
-                            background: loopEnabled ? '#2563eb' : 'transparent',
+                            background: loopEnabled
+                                ? 'var(--accent-color)'
+                                : 'transparent',
                             color: loopEnabled ? '#ffffff' : 'var(--text-primary)',
                             cursor: 'pointer',
                         }}>

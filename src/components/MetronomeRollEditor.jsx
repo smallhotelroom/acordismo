@@ -1,68 +1,77 @@
 /**
  * @file src/components/MetronomeRollEditor.jsx
- * @version 2.2.0
+ * @version 2.3.0
  * Multi-View Polyrhythm Roll Editor for the Acordismo Metronome:
  * - Top Control Bar: [ Circular | Landscape | Portrait ] view selector (defaults to Circular) + [ - Line | + Line ]
- * - Smart Auto-Switch between Landscape and Portrait when cell dimensions get too small
- *   (e.g. > 16 divisions in Landscape auto-switches to Portrait; > 5 lines in Portrait auto-switches to Landscape).
- * - Mode 1 ('circular'   / Circular):  Concentric Euclidean rhythm rings, time orbits clockwise from 12 o'clock.
- * - Mode 2 ('horizontal' / Landscape): Horizontal tracks, time flows left-to-right (up to 16 divisions fit cleanly).
- * - Mode 3 ('vertical'   / Portrait):  Transposed columns (A | B | C...), time flows top-to-bottom, growing proportionally in height with more divisions.
+ * - Theme-aware Track Palettes: Track A ('high') follows `--accent-color` (SHR Green or Original 2026 Blue),
+ *   and Track B ('mid') uses the complementary color (Blue in SHR, Green in Original 2026).
+ * - Smart Auto-Switch between Landscape and Portrait when cell dimensions get too small.
  */
-import React, { useState } from 'react';
+import React, { useContext, useState } from 'react';
+import { AppContext } from '../shared/AppContext';
 import {
     MAX_METRONOME_STEPS,
     MAX_METRONOME_TRACKS,
 } from '../shared/audioEngine';
 
-export const __version__ = '2.2.0';
+export const __version__ = '2.3.0';
 
 const VIEW_MODE_STORAGE_KEY = 'acordismo_metronome_view_mode';
 const LANDSCAPE_MAX_COMFORTABLE_STEPS = 16;
 const PORTRAIT_MAX_COMFORTABLE_TRACKS = 5;
 const MIN_CELL_SIZE_PX = 26;
 
-const TRACK_COLORS = {
-    high: {
-        name: 'High pitch (Downbeat)',
-        dot: '#2563eb',
-        activeBg: 'rgba(37, 99, 235, 0.25)',
-        activeBorder: '#2563eb',
-        badgeBg: 'rgba(37, 99, 235, 0.15)',
-        badgeText: '#2563eb',
-    },
-    mid: {
-        name: 'Mid pitch (Quarter pulse)',
-        dot: '#10b981',
-        activeBg: 'rgba(16, 185, 129, 0.25)',
-        activeBorder: '#10b981',
-        badgeBg: 'rgba(16, 185, 129, 0.16)',
-        badgeText: '#10b981',
-    },
-    low: {
-        name: 'Low pitch (Subdivision)',
-        dot: '#f59e0b',
-        activeBg: 'rgba(245, 158, 11, 0.25)',
-        activeBorder: '#f59e0b',
-        badgeBg: 'rgba(245, 158, 11, 0.16)',
-        badgeText: '#f59e0b',
-    },
-    sub: {
-        name: 'Sub pitch (Polyrhythm)',
-        dot: '#a855f7',
-        activeBg: 'rgba(168, 85, 247, 0.25)',
-        activeBorder: '#a855f7',
-        badgeBg: 'rgba(168, 85, 247, 0.16)',
-        badgeText: '#a855f7',
-    },
-};
+function getTrackPalette(track, trackIdx, colorTheme = 'shr') {
+    const isShr = colorTheme !== 'original-2026';
+    const palettes = {
+        high: {
+            name: 'High pitch (Downbeat)',
+            dot: 'var(--accent-color)',
+            activeBg: 'rgba(var(--accent-rgb, 86, 148, 0), 0.25)',
+            activeBorder: 'var(--accent-color)',
+            badgeBg: 'rgba(var(--accent-rgb, 86, 148, 0), 0.15)',
+            badgeText: 'var(--accent-color)',
+        },
+        mid: isShr
+            ? {
+                  name: 'Mid pitch (Quarter pulse)',
+                  dot: '#0969da',
+                  activeBg: 'rgba(9, 105, 218, 0.24)',
+                  activeBorder: '#0969da',
+                  badgeBg: 'rgba(9, 105, 218, 0.15)',
+                  badgeText: '#0969da',
+              }
+            : {
+                  name: 'Mid pitch (Quarter pulse)',
+                  dot: '#10b981',
+                  activeBg: 'rgba(16, 185, 129, 0.25)',
+                  activeBorder: '#10b981',
+                  badgeBg: 'rgba(16, 185, 129, 0.16)',
+                  badgeText: '#10b981',
+              },
+        low: {
+            name: 'Low pitch (Subdivision)',
+            dot: '#f59e0b',
+            activeBg: 'rgba(245, 158, 11, 0.25)',
+            activeBorder: '#f59e0b',
+            badgeBg: 'rgba(245, 158, 11, 0.16)',
+            badgeText: '#f59e0b',
+        },
+        sub: {
+            name: 'Sub pitch (Polyrhythm)',
+            dot: '#a855f7',
+            activeBg: 'rgba(168, 85, 247, 0.25)',
+            activeBorder: '#a855f7',
+            badgeBg: 'rgba(168, 85, 247, 0.16)',
+            badgeText: '#a855f7',
+        },
+    };
 
-function getTrackPalette(track, trackIdx) {
-    if (track?.voice && TRACK_COLORS[track.voice]) {
-        return TRACK_COLORS[track.voice];
+    if (track?.voice && palettes[track.voice]) {
+        return palettes[track.voice];
     }
     const keys = ['high', 'mid', 'low', 'sub'];
-    return TRACK_COLORS[keys[trackIdx % keys.length]];
+    return palettes[keys[trackIdx % keys.length]];
 }
 
 function StepCounterPill({ numSteps, trackIdx, onChangeTrackSteps }) {
@@ -149,6 +158,9 @@ export default function MetronomeRollEditor({
     onAddTrack,
     onRemoveTrack,
 }) {
+    const appCtx = useContext(AppContext);
+    const colorTheme = appCtx?.colorTheme || 'shr';
+
     const [viewMode, setViewModeState] = useState(() => {
         if (typeof localStorage !== 'undefined') {
             const saved = localStorage.getItem(VIEW_MODE_STORAGE_KEY);
@@ -176,7 +188,6 @@ export default function MetronomeRollEditor({
 
     const masterBeats = tracks[0]?.steps?.length || 4;
 
-    // Smart auto-switch wrapper when changing subdivisions on a track
     const handleStepCountChangeWithAutoFit = (trackIdx, nextSteps) => {
         if (onChangeTrackSteps) {
             onChangeTrackSteps(trackIdx, nextSteps);
@@ -191,19 +202,16 @@ export default function MetronomeRollEditor({
             viewMode === 'horizontal' &&
             newMaxSteps > LANDSCAPE_MAX_COMFORTABLE_STEPS
         ) {
-            // Too many horizontal divisions for Landscape width -> auto-switch to Portrait!
             setViewMode('vertical');
         } else if (
             viewMode === 'vertical' &&
             newMaxSteps <= LANDSCAPE_MAX_COMFORTABLE_STEPS &&
             tracks.length > PORTRAIT_MAX_COMFORTABLE_TRACKS
         ) {
-            // Steps now fit comfortably in Landscape while Portrait has many columns -> switch to Landscape
             setViewMode('horizontal');
         }
     };
 
-    // Smart auto-switch wrapper when adding a new polyrhythm line
     const handleAddTrackWithAutoFit = () => {
         const nextTrackCount = tracks.length + 1;
         const maxSteps = Math.max(...tracks.map((t) => t.steps.length), 4);
@@ -219,7 +227,7 @@ export default function MetronomeRollEditor({
         }
     };
 
-    // --- 1. CIRCULAR VIEW (Concentric Euclidean Rhythm Necklace, clockwise from 12 o'clock) ---
+    // --- 1. CIRCULAR VIEW ---
     const renderCircularView = () => {
         const size = 224;
         const cx = size / 2;
@@ -249,7 +257,6 @@ export default function MetronomeRollEditor({
                     height={size}
                     viewBox={`0 0 ${size} ${size}`}
                     style={{ overflow: 'visible', userSelect: 'none' }}>
-                    {/* 12 o'clock Downbeat Tick Mark */}
                     <line
                         x1={cx}
                         y1={cy - outerRadius - 12}
@@ -262,7 +269,7 @@ export default function MetronomeRollEditor({
                     />
 
                     {tracks.map((track, trackIdx) => {
-                        const palette = getTrackPalette(track, trackIdx);
+                        const palette = getTrackPalette(track, trackIdx, colorTheme);
                         const r = outerRadius - trackIdx * ringStep;
                         const numSteps = Math.max(1, track.steps.length);
                         const activeStepIdx = isPlaying
@@ -298,7 +305,6 @@ export default function MetronomeRollEditor({
 
                         return (
                             <g key={track.id || trackIdx}>
-                                {/* Base Concentric Track Ring */}
                                 <circle
                                     cx={cx}
                                     cy={cy}
@@ -311,7 +317,6 @@ export default function MetronomeRollEditor({
                                     }
                                 />
 
-                                {/* Subtle Euclidean Polygon connecting active beats when >= 3 dots */}
                                 {activeCoords.length >= 3 && (
                                     <polygon
                                         points={activeCoords.join(' ')}
@@ -324,7 +329,6 @@ export default function MetronomeRollEditor({
                                     />
                                 )}
 
-                                {/* Rotating Playhead Hand from center to current step on outer track */}
                                 {playheadCoord && trackIdx === 0 && (
                                     <line
                                         x1={cx}
@@ -338,7 +342,6 @@ export default function MetronomeRollEditor({
                                     />
                                 )}
 
-                                {/* Interactive Step Nodes around the Ring */}
                                 {stepCoords.map(({ x, y, hasDot, stepIdx }) => {
                                     const isPlayheadHere =
                                         activeStepIdx === stepIdx;
@@ -393,7 +396,6 @@ export default function MetronomeRollEditor({
                         );
                     })}
 
-                    {/* Center Hub Label */}
                     <circle
                         cx={cx}
                         cy={cy}
@@ -413,7 +415,6 @@ export default function MetronomeRollEditor({
                     </text>
                 </svg>
 
-                {/* Compact Track Legend & Step Counters Below the Wheel */}
                 <div
                     style={{
                         display: 'flex',
@@ -423,7 +424,7 @@ export default function MetronomeRollEditor({
                         width: '100%',
                     }}>
                     {tracks.map((track, trackIdx) => {
-                        const palette = getTrackPalette(track, trackIdx);
+                        const palette = getTrackPalette(track, trackIdx, colorTheme);
                         return (
                             <div
                                 key={track.id || trackIdx}
@@ -469,7 +470,7 @@ export default function MetronomeRollEditor({
         );
     };
 
-    // --- 2. LANDSCAPE VIEW (Horizontal rows, left-to-right time, constant 26px row height) ---
+    // --- 2. LANDSCAPE VIEW ---
     const renderHorizontalView = () => (
         <div
             style={{
@@ -483,7 +484,7 @@ export default function MetronomeRollEditor({
                 overflowX: 'auto',
             }}>
             {tracks.map((track, trackIdx) => {
-                const palette = getTrackPalette(track, trackIdx);
+                const palette = getTrackPalette(track, trackIdx, colorTheme);
                 const activeStepIdx = isPlaying
                     ? (currentStepByTrack[trackIdx] ?? -1)
                     : -1;
@@ -497,7 +498,6 @@ export default function MetronomeRollEditor({
                             alignItems: 'center',
                             gap: 5,
                         }}>
-                        {/* Voice Pitch Badge (A / B / C...) */}
                         <button
                             type="button"
                             onClick={() =>
@@ -524,7 +524,6 @@ export default function MetronomeRollEditor({
                             {track.label || String.fromCharCode(65 + trackIdx)}
                         </button>
 
-                        {/* Horizontal Time Loop Blocks */}
                         <div
                             style={{
                                 display: 'flex',
@@ -614,13 +613,12 @@ export default function MetronomeRollEditor({
         </div>
     );
 
-    // --- 3. TRANSPOSED PORTRAIT VIEW (Vertical columns, grows proportionally in height with more divisions) ---
+    // --- 3. TRANSPOSED PORTRAIT VIEW ---
     const renderVerticalView = () => {
         const maxStepsAcrossTracks = Math.max(
             ...tracks.map((t) => t.steps.length),
             4
         );
-        // Grow proportionally in height with no artificial cap so every division keeps at least MIN_CELL_SIZE_PX (26px)
         const colHeight = Math.max(
             140,
             maxStepsAcrossTracks * (MIN_CELL_SIZE_PX + 2.5)
@@ -640,7 +638,7 @@ export default function MetronomeRollEditor({
                         tracks.length <= 4 ? 'space-around' : 'flex-start',
                 }}>
                 {tracks.map((track, trackIdx) => {
-                    const palette = getTrackPalette(track, trackIdx);
+                    const palette = getTrackPalette(track, trackIdx, colorTheme);
                     const activeStepIdx = isPlaying
                         ? (currentStepByTrack[trackIdx] ?? -1)
                         : -1;
@@ -658,7 +656,6 @@ export default function MetronomeRollEditor({
                                 minWidth: 54,
                                 maxWidth: 92,
                             }}>
-                            {/* Top Header: Track Badge + Step Counter */}
                             <div
                                 style={{
                                     display: 'flex',
@@ -696,7 +693,6 @@ export default function MetronomeRollEditor({
                                 />
                             </div>
 
-                            {/* Vertical Time Column (Top-to-Bottom proportional blocks with minimum square height) */}
                             <div
                                 style={{
                                     display: 'flex',
@@ -773,7 +769,6 @@ export default function MetronomeRollEditor({
 
     return (
         <div>
-            {/* Top Bar: Clickable [ Circular | Landscape | Portrait ] on Left + [ - Line | + Line ] on Right */}
             <div
                 style={{
                     display: 'flex',
@@ -782,7 +777,6 @@ export default function MetronomeRollEditor({
                     gap: 6,
                     marginBottom: 6,
                 }}>
-                {/* 3-Mode Visual Switcher in new order: Circular, Landscape, Portrait */}
                 <div
                     style={{
                         display: 'inline-flex',
@@ -835,7 +829,6 @@ export default function MetronomeRollEditor({
                     })}
                 </div>
 
-                {/* - Line / + Line */}
                 <div style={{ display: 'inline-flex', gap: 4 }}>
                     <button
                         type="button"

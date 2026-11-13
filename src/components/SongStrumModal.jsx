@@ -1,16 +1,16 @@
 /**
  * @file src/components/SongStrumModal.jsx
- * @version 1.0.0
+ * @version 1.1.0
  * Phase 2 6-String (Guitar) / 4-String (Ukulele) Strum & Arpeggio Roll Editor Modal for SongScreen.
- * Each horizontal row corresponds to a physical instrument string (`1e` down to `6E` in tab order),
- * allowing users to select quick presets (Quarter, Campfire, Arpeggio, Travis, Triplet) or tap dots
- * to craft custom arpeggio/strumming patterns for the song!
+ * Theme-aware: Bass strings follow `--accent-color` (SHR Green / Original 2026 Blue),
+ * and treble strings use the complementary accent.
  */
-import React from 'react';
+import React, { useContext } from 'react';
 import { Pause, Play, X } from 'lucide-react';
+import { AppContext } from '../shared/AppContext';
 import { STRUM_PRESETS } from '../shared/songChordPlayer';
 
-export const __version__ = '1.0.0';
+export const __version__ = '1.1.0';
 
 export default function SongStrumModal({
     visible,
@@ -28,13 +28,23 @@ export default function SongStrumModal({
     currentPlayingChord = null,
     onClose,
 }) {
+    const appCtx = useContext(AppContext);
+    const isShr = (appCtx?.colorTheme || 'shr') !== 'original-2026';
+
     if (!visible) {
         return null;
     }
 
     const numSteps = strumTracks[0]?.steps?.length || 4;
-    // Display strings in standard Guitar Tablature vertical order: High string (1e / 1A) at top, Bass (6E / 4G) at bottom
     const displayIndices = strumTracks.map((_, idx) => idx).reverse();
+
+    const trebleColor = isShr ? '#0969da' : '#10b981';
+    const trebleActiveBg = isShr
+        ? 'rgba(9, 105, 218, 0.24)'
+        : 'rgba(16, 185, 129, 0.24)';
+    const trebleBadgeBg = isShr
+        ? 'rgba(9, 105, 218, 0.14)'
+        : 'rgba(16, 185, 129, 0.14)';
 
     return (
         <div
@@ -78,7 +88,7 @@ export default function SongStrumModal({
                     </button>
                 </div>
 
-                {/* Row 1: Instrument Switcher (Guitar 6-String vs Ukulele 4-String) + Play/Stop */}
+                {/* Row 1: Instrument Switcher + Play/Stop */}
                 <div
                     style={{
                         display: 'flex',
@@ -227,7 +237,6 @@ export default function SongStrumModal({
                         <span style={{ fontWeight: 600 }}>
                             String roll (high string on top, bass at bottom)
                         </span>
-                        {/* Bar Subdivisions Stepper */}
                         <div
                             style={{
                                 display: 'inline-flex',
@@ -309,10 +318,15 @@ export default function SongStrumModal({
                             if (!track) return null;
                             const isBassString =
                                 instrument === 'ukulele' ? sIdx === 0 : sIdx <= 1;
-                            const dotColor = isBassString ? '#2563eb' : '#10b981';
+                            const dotColor = isBassString
+                                ? 'var(--accent-color)'
+                                : trebleColor;
                             const activeBg = isBassString
-                                ? 'rgba(37, 99, 235, 0.24)'
-                                : 'rgba(16, 185, 129, 0.24)';
+                                ? 'rgba(var(--accent-rgb, 86, 148, 0), 0.24)'
+                                : trebleActiveBg;
+                            const badgeBg = isBassString
+                                ? 'rgba(var(--accent-rgb, 86, 148, 0), 0.14)'
+                                : trebleBadgeBg;
 
                             return (
                                 <div
@@ -322,15 +336,12 @@ export default function SongStrumModal({
                                         alignItems: 'center',
                                         gap: 6,
                                     }}>
-                                    {/* String Label Badge (1e .. 6E) */}
                                     <div
                                         style={{
                                             width: 26,
                                             height: 24,
                                             borderRadius: 5,
-                                            background: isBassString
-                                                ? 'rgba(37, 99, 235, 0.14)'
-                                                : 'rgba(16, 185, 129, 0.14)',
+                                            background: badgeBg,
                                             color: dotColor,
                                             fontWeight: 800,
                                             fontSize: '0.7rem',
@@ -343,7 +354,6 @@ export default function SongStrumModal({
                                         {track.label}
                                     </div>
 
-                                    {/* Steps Row */}
                                     <div
                                         style={{
                                             display: 'flex',
