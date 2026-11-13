@@ -1,14 +1,14 @@
 /**
  * @file src/shared/songSchema.js
- * @version 3.0.0
+ * @version 3.1.0
  * Single Source of Truth (hosted in Acordismo) for Frontmatter Schema, Draconian
  * Case-Sensitive Chord Grammar, Custom Tuning Parser (`parseInstrumentTuning`),
  * Markdown `##` Section & Harmonic Fingering Postures Schema, Reverse Chord Voicing
  * Identification (`suggestChordsForVoicing`), Default Posture Previewer (`getDefaultPostureForChord`),
- * and Syntax Highlighting Palettes.
+ * and Theme-Aware Syntax Highlighting Palettes (`Small Hotel Room` default + `Original 2026`).
  */
 
-export const __version__ = '3.0.0';
+export const __version__ = '3.1.0';
 
 export const BASE_REQUIRED_KEYS = [];
 
@@ -253,7 +253,6 @@ export const CHORD_QUALITY_REGEX =
 
 // --- MARKDOWN `##` SECTIONS & PLAIN-TEXT CHORD FINGERING SCHEMA ---
 export const SECTION_HEADER_REGEX = /^##\s+(.+?)\s*$/;
-// Case-insensitive section header match so `## Chords`, `## Fingerings`, etc. are always recognized!
 export const FINGERING_SECTION_HEADER_REGEX =
   /^(?:chords?|fingerings?|voicings?|postures?|acordes?|posiciones?)$/i;
 export const NOTES_SECTION_HEADER_REGEX =
@@ -291,9 +290,6 @@ export const CHORD_FORMULAS = [
   { suffix: 'm(maj7)', aliases: ['mmaj7', 'mM7', 'minmaj7'], allowed: [0, 3, 7, 11], required: [0, 3, 11], priority: 6 },
 ];
 
-/**
- * Draconian case-sensitive formula lookup.
- */
 export const findChordFormula = (rawQuality = '') => {
   const q = String(rawQuality || '').trim().replace(/^\(|\)$/g, '');
   for (const f of CHORD_FORMULAS) {
@@ -304,9 +300,6 @@ export const findChordFormula = (rawQuality = '') => {
   return null;
 };
 
-/**
- * Computes the allowed, required, and optional shell-required pitch classes (0..11) for a chord.
- */
 export const getChordExpectedPitchClasses = (rootSemitone, rawQuality = '', bassSemitone = null) => {
   const formula = findChordFormula(rawQuality);
   if (!formula) {
@@ -328,10 +321,6 @@ export const getChordExpectedPitchClasses = (rootSemitone, rawQuality = '', bass
   return { allowedPcs, requiredPcs, shellRequiredPcs, noExtraNotes: Boolean(formula.noExtraNotes) };
 };
 
-/**
- * Reverse-identifies the most likely chord names (with confidence %) for a given fret array,
- * accounting for custom song tuning (`customTuningStr`) and/or pitch shift (`pitchShiftSemitones`).
- */
 export const suggestChordsForVoicing = (
   frets,
   instrument = 'guitar',
@@ -1037,33 +1026,87 @@ export const validateMarkdownSections = (
   return diagnostics;
 };
 
-// --- SHARED SYNTAX HIGHLIGHTING PALETTE (Linter + SongScreen + PDF) ---
-export const SYNTAX_PALETTE = {
-  dark: {
-    parenBg: 'rgba(121, 192, 255, 0.06)',
-    parenSymbol: '#b392f0',
-    chord: '#79c0ff',
-    modifier: '#b392f0',
-    directive: '#d29922',
-    choir: '#7ee787',
+// --- THEME-AWARE SYNTAX HIGHLIGHTING PALETTES (Linter + SongScreen + PDF) ---
+export const COLOR_THEMES = [
+  {
+    id: 'shr',
+    label: 'Small Hotel Room',
+    accentColor: '#569400',
+    accentHover: '#457a00',
+    accentRgb: '86, 148, 0',
   },
-  light: {
-    parenBg: 'rgba(9, 105, 218, 0.06)',
-    parenSymbol: '#6e40c9',
-    chord: '#0969da',
-    modifier: '#6e40c9',
-    directive: '#b45309',
-    choir: '#1a7f37',
+  {
+    id: 'original-2026',
+    label: 'Original 2026',
+    accentColor: '#2563eb',
+    accentHover: '#1d4ed8',
+    accentRgb: '37, 99, 235',
   },
-  pdfBw: {
-    parenBg: 'transparent',
-    parenSymbol: '#6e6e6e',
-    chord: '#000000',
-    modifier: '#6e6e6e',
-    directive: '#4b5563',
-    choir: '#525252',
+];
+
+export const SYNTAX_PALETTE_BY_THEME = {
+  // Default: "Small Hotel Room" (Chords = SHR Green, [choir] = Blue, Greenish (...) tint)
+  shr: {
+    dark: {
+      parenBg: 'rgba(118, 199, 0, 0.08)',
+      parenSymbol: '#b392f0',
+      chord: '#76c700',
+      modifier: '#b392f0',
+      directive: '#d29922',
+      choir: '#79c0ff',
+    },
+    light: {
+      parenBg: 'rgba(86, 148, 0, 0.08)',
+      parenSymbol: '#6e40c9',
+      chord: '#569400',
+      modifier: '#6e40c9',
+      directive: '#b45309',
+      choir: '#0969da',
+    },
+    pdfBw: {
+      parenBg: 'transparent',
+      parenSymbol: '#6e6e6e',
+      chord: '#000000',
+      modifier: '#6e6e6e',
+      directive: '#4b5563',
+      choir: '#525252',
+    },
+  },
+  // Classic: "Original 2026" (Chords = Blue, [choir] = Green, Blueish (...) tint)
+  'original-2026': {
+    dark: {
+      parenBg: 'rgba(121, 192, 255, 0.06)',
+      parenSymbol: '#b392f0',
+      chord: '#79c0ff',
+      modifier: '#b392f0',
+      directive: '#d29922',
+      choir: '#7ee787',
+    },
+    light: {
+      parenBg: 'rgba(9, 105, 218, 0.06)',
+      parenSymbol: '#6e40c9',
+      chord: '#0969da',
+      modifier: '#6e40c9',
+      directive: '#b45309',
+      choir: '#1a7f37',
+    },
+    pdfBw: {
+      parenBg: 'transparent',
+      parenSymbol: '#6e6e6e',
+      chord: '#000000',
+      modifier: '#6e6e6e',
+      directive: '#4b5563',
+      choir: '#525252',
+    },
   },
 };
+
+export const getSyntaxPalette = (themeId = 'shr') => {
+  return SYNTAX_PALETTE_BY_THEME[themeId] || SYNTAX_PALETTE_BY_THEME.shr;
+};
+
+// Default export for Linter / PDF backwards compatibility (defaults to "Small Hotel Room")
+export const SYNTAX_PALETTE = SYNTAX_PALETTE_BY_THEME.shr;
 
 export const validateAlphabeticalOrder = (keys) => {
   const sortedKeys = [...keys].sort();
@@ -1224,9 +1267,7 @@ export const parseFrontmatterFile = (rawText) => {
 
   return {
     hasFrontmatter: true,
-    data,
-    keyLines,
-    bodyStartLine,
-    content,
+    data: {},
+    ...{ data, keyLines, bodyStartLine, content },
   };
 };

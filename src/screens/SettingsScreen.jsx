@@ -1,6 +1,6 @@
 /**
  * @file src/screens/SettingsScreen.jsx
- * @version 3.11.0
+ * @version 3.12.0
  */
 import React, { useContext, useEffect, useRef, useState } from 'react';
 import {
@@ -23,9 +23,10 @@ import {
     toggleDatabaseLayer,
 } from '../shared/database';
 import { APP_DEFAULTS, AppContext } from '../shared/AppContext';
+import { COLOR_THEMES } from '../shared/songSchema.js';
 import pkg from '../../package.json';
 
-export const __version__ = '3.11.0';
+export const __version__ = '3.12.0';
 
 export const FREEZE_CHORDS_STORAGE_KEY = 'acordismo_freeze_chords';
 export const HIDE_CRAWLER_TABS_STORAGE_KEY = 'acordismo_hide_crawler_tabs';
@@ -65,6 +66,8 @@ function formatLayerSubtitle(layer, hideCrawlerTabsEnabled) {
 
 export default function SettingsScreen({ onBack }) {
     const {
+        colorTheme = 'shr',
+        setColorTheme,
         compensateCapo,
         setCompensateCapo,
         fakeUkeEnabled,
@@ -208,6 +211,65 @@ export default function SettingsScreen({ onBack }) {
             </header>
 
             <main className="content-scroll">
+                {/* 0) Color Theme Selector (First item on SettingsScreen) */}
+                <div
+                    style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        flexWrap: 'wrap',
+                        padding: 15,
+                        gap: 10,
+                        borderBottom: '1px solid var(--border-color)',
+                    }}>
+                    <div>
+                        <strong>Color Theme</strong>
+                        <div style={{ fontSize: '0.86rem', color: 'var(--text-secondary)' }}>
+                            {colorTheme === 'original-2026'
+                                ? 'Original 2026 (classic blue accents & chords)'
+                                : 'Small Hotel Room (official #569400 green accents & chords)'}
+                        </div>
+                    </div>
+                    <div
+                        style={{
+                            display: 'inline-flex',
+                            background: 'var(--bg-primary)',
+                            padding: 3,
+                            borderRadius: 8,
+                            border: '1px solid var(--border-color)',
+                        }}>
+                        {COLOR_THEMES.map((themeOpt) => {
+                            const active = colorTheme === themeOpt.id;
+                            return (
+                                <button
+                                    key={themeOpt.id}
+                                    type="button"
+                                    onClick={() =>
+                                        setColorTheme &&
+                                        setColorTheme(themeOpt.id)
+                                    }
+                                    style={{
+                                        padding: '6px 12px',
+                                        borderRadius: 6,
+                                        border: 'none',
+                                        fontWeight: 700,
+                                        fontSize: '0.82rem',
+                                        background: active
+                                            ? 'var(--accent-color)'
+                                            : 'transparent',
+                                        color: active
+                                            ? '#ffffff'
+                                            : 'var(--text-secondary)',
+                                        cursor: 'pointer',
+                                        whiteSpace: 'nowrap',
+                                    }}>
+                                    {themeOpt.label}
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+
                 {/* 1) Compensate Capo / Drop / Alternate */}
                 <div
                     style={{
@@ -489,7 +551,7 @@ export default function SettingsScreen({ onBack }) {
                                         type="checkbox"
                                         checked={layer.enabled}
                                         onChange={() => handleToggleLayer(layer.id)}
-                                        style={{ width: 18, height: 18, cursor: 'pointer' }}
+                                        style={{ width: 18, height: 18, cursor: 'pointer', accentColor: 'var(--accent-color)' }}
                                     />
                                     <div style={{ minWidth: 0 }}>
                                         <div

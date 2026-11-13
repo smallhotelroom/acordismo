@@ -1,6 +1,6 @@
 /**
  * @file src/screens/SongScreen.jsx
- * @version 3.3.0
+ * @version 3.4.0
  */
 import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Music, Sliders, Square } from 'lucide-react';
@@ -23,7 +23,7 @@ import {
     subscribeMetronomeState,
 } from '../shared/audioEngine';
 import {
-    SYNTAX_PALETTE,
+    getSyntaxPalette,
     parseInstrumentTuning,
 } from '../shared/songSchema.js';
 import {
@@ -40,11 +40,12 @@ import {
     triggerPatternStepOnChord,
 } from '../shared/songChordPlayer';
 
-export const __version__ = '3.3.0';
+export const __version__ = '3.4.0';
 
 export default function SongScreen({ routeParams, onNavigate, onBack }) {
     const { selectedSongId, originStr } = routeParams;
     const {
+        colorTheme = 'shr',
         compensateCapo = false,
         fakeUkeEnabled = false,
         transposition,
@@ -58,7 +59,8 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
         defaultFontSize = 14,
     } = useContext(AppContext);
 
-    const palette = darkMode ? SYNTAX_PALETTE.dark : SYNTAX_PALETTE.light;
+    const themePalettes = getSyntaxPalette(colorTheme);
+    const palette = darkMode ? themePalettes.dark : themePalettes.light;
 
     const freezeChordsEnabled = useMemo(() => {
         if (ctxFreezeChords !== undefined) {
@@ -91,7 +93,6 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
     const [activeStepInBar, setActiveStepInBar] = useState(-1);
     const playCursorRef = useRef({ seqIdx: 0, stepInChord: 0 });
 
-    // Rebuild string rows if instrument switches between 6-string Guitar and 4-string Ukulele
     useEffect(() => {
         const expectedLen = effectiveInstrument === 'ukulele' ? 4 : 6;
         if (strumTracks.length !== expectedLen) {
@@ -330,7 +331,6 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
         }
     };
 
-    // Sub-beat timer for Phase 2 6-String Arpeggio & Strum Sequencer
     useEffect(() => {
         if (!chordPlayActive) {
             return;
