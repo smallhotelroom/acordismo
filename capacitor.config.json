@@ -1,6 +1,6 @@
 {
-  "appId": "com.smallhotelroom.acordismo",
-  "appName": "Acordismo",
+  "appId": "com.smallhotelroom.app",
+  "appName": "Small Hotel Room",
   "webDir": "dist",
   "plugins": {
     "StatusBar": {
