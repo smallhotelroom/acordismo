@@ -1,13 +1,14 @@
 /**
- * @file src/shared/acordismoConfig.js
- * @version 1.6.0
- * Universal zero-dependency parser for `acordismo-config.yaml` (shared by React App and Node scripts).
+ * @file src/shared/shrConfig.js
+ * @version 2.0.0
+ * Universal zero-dependency parser for `shr-config.yaml` (shared by React App and Node scripts).
  */
 
-export const __version__ = '1.6.0';
+export const __version__ = '2.0.0';
 
-export const FALLBACK_ACORDISMO_CONFIG = {
+export const FALLBACK_SHR_CONFIG = {
     app: {
+        default_color_theme: 'basic',
         default_transposition: 0,
         default_compensate_capo: false,
         default_fake_uke: false,
@@ -48,6 +49,9 @@ export const FALLBACK_ACORDISMO_CONFIG = {
     layers: [],
 };
 
+// Backwards-compatible alias
+export const FALLBACK_ACORDISMO_CONFIG = FALLBACK_SHR_CONFIG;
+
 function parseScalarValue(rawVal) {
     const s = String(rawVal || '').trim();
     if ((s.startsWith('"') && s.endsWith('"')) || (s.startsWith("'") && s.endsWith("'"))) {
@@ -61,13 +65,13 @@ function parseScalarValue(rawVal) {
 }
 
 /**
- * Parses `acordismo-config.yaml` into a structured config object.
+ * Parses `shr-config.yaml` into a structured config object.
  */
-export function parseAcordismoConfigYaml(yamlText = '') {
+export function parseShrConfigYaml(yamlText = '') {
     const config = {
-        app: { ...FALLBACK_ACORDISMO_CONFIG.app },
-        pdf: { ...FALLBACK_ACORDISMO_CONFIG.pdf },
-        merged_output: FALLBACK_ACORDISMO_CONFIG.merged_output,
+        app: { ...FALLBACK_SHR_CONFIG.app },
+        pdf: { ...FALLBACK_SHR_CONFIG.pdf },
+        merged_output: FALLBACK_SHR_CONFIG.merged_output,
         layers: [],
     };
 
@@ -180,3 +184,6 @@ export function parseAcordismoConfigYaml(yamlText = '') {
 
     return config;
 }
+
+// Backwards-compatible alias
+export const parseAcordismoConfigYaml = parseShrConfigYaml;

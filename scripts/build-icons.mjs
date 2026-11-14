@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 /**
  * @file scripts/build-icons.mjs
- * @version 1.2.0
+ * @version 1.3.0
  * Generates Web (public/favicon.svg), Android (mipmap-*), and Tauri Desktop (src-tauri/icons/*)
- * icons from the single source of truth: acordismo-logo.svg.
+ * icons from the single source of truth: shr-logo.svg.
  */
 import fs from 'node:fs';
 import os from 'node:os';
@@ -11,16 +11,16 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-export const __version__ = '1.2.0';
+export const __version__ = '1.3.0';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const ROOT_DIR = path.resolve(__dirname, '..');
 
 const CANDIDATE_LOGO_PATHS = [
-    path.join(ROOT_DIR, 'src', 'assets', 'acordismo-logo.svg'),
-    path.join(ROOT_DIR, 'acordismo-logo.svg'),
-    path.join(ROOT_DIR, 'public', 'acordismo-logo.svg'),
+    path.join(ROOT_DIR, 'src', 'assets', 'shr-logo.svg'),
+    path.join(ROOT_DIR, 'shr-logo.svg'),
+    path.join(ROOT_DIR, 'public', 'shr-logo.svg'),
 ];
 
 const MIPMAP_TARGETS = [
@@ -41,7 +41,7 @@ function findSourceSvg() {
         if (fs.existsSync(p)) return p;
     }
     throw new Error(
-        `Could not find 'acordismo-logo.svg'. Place it in src/assets/acordismo-logo.svg or repo root.`
+        `Could not find 'shr-logo.svg'. Place it in src/assets/shr-logo.svg or repo root.`
     );
 }
 
@@ -104,7 +104,7 @@ function hasCommand(cmd) {
 
 async function renderSvgToPng(svgString, outPngPath, sizePx) {
     fs.mkdirSync(path.dirname(outPngPath), { recursive: true });
-    const tmpSvg = path.join(os.tmpdir(), `acordismo-icon-${process.pid}.svg`);
+    const tmpSvg = path.join(os.tmpdir(), `shr-icon-${process.pid}.svg`);
     fs.writeFileSync(tmpSvg, svgString, 'utf8');
 
     try {
@@ -233,7 +233,7 @@ async function main() {
     // 3. If src-tauri/ exists, generate desktop .ico / .icns / .png icons in src-tauri/icons/
     const tauriDir = path.join(ROOT_DIR, 'src-tauri');
     if (fs.existsSync(tauriDir)) {
-        const masterPng = path.join(os.tmpdir(), `acordismo-master-1024-${process.pid}.png`);
+        const masterPng = path.join(os.tmpdir(), `shr-master-1024-${process.pid}.png`);
         await renderSvgToPng(legacySquareSvg, masterPng, 1024);
         const npxCmd = process.platform === 'win32' ? 'npx.cmd' : 'npx';
         const res = spawnSync(npxCmd, ['tauri', 'icon', masterPng], {
@@ -248,7 +248,7 @@ async function main() {
         }
     }
 
-    console.log(`🎉 All Android, Web & Desktop icons cleanly generated from acordismo-logo.svg!`);
+    console.log(`🎉 All Android, Web & Desktop icons cleanly generated from shr-logo.svg!`);
 }
 
 main().catch((err) => {

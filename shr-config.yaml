@@ -1,5 +1,5 @@
-# File: acordismo-config.yaml
-# Version: 1.8.1
+# File: shr-config.yaml
+# Version: 2.0.0
 # Single Source of Truth for Small Hotel Room App Defaults, PDF Generation, and Database Layers.
 
 app:
@@ -47,7 +47,7 @@ layers:
     output: "dist-dbs/songs-official.db"
     also_copy_to: "public/songs.db"
     sources:
-      - path: "${ACORDISMO_OFFICIAL_DIR:-../smallhotelroom.github.io/src/contents/songs}"
+      - path: "${SHR_OFFICIAL_DIR:-../smallhotelroom.github.io/src/contents/songs}"
         playlist: "★ Small Hotel Room"
     playlists:
       - name: "★ cancionesdejuan"
@@ -56,34 +56,34 @@ layers:
   - id: "curated"
     output: "dist-dbs/songs-curated.db"
     sources:
-      - path: "${ACORDISMO_CURATED_DIR}/0-GUITAR/english"
+      - path: "${SHR_CURATED_DIR}/0-GUITAR/english"
         playlist: "English"
-      - path: "${ACORDISMO_CURATED_DIR}/0-GUITAR/espanol"
+      - path: "${SHR_CURATED_DIR}/0-GUITAR/espanol"
         playlist: "Español"
-      - path: "${ACORDISMO_CURATED_DIR}/0-GUITAR/francais"
+      - path: "${SHR_CURATED_DIR}/0-GUITAR/francais"
         playlist: "Français"
-      - path: "${ACORDISMO_CURATED_DIR}/0-GUITAR/italiano"
+      - path: "${SHR_CURATED_DIR}/0-GUITAR/italiano"
         playlist: "Italiano"
-      - path: "${ACORDISMO_CURATED_DIR}/0-GUITAR/japanese"
+      - path: "${SHR_CURATED_DIR}/0-GUITAR/japanese"
         playlist: "日本語"
-      - path: "${ACORDISMO_CURATED_DIR}/0-GUITAR/portugues"
+      - path: "${SHR_CURATED_DIR}/0-GUITAR/portugues"
         playlist: "Português"
     playlists:
       - name: "★ Metal, Rock y Punk"
-        from_file: "${ACORDISMO_CURATED_DIR}/additionalPlaylists/metal-rock-punk.txt"
+        from_file: "${SHR_CURATED_DIR}/additionalPlaylists/metal-rock-punk.txt"
 
   - id: "crawler"
     output: "dist-dbs/songs-crawler.db"
     sources:
       - type: "dataset_zk"
-        path: "${ACORDISMO_CRAWLER_DIR}"
-        subdir: "${ACORDISMO_ZK_SUBDIR}"
-        cache: "${ACORDISMO_CRAWLER_CACHE_DIR}"
+        path: "${SHR_CRAWLER_DIR}"
+        subdir: "${SHR_ZK_SUBDIR}"
+        cache: "${SHR_CRAWLER_CACHE_DIR}"
         playlist: "OrigenZK"
         max_errors: 5
       - type: "dataset_lk"
-        path: "${ACORDISMO_CRAWLER_DIR}"
-        subdir: "${ACORDISMO_LK_SUBDIR}"
-        cache: "${ACORDISMO_CRAWLER_CACHE_DIR}"
+        path: "${SHR_CRAWLER_DIR}"
+        subdir: "${SHR_LK_SUBDIR}"
+        cache: "${SHR_CRAWLER_CACHE_DIR}"
         playlist: "OrigenLK"
         max_errors: 5

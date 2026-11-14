@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
  * @file scripts/build-pdf.mjs
- * @version 3.0.0
- * Builds printable LaTeX/PDF songbooks from Acordismo SQLite databases.
+ * @version 3.1.0
+ * Builds printable LaTeX/PDF songbooks from Small Hotel Room SQLite databases.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -11,9 +11,9 @@ import { fileURLToPath } from 'node:url';
 import initSqlJs from 'sql.js';
 import * as transposerMod from '../src/shared/chordTransposer.js';
 import {
-    FALLBACK_ACORDISMO_CONFIG,
-    parseAcordismoConfigYaml,
-} from '../src/shared/acordismoConfig.js';
+    FALLBACK_SHR_CONFIG,
+    parseShrConfigYaml,
+} from '../src/shared/shrConfig.js';
 import {
     isCrawlerChordLine,
     isStandaloneChordLine,
@@ -21,7 +21,7 @@ import {
 } from '../src/shared/crawlerTransposer.js';
 import { parseSongSections } from '../src/shared/songSections.js';
 
-export const __version__ = '3.0.0';
+export const __version__ = '3.1.0';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -42,11 +42,11 @@ const LATEX_ESCAPE_MAP = {
 };
 
 function loadPdfConfig() {
-    const configPath = path.join(ROOT_DIR, 'acordismo-config.yaml');
+    const configPath = path.join(ROOT_DIR, 'shr-config.yaml');
     if (fs.existsSync(configPath)) {
-        return parseAcordismoConfigYaml(fs.readFileSync(configPath, 'utf8')).pdf;
+        return parseShrConfigYaml(fs.readFileSync(configPath, 'utf8')).pdf;
     }
-    return FALLBACK_ACORDISMO_CONFIG.pdf;
+    return FALLBACK_SHR_CONFIG.pdf;
 }
 
 export function escapeLatex(str, preserveSpaces = false) {
@@ -257,13 +257,13 @@ export function buildLatexPalettePreamble(SYNTAX_PALETTE, useColor = true) {
 function prepareCoverLogoPng(outDir) {
     const candidates = [
         path.join(ROOT_DIR, 'public', 'favicon.svg'),
-        path.join(ROOT_DIR, 'src', 'assets', 'acordismo-logo.svg'),
-        path.join(ROOT_DIR, 'acordismo-logo.svg'),
+        path.join(ROOT_DIR, 'src', 'assets', 'shr-logo.svg'),
+        path.join(ROOT_DIR, 'shr-logo.svg'),
     ];
     const svgPath = candidates.find((p) => fs.existsSync(p));
     if (!svgPath) return null;
 
-    const outPng = path.join(outDir, 'acordismo-cover-logo.png');
+    const outPng = path.join(outDir, 'shr-cover-logo.png');
     const check = spawnSync('rsvg-convert', ['--version'], { stdio: 'ignore' });
     if (!check.error && check.status === 0) {
         const rawSvg = fs
@@ -278,7 +278,7 @@ function prepareCoverLogoPng(outDir) {
         const res = spawnSync('rsvg-convert', ['-w', '420', '-h', '420', tmpSvg, '-o', outPng]);
         if (fs.existsSync(tmpSvg)) fs.unlinkSync(tmpSvg);
         if (res.status === 0 && fs.existsSync(outPng)) {
-            return 'acordismo-cover-logo.png';
+            return 'shr-cover-logo.png';
         }
     }
     return null;
@@ -454,7 +454,7 @@ ${palettePreamble}
     \\centering
     \\vspace*{\\fill}
     ${logoLatexBlock}
-    {\\Huge\\bfseries Acordismo\\par}
+    {\\Huge\\bfseries Small Hotel Room\\par}
     \\vspace{0.5cm}
     {\\Large Songbook \\& Chord Reference\\par}
     \\vspace{1.2cm}
@@ -485,7 +485,7 @@ ${songIndexEntries.join('\n')}
 \\end{document}
 `.trim();
 
-    const texPath = path.join(outDir, `acordismo-songbook-${modeSuffix}.tex`);
+    const texPath = path.join(outDir, `shr-songbook-${modeSuffix}.tex`);
     fs.writeFileSync(texPath, texDocument, 'utf8');
     console.log(
         `✅ Wrote LaTeX source (${useColor ? 'COLOR' : 'B/W'} palette, translations: ${includeTranslations ? `ON [${translationCount}]` : 'OFF'}): ${texPath} (${songs.length} songs)`
@@ -502,7 +502,7 @@ ${songIndexEntries.join('\n')}
             );
         }
         console.log(
-            `🎉 Generated PDF: ${path.join(outDir, `acordismo-songbook-${modeSuffix}.pdf`)}`
+            `🎉 Generated PDF: ${path.join(outDir, `shr-songbook-${modeSuffix}.pdf`)}`
         );
     } else {
         console.log(
