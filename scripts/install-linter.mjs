@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 /**
  * @file scripts/install-linter.mjs
- * @version 2.8.2
- * Installs the Acordismo / Small Hotel Room VS Code Linter & Syntax Decorator extension
- * into `~/.vscode/extensions/smallhotelroom.acordismo-song-linter-<version>` AND registers
+ * @version 2.9.0
+ * Installs the Small Hotel Room VS Code Linter & Syntax Decorator extension
+ * into `~/.vscode/extensions/smallhotelroom.shr-song-linter-<version>` AND registers
  * it inside `~/.vscode/extensions/extensions.json`, loading `songSchema.js` and
- * `chordTransposer.js` directly from `acordismo/src/shared/`.
+ * `chordTransposer.js` directly from `src/shared/`.
  * Supports live switching between "Basic" (`basic`, default) and "Small Hotel Room" (`shr`),
  * plus multi-line `[choir]` block decoration.
  */
@@ -14,7 +14,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
-export const __version__ = '2.8.2';
+export const __version__ = '2.9.0';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -32,7 +32,7 @@ if (!fs.existsSync(LOCAL_SCHEMA_PATH)) {
 }
 
 const PUBLISHER = 'smallhotelroom';
-const EXT_NAME = 'acordismo-song-linter';
+const EXT_NAME = 'shr-song-linter';
 const EXT_ID = `${PUBLISHER}.${EXT_NAME}`;
 const CANONICAL_DIR_NAME = `${EXT_ID}-${__version__}`;
 
@@ -42,11 +42,12 @@ const EXT_JSON_PATH = path.join(VSCODE_EXT_ROOT, 'extensions.json');
 
 fs.mkdirSync(VSCODE_EXT_ROOT, { recursive: true });
 
-// 1. Purge any legacy/duplicate acordismo linter folders in ~/.vscode/extensions
+// 1. Purge any legacy/duplicate acordismo or shr linter folders in ~/.vscode/extensions
 for (const entry of fs.readdirSync(VSCODE_EXT_ROOT)) {
     if (
         entry.includes('acordismo-linter') ||
-        entry.includes('acordismo-song-linter')
+        entry.includes('acordismo-song-linter') ||
+        entry.includes('shr-song-linter')
     ) {
         const fullOldPath = path.join(VSCODE_EXT_ROOT, entry);
         try {
@@ -58,9 +59,9 @@ for (const entry of fs.readdirSync(VSCODE_EXT_ROOT)) {
 
 const extPackageJson = {
     name: EXT_NAME,
-    displayName: 'Acordismo Song Schema & Chord Linter',
+    displayName: 'Small Hotel Room Song Schema & Chord Linter',
     description:
-        'Validates frontmatter, custom tunings, inline chord notation, and ## Chords / translation sections for Small Hotel Room & Acordismo song files.',
+        'Validates frontmatter, custom tunings, inline chord notation, and ## Chords / translation sections for Small Hotel Room song files.',
     version: __version__,
     publisher: PUBLISHER,
     engines: {
@@ -72,14 +73,14 @@ const extPackageJson = {
     contributes: {
         commands: [
             {
-                command: 'acordismoSongLinter.toggleColorScheme',
-                title: 'Acordismo: Toggle Song Linter Color Scheme (Basic / Small Hotel Room)',
+                command: 'shrSongLinter.toggleColorScheme',
+                title: 'Small Hotel Room: Toggle Song Linter Color Scheme (Basic / Small Hotel Room)',
             },
         ],
         configuration: {
-            title: 'Acordismo Song Linter',
+            title: 'Small Hotel Room Song Linter',
             properties: {
-                'acordismoSongLinter.colorScheme': {
+                'shrSongLinter.colorScheme': {
                     type: 'string',
                     enum: ['basic', 'shr'],
                     enumDescriptions: [
@@ -181,7 +182,7 @@ function evaluateEsmFile(filePath, injectedModules = {}) {
 }
 
 function getConfiguredSchemeId() {
-    const cfg = vscode.workspace.getConfiguration('acordismoSongLinter');
+    const cfg = vscode.workspace.getConfiguration('shrSongLinter');
     const val = cfg.get('colorScheme', 'basic');
     return val === 'shr' ? 'shr' : 'basic';
 }
@@ -266,7 +267,7 @@ function ensureModulesFresh() {
             }
         }
     } catch (err) {
-        console.error('Acordismo Linter failed to load shared schema:', err);
+        console.error('Small Hotel Room Linter failed to load shared schema:', err);
     }
 }
 
@@ -672,14 +673,14 @@ function lintAndDecorateEditor(editor, diagnosticCollection) {
         editor.setDecorations(decorationTypes.directive, rangesDirective);
         editor.setDecorations(decorationTypes.choir, rangesChoir);
     } catch (err) {
-        console.error('Acordismo Linter error:', err);
+        console.error('Small Hotel Room Linter error:', err);
     }
 }
 
 function activate(context) {
     ensureModulesFresh();
     const diagnosticCollection =
-        vscode.languages.createDiagnosticCollection('acordismo-song-linter');
+        vscode.languages.createDiagnosticCollection('shr-song-linter');
     context.subscriptions.push(diagnosticCollection);
 
     const triggerUpdate = (editor) => {
@@ -694,15 +695,15 @@ function activate(context) {
     };
 
     const toggleCmd = vscode.commands.registerCommand(
-        'acordismoSongLinter.toggleColorScheme',
+        'shrSongLinter.toggleColorScheme',
         async () => {
             const curr = getConfiguredSchemeId();
             const next = curr === 'basic' ? 'shr' : 'basic';
             await vscode.workspace
-                .getConfiguration('acordismoSongLinter')
+                .getConfiguration('shrSongLinter')
                 .update('colorScheme', next, vscode.ConfigurationTarget.Global);
             vscode.window.showInformationMessage(
-                'Acordismo Song Linter color scheme set to: ' +
+                'Small Hotel Room Song Linter color scheme set to: ' +
                     (next === 'shr'
                         ? 'Small Hotel Room (#569400)'
                         : 'Basic (#2563eb)')
@@ -724,7 +725,7 @@ function activate(context) {
             }
         }),
         vscode.workspace.onDidChangeConfiguration((e) => {
-            if (e.affectsConfiguration('acordismoSongLinter.colorScheme')) {
+            if (e.affectsConfiguration('shrSongLinter.colorScheme')) {
                 refreshAllVisibleEditors();
             }
         })
@@ -761,8 +762,10 @@ if (fs.existsSync(EXT_JSON_PATH)) {
                 return (
                     !id.includes('acordismo-linter') &&
                     !id.includes('acordismo-song-linter') &&
+                    !id.includes('shr-song-linter') &&
                     !rel.includes('acordismo-linter') &&
-                    !rel.includes('acordismo-song-linter')
+                    !rel.includes('acordismo-song-linter') &&
+                    !rel.includes('shr-song-linter')
                 );
             });
         }
@@ -797,5 +800,5 @@ console.log(`✅ Installed & registered ${EXT_ID} v${__version__} in:`);
 console.log(`   Folder:   ${EXT_DIR}`);
 console.log(`   Registry: ${EXT_JSON_PATH}`);
 console.log(
-    `💡 Reload VS Code ('Developer: Reload Window') — Linter now loads songSchema.js directly from Acordismo!`
+    `💡 Reload VS Code ('Developer: Reload Window') — Linter now loads songSchema.js directly from Small Hotel Room!`
 );

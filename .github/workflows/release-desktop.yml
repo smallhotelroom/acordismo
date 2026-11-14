@@ -1,5 +1,5 @@
 # File: .github/workflows/release-desktop.yml
-# Version: 1.2.2
+# Version: 1.3.0
 # Builds Windows (.exe/.msi), macOS Universal (.dmg/.app), and Linux (.deb/.AppImage)
 # whenever you push a version tag (e.g. git tag v0.2.0 && git push origin v0.2.0)
 # or trigger it manually from the GitHub Actions tab.
@@ -31,12 +31,12 @@ jobs:
     runs-on: ${{ matrix.platform }}
 
     steps:
-      - name: Checkout App Repo into ./acordismo
+      - name: Checkout App Repo into ./app
         uses: actions/checkout@v4
         with:
-          path: acordismo
+          path: app
 
-      - name: Checkout smallhotelroom.github.io alongside ./acordismo
+      - name: Checkout smallhotelroom.github.io alongside ./app
         uses: actions/checkout@v4
         with:
           repository: smallhotelroom/smallhotelroom.github.io
@@ -47,7 +47,7 @@ jobs:
         with:
           node-version: 22
           cache: 'npm'
-          cache-dependency-path: acordismo/package-lock.json
+          cache-dependency-path: app/package-lock.json
 
       - name: Install Linux System Dependencies (Ubuntu 24.04)
         if: matrix.platform == 'ubuntu-24.04'
@@ -68,10 +68,10 @@ jobs:
       - name: Rust Cache
         uses: swatinem/rust-cache@v2
         with:
-          workspaces: './acordismo/src-tauri -> target'
+          workspaces: './app/src-tauri -> target'
 
       - name: Sync Tauri Version with package.json & Build Official DB
-        working-directory: ./acordismo
+        working-directory: ./app
         run: |
           node -e '
             const fs = require("fs");
@@ -96,7 +96,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          projectPath: ./acordismo
+          projectPath: ./app
           tagName: v__VERSION__
           releaseName: 'Small Hotel Room v__VERSION__'
           releaseBody: 'Desktop installers for Windows (.exe), macOS (.dmg), and Linux (.deb / .AppImage).'
