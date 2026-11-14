@@ -20,7 +20,6 @@ dist-ssr
 .env
 .env.*
 !.env.example
-tools/acordismo-linter/.acordismo-root
 
 # Tauri Rust build artifacts & generated schemas
 src-tauri/target/
@@ -37,9 +36,6 @@ dist-dbs/
 
 # Generated PDF songbooks & LaTeX build artifacts
 dist-pdfs/
-
-# Auto-synced CommonJS schema inside VS Code linter
-tools/acordismo-linter/shared/
 
 # Capacitor Generated Web Assets & Configs inside Native Folders
 android/app/src/main/assets/public/
