@@ -1,6 +1,6 @@
 /**
  * @file src/screens/TunerScreen.jsx
- * @version 1.0.2
+ * @version 1.0.3
  * 10-Button Reference Ear Tuner (6 Guitar strings + 4 Ukulele strings)
  * with Natural/Synth tone selector, optional hands-free Repeat Loop,
  * and theme-aware accent styling (Small Hotel Room / Original 2026).
@@ -140,7 +140,7 @@ export default function TunerScreen({ onBack }) {
                     <button className="icon-btn" onClick={onBack}>
                         <ArrowLeft size={22} />
                     </button>
-                    <h1 className="header-title">Acordismo Tuner</h1>
+                    <h1 className="header-title">SHR Tuner</h1>
                 </div>
                 <div className="header-actions">
                     {activeStringId && (

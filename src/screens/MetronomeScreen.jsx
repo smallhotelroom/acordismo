@@ -1,6 +1,6 @@
 /**
  * @file src/screens/MetronomeScreen.jsx
- * @version 2.1.1
+ * @version 2.1.2
  * Full-screen Metronome with compact 5-row layout and interactive Polyrhythm Roll Editor:
  * 1) Click: Natural/Synth + Keep on exit
  * 2) Master BPMs (- / BPM / + and range slider)
@@ -53,7 +53,7 @@ export default function MetronomeScreen({ onBack }) {
                     <button className="icon-btn" onClick={handleBack}>
                         <ArrowLeft size={22} />
                     </button>
-                    <h1 className="header-title">Acordismo Metronome</h1>
+                    <h1 className="header-title">SHR Metronome</h1>
                 </div>
                 <div className="header-actions">
                     <button

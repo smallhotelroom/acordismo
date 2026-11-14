@@ -1,6 +1,6 @@
 /**
  * @file src/screens/SettingsScreen.jsx
- * @version 3.12.2
+ * @version 3.12.3
  */
 import React, { useContext, useEffect, useRef, useState } from 'react';
 import {
@@ -644,11 +644,7 @@ export default function SettingsScreen({ onBack }) {
                         lineHeight: 1.5,
                     }}>
                     <div>
-                        <strong style={{ color: 'var(--text-primary)' }}>Acordismo</strong>{' '}
-                        <span>v{pkg.version || '0.1.0'}</span>
-                    </div>
-                    <div>
-                        by{' '}
+                        Thank you for using the{' '}
                         <a
                             href="https://smallhotelroom.com"
                             target="_blank"
@@ -659,7 +655,10 @@ export default function SettingsScreen({ onBack }) {
                                 fontWeight: 600,
                             }}>
                             Small Hotel Room
-                        </a>
+                        </a> App!
+                    </div>
+                    <div>
+                        <span>v{pkg.version || '0.1.0'}</span>
                     </div>
                 </div>
             </main>

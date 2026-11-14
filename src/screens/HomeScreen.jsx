@@ -1,8 +1,8 @@
 /**
  * @file src/screens/HomeScreen.jsx
- * @version 3.9.0
- * Restores the canonical Acordismo HomeScreen layout:
- * 1) Header: Left { Menu (3 bars -> Settings), Acordismo } | Right { Metronome, Tuner, DarkMode, Search, MoreVertical (3 dots) }
+ * @version 3.9.1
+ * Canonical SHR HomeScreen layout:
+ * 1) Header: Left { Menu (3 bars -> Settings), SHR } | Right { Metronome, Tuner, DarkMode, Search, MoreVertical (3 dots) }
  * 2) Top Tab Bar: PLAYLISTS | BANDS | SONGS directly under the header
  * 3) Infinite scroll list + Contextual 3-dots Sort Order Modal
  */
@@ -16,7 +16,7 @@ import {
     subscribeMetronomeState,
 } from '../shared/audioEngine';
 
-export const __version__ = '3.9.0';
+export const __version__ = '3.9.1';
 
 const PAGE_SIZE = 80;
 
@@ -207,7 +207,6 @@ export default function HomeScreen({ onNavigate }) {
 
     return (
         <>
-            {/* 1) Header: Left { 3 bars Settings, Acordismo } | Right { Metronome, Tuner, DarkMode, Search, 3 dots } */}
             <header className="app-header">
                 <div className="header-left">
                     <button
@@ -216,13 +215,13 @@ export default function HomeScreen({ onNavigate }) {
                         onClick={() => onNavigate({ screen: 'Settings' })}>
                         <Menu size={22} />
                     </button>
-                    <h1 className="header-title">Acordismo</h1>
+                    <h1 className="header-title">Small Hotel Room (App)</h1>
                 </div>
 
                 <div className="header-actions">
                     <button
                         className="icon-btn"
-                        title="Metronome"
+                        title="SHR Metronome"
                         onClick={() => onNavigate({ screen: 'Metronome' })}
                         style={
                             metroState.isPlaying
@@ -238,7 +237,7 @@ export default function HomeScreen({ onNavigate }) {
 
                     <button
                         className="icon-btn"
-                        title="Tuner"
+                        title="SHR Tuner"
                         onClick={() => onNavigate({ screen: 'Tuner' })}>
                         <TuningForkIcon size={20} />
                     </button>
@@ -294,7 +293,6 @@ export default function HomeScreen({ onNavigate }) {
                 </div>
             )}
 
-            {/* 2) Top Tab Bar: PLAYLISTS | BANDS | SONGS */}
             <nav
                 className="tabs-bar"
                 style={{
@@ -334,7 +332,6 @@ export default function HomeScreen({ onNavigate }) {
                 })}
             </nav>
 
-            {/* 3) Infinite Scroll List */}
             <main
                 ref={scrollRef}
                 className="content-scroll"
@@ -400,7 +397,6 @@ export default function HomeScreen({ onNavigate }) {
                 })}
             </main>
 
-            {/* Contextual 3-Dots Sort Order Modal */}
             {homeModalVisible && (
                 <div
                     className="modal-backdrop"
