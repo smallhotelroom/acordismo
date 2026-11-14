@@ -1,10 +1,10 @@
 # File: docker-compose.yml
-# Version: 1.7.0
+# Version: 1.8.0
 services:
   android-builder:
-    image: ghcr.io/smallhotelroom/acordismo-android-builder:latest
+    image: ghcr.io/smallhotelroom/smallhotelroom-android-builder:latest
     build: .
-    container_name: acordismo-android-builder
+    container_name: smallhotelroom-android-builder
     volumes:
       - .:/app
       - ../smallhotelroom.github.io:/smallhotelroom.github.io:ro
@@ -35,7 +35,7 @@ services:
         for type in debug release; do
           src=\"app/build/outputs/apk/$$type/app-$$type.apk\";
           if [ -f \"$$src\" ]; then
-            cp -f \"$$src\" \"app/build/outputs/apk/$$type/acordismo-$$type-$$ts.apk\";
+            cp -f \"$$src\" \"app/build/outputs/apk/$$type/smallhotelroom-$$type-$$ts.apk\";
           fi;
         done &&
         chown -R $(stat -c '%u:%g' /app) /app/dist /app/android/app/src/main/assets /app/android/app/build/outputs
