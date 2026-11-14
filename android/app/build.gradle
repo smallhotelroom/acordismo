@@ -1,6 +1,6 @@
 /**
  * @file android/app/build.gradle
- * @version 2.8.7
+ * @version 2.8.8
  */
 apply plugin: 'com.android.application'
 
@@ -11,14 +11,14 @@ if (keystorePropertiesFile.exists()) {
 }
 
 android {
-    namespace "com.smallhotelroom.acordismo"
+    namespace "com.smallhotelroom.app"
     compileSdk rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.smallhotelroom.acordismo"
+        applicationId "com.smallhotelroom.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
-        versionName "1.0.0"
+        versionName "0.2.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.

@@ -1,7 +1,7 @@
 # File: .github/workflows/release-desktop.yml
-# Version: 1.2.1
+# Version: 1.2.2
 # Builds Windows (.exe/.msi), macOS Universal (.dmg/.app), and Linux (.deb/.AppImage)
-# whenever you push a version tag (e.g. git tag v0.1.1 && git push origin v0.1.1)
+# whenever you push a version tag (e.g. git tag v0.2.0 && git push origin v0.2.0)
 # or trigger it manually from the GitHub Actions tab.
 
 name: Build & Release Desktop Apps
@@ -31,7 +31,7 @@ jobs:
     runs-on: ${{ matrix.platform }}
 
     steps:
-      - name: Checkout Acordismo into ./acordismo
+      - name: Checkout App Repo into ./acordismo
         uses: actions/checkout@v4
         with:
           path: acordismo
@@ -98,7 +98,7 @@ jobs:
         with:
           projectPath: ./acordismo
           tagName: v__VERSION__
-          releaseName: 'Acordismo v__VERSION__'
+          releaseName: 'Small Hotel Room v__VERSION__'
           releaseBody: 'Desktop installers for Windows (.exe), macOS (.dmg), and Linux (.deb / .AppImage).'
           releaseDraft: true
           prerelease: false
