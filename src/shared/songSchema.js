@@ -1,14 +1,14 @@
 /**
  * @file src/shared/songSchema.js
- * @version 3.1.1
- * Single Source of Truth (hosted in Acordismo) for Frontmatter Schema, Draconian
+ * @version 3.1.2
+ * Single Source of Truth (hosted in Small Hotel Room) for Frontmatter Schema, Draconian
  * Case-Sensitive Chord Grammar, Custom Tuning Parser (`parseInstrumentTuning`),
  * Markdown `##` Section & Harmonic Fingering Postures Schema, Reverse Chord Voicing
  * Identification (`suggestChordsForVoicing`), Default Posture Previewer (`getDefaultPostureForChord`),
  * and Theme-Aware Syntax Highlighting Palettes (`Basic` default + `Small Hotel Room`).
  */
 
-export const __version__ = '3.1.1';
+export const __version__ = '3.1.2';
 
 export const BASE_REQUIRED_KEYS = [];
 

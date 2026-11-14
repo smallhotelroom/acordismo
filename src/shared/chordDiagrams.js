@@ -1,7 +1,7 @@
 /**
  * @file src/shared/chordDiagrams.js
- * @version 1.5.0
- * Guitar (6-string) and Ukulele (4-string) chord voicing generator for Acordismo.
+ * @version 1.5.1
+ * Guitar (6-string) and Ukulele (4-string) chord voicing generator for Small Hotel Room.
  * Includes `stringFrequencies` (indexed per string, `null` when muted) for the 6-line Arpeggio Sequencer.
  */
 import {
@@ -19,7 +19,7 @@ import {
     suggestChordsForVoicing,
 } from './songSchema.js';
 
-export const __version__ = '1.5.0';
+export const __version__ = '1.5.1';
 
 export { GUITAR_STRING_NAMES, UKULELE_STRING_NAMES };
 

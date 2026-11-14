@@ -1,6 +1,6 @@
 /**
  * @file src/shared/database.js
- * @version 3.7.0
+ * @version 3.8.0
  */
 import * as sqlJsModule from 'sql.js';
 import sqlWasmUrl from 'sql.js/dist/sql-wasm.wasm?url';
@@ -13,11 +13,11 @@ import {
     populateDatabaseMeta,
 } from './dbMerger';
 
-export const __version__ = '3.7.0';
+export const __version__ = '3.8.0';
 
 const initSqlJs = sqlJsModule.default || sqlJsModule;
 
-const IDB_NAME = 'acordismo_storage';
+const IDB_NAME = 'shr_storage';
 const IDB_STORE = 'db_packs';
 const IDB_KEY_STACK = 'db_layer_stack_v1';
 const IDB_KEY_MERGED_CACHE = 'db_merged_cache_v1';

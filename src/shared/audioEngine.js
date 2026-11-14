@@ -1,7 +1,7 @@
 /**
  * @file src/shared/audioEngine.js
- * @version 2.7.1
- * Web Audio API synthesis engine for Acordismo:
+ * @version 2.7.2
+ * Web Audio API synthesis engine for Small Hotel Room:
  * - Tuner reference string definitions (`GUITAR_STRINGS`, `UKULELE_STRINGS`) & `playNoteFrequency`
  * - Polyphonic guitar/ukulele chord strumming & Reference pitch generator
  * - Multi-track Polyrhythm Metronome scheduler:
@@ -11,7 +11,7 @@
  */
 import { APP_DEFAULTS } from './AppContext';
 
-export const __version__ = '2.7.1';
+export const __version__ = '2.7.2';
 
 let audioCtx = null;
 
@@ -94,10 +94,10 @@ export function buildQuick44Tracks(subdivision = 1) {
 }
 
 // --- METRONOME STATE & SUBSCRIPTION STORE ---
-const BPM_STORAGE_KEY = 'acordismo_metronome_bpm';
-const SUBDIV_STORAGE_KEY = 'acordismo_metronome_subdiv';
-const SOUND_STORAGE_KEY = 'acordismo_metronome_sound';
-const PERSIST_STORAGE_KEY = 'acordismo_metronome_persistent';
+const BPM_STORAGE_KEY = 'shr_metronome_bpm';
+const SUBDIV_STORAGE_KEY = 'shr_metronome_subdiv';
+const SOUND_STORAGE_KEY = 'shr_metronome_sound';
+const PERSIST_STORAGE_KEY = 'shr_metronome_persistent';
 
 function loadInitialSubdivision() {
     if (typeof localStorage !== 'undefined') {

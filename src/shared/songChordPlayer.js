@@ -1,7 +1,7 @@
 /**
  * @file src/shared/songChordPlayer.js
- * @version 2.0.0
- * Phase 1 + Phase 2 Song Chord & 6-String Arpeggio Sequencer for Acordismo:
+ * @version 2.0.1
+ * Phase 1 + Phase 2 Song Chord & 6-String Arpeggio Sequencer for Small Hotel Room:
  * - Parses curated `(A  Bm  D  A_D)` groups and standalone/crawler chord lines into a flat
  *   sequence of chord tokens (`seqIdx = 0, 1, 2...`) matching `songSheetRenderer.jsx`.
  * - Double-space (`  `) separates full bars; underscore (`_`) subdivides a bar evenly;
@@ -24,7 +24,7 @@ import {
 import { getChordDiagramData } from './chordDiagrams.js';
 import { playPolyphonicChord } from './audioEngine.js';
 
-export const __version__ = '2.0.0';
+export const __version__ = '2.0.1';
 
 export const GUITAR_ROLL_LABELS = ['6E', '5A', '4D', '3G', '2B', '1e'];
 export const UKULELE_ROLL_LABELS = ['4G', '3C', '2E', '1A'];
