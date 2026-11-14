@@ -1,4 +1,4 @@
-package com.smallhotelroom.acordismo;
+package com.smallhotelroom.app;
 
 import android.app.Activity;
 import android.content.Intent;
@@ -23,7 +23,8 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 
 /**
- * MainActivity v1.4.0
+ * @file android/app/src/main/java/com/smallhotelroom/app/MainActivity.java
+ * @version 1.5.0
  * Streams incoming ACTION_VIEW ("Open with..."), ACTION_SEND ("Share to..."),
  * AND native Settings file-picker .db files via a 64 KB buffer so 170MB+ databases load effortlessly.
  */
@@ -98,7 +99,7 @@ public class MainActivity extends BridgeActivity {
 
     private void streamUriToCacheAndDispatch(final Uri targetUri) {
         new Thread(() -> {
-            File tempFile = new File(getCacheDir(), "acordismo_shared_import.db");
+            File tempFile = new File(getCacheDir(), "shr_shared_import.db");
             try (
                 InputStream is = getContentResolver().openInputStream(targetUri);
                 FileOutputStream fos = new FileOutputStream(tempFile)
@@ -115,7 +116,7 @@ public class MainActivity extends BridgeActivity {
                 while ((nRead = is.read(chunk, 0, chunk.length)) != -1) {
                     if (!headerChecked) {
                         if (nRead < 16) {
-                            showToastOnUi("Ignored file: too small to be an Acordismo database.");
+                            showToastOnUi("Ignored file: too small to be a Small Hotel Room database.");
                             return;
                         }
                         String magic = new String(chunk, 0, 15, StandardCharsets.US_ASCII);
