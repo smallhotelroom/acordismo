@@ -132,7 +132,22 @@ Open in Xcode (requires macOS):
 npx cap open ios
 ```
 
-## 6. Notes on syntax
+## 6. How to bump version
+
+E.g. bumping patch `v0.1.0` to `v0.1.1`, annotated tag on latest commit:
+
+```bash
+npm version v0.1.1 --no-git-tag-version # updates package.json and package-lock.json
+git tag -a v0.1.1 -m "v0.1.1 - <msg>"
+git push origin v0.1.1
+```
+
+Required for Google Play `android/app/build.gradle`:
+
+- versionName "0.1.1" (the version string shown in Android App Info).
+- versionCode 2 (an integer that must increment by +1 for every APK/AAB uploaded)
+
+## 7. Notes on syntax
 
 Syntax for custom chords section:
 
