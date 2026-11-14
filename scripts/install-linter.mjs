@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * @file scripts/install-linter.mjs
- * @version 2.9.0
+ * @version 2.9.1
  * Installs the Small Hotel Room VS Code Linter & Syntax Decorator extension
  * into `~/.vscode/extensions/smallhotelroom.shr-song-linter-<version>` AND registers
  * it inside `~/.vscode/extensions/extensions.json`, loading `songSchema.js` and
@@ -14,7 +14,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
-export const __version__ = '2.9.0';
+export const __version__ = '2.9.1';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -42,13 +42,9 @@ const EXT_JSON_PATH = path.join(VSCODE_EXT_ROOT, 'extensions.json');
 
 fs.mkdirSync(VSCODE_EXT_ROOT, { recursive: true });
 
-// 1. Purge any legacy/duplicate acordismo or shr linter folders in ~/.vscode/extensions
+// 1. Purge any previous shr-song-linter folders in ~/.vscode/extensions
 for (const entry of fs.readdirSync(VSCODE_EXT_ROOT)) {
-    if (
-        entry.includes('acordismo-linter') ||
-        entry.includes('acordismo-song-linter') ||
-        entry.includes('shr-song-linter')
-    ) {
+    if (entry.includes('shr-song-linter') || entry.startsWith(`${PUBLISHER}.`)) {
         const fullOldPath = path.join(VSCODE_EXT_ROOT, entry);
         try {
             fs.rmSync(fullOldPath, { recursive: true, force: true });
@@ -760,11 +756,9 @@ if (fs.existsSync(EXT_JSON_PATH)) {
                 const id = item?.identifier?.id || '';
                 const rel = item?.relativeLocation || '';
                 return (
-                    !id.includes('acordismo-linter') &&
-                    !id.includes('acordismo-song-linter') &&
+                    !id.startsWith(`${PUBLISHER}.`) &&
                     !id.includes('shr-song-linter') &&
-                    !rel.includes('acordismo-linter') &&
-                    !rel.includes('acordismo-song-linter') &&
+                    !rel.startsWith(`${PUBLISHER}.`) &&
                     !rel.includes('shr-song-linter')
                 );
             });
