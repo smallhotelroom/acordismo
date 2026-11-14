@@ -1,6 +1,6 @@
 /**
  * @file src/screens/SongScreen.jsx
- * @version 3.4.1
+ * @version 3.5.0
  */
 import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Music, Sliders, Square } from 'lucide-react';
@@ -27,9 +27,9 @@ import {
     parseInstrumentTuning,
 } from '../shared/songSchema.js';
 import {
-    deduceAcordismoSongKey,
-    deduceAcordismoSongKeyInfo,
-    deduceAcordismoSongUseFlats,
+    deduceShrSongKey,
+    deduceShrSongKeyInfo,
+    deduceShrSongUseFlats,
     stripCrawlerTabSections,
 } from '../shared/crawlerTransposer';
 import {
@@ -40,7 +40,7 @@ import {
     triggerPatternStepOnChord,
 } from '../shared/songChordPlayer';
 
-export const __version__ = '3.4.1';
+export const __version__ = '3.5.0';
 
 export default function SongScreen({ routeParams, onNavigate, onBack }) {
     const { selectedSongId, originStr } = routeParams;
@@ -255,7 +255,7 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
 
     const songUseFlats = useMemo(() => {
         if (!songData) return false;
-        return deduceAcordismoSongUseFlats(
+        return deduceShrSongUseFlats(
             mainSheetLyrics,
             visualOffset,
             songData.key,
@@ -442,7 +442,7 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
         const originId = songData.origin_id;
         if (songData.key) {
             if (!visualOffset) return songData.key;
-            const shifted = deduceAcordismoSongKey(
+            const shifted = deduceShrSongKey(
                 mainSheetLyrics,
                 visualOffset,
                 songData.key,
@@ -453,7 +453,7 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
                 ? `${songData.key} (${shifted} at ${sign})`
                 : songData.key;
         }
-        const guessedOrig = deduceAcordismoSongKeyInfo(
+        const guessedOrig = deduceShrSongKeyInfo(
             mainSheetLyrics,
             0,
             null,
@@ -463,7 +463,7 @@ export default function SongScreen({ routeParams, onNavigate, onBack }) {
         if (!visualOffset) {
             return `${guessedOrig.key} (guessed, ${guessedOrig.confidence}%)`;
         }
-        const guessedShifted = deduceAcordismoSongKeyInfo(
+        const guessedShifted = deduceShrSongKeyInfo(
             mainSheetLyrics,
             visualOffset,
             null,

@@ -1,7 +1,7 @@
 /**
  * @file src/components/MetronomeRollEditor.jsx
- * @version 2.3.1
- * Multi-View Polyrhythm Roll Editor for the Acordismo Metronome:
+ * @version 2.3.2
+ * Multi-View Polyrhythm Roll Editor for the SHR Metronome:
  * - Top Control Bar: [ Circular | Landscape | Portrait ] view selector (defaults to Circular) + [ - Line | + Line ]
  * - Theme-aware Track Palettes: Track A ('high') follows `--accent-color`, Track B ('mid') uses the complementary
  *   Blue/Green, and Track D+ ('sub') uses warm Brown in Small Hotel Room mode vs Purple in Basic mode.
@@ -14,9 +14,9 @@ import {
     MAX_METRONOME_TRACKS,
 } from '../shared/audioEngine';
 
-export const __version__ = '2.3.1';
+export const __version__ = '2.3.2';
 
-const VIEW_MODE_STORAGE_KEY = 'acordismo_metronome_view_mode';
+const VIEW_MODE_STORAGE_KEY = 'shr_metronome_view_mode';
 const LANDSCAPE_MAX_COMFORTABLE_STEPS = 16;
 const PORTRAIT_MAX_COMFORTABLE_TRACKS = 5;
 const MIN_CELL_SIZE_PX = 26;

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * @file scripts/build-db.mjs
- * @version 5.1.0
+ * @version 5.2.0
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -20,10 +20,10 @@ import {
     populateDatabaseMeta,
     mergeDatabasesInPriorityOrder,
 } from '../src/shared/dbMerger.js';
-import { parseAcordismoConfigYaml } from '../src/shared/acordismoConfig.js';
+import { parseShrConfigYaml } from '../src/shared/shrConfig.js';
 import { hasCrawlerSongAndChords } from '../src/shared/crawlerTransposer.js';
 
-export const __version__ = '5.1.0';
+export const __version__ = '5.2.0';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -864,13 +864,13 @@ async function main() {
     const noCache = args.includes('--no-cache') || args.includes('--clean-cache');
     const gitCommit = getGitShortCommit();
 
-    const configPath = path.join(ROOT_DIR, 'acordismo-config.yaml');
+    const configPath = path.join(ROOT_DIR, 'shr-config.yaml');
     if (!fs.existsSync(configPath)) {
-        console.error(`Error: acordismo-config.yaml not found at ${configPath}`);
+        console.error(`Error: shr-config.yaml not found at ${configPath}`);
         process.exit(1);
     }
 
-    const config = parseAcordismoConfigYaml(fs.readFileSync(configPath, 'utf8'));
+    const config = parseShrConfigYaml(fs.readFileSync(configPath, 'utf8'));
     const SQL = await initSqlJs();
 
     const builtDbs = [];

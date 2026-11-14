@@ -1,9 +1,9 @@
 /**
  * @file src/screens/TunerScreen.jsx
- * @version 1.0.3
+ * @version 1.0.4
  * 10-Button Reference Ear Tuner (6 Guitar strings + 4 Ukulele strings)
  * with Natural/Synth tone selector, optional hands-free Repeat Loop,
- * and theme-aware accent styling (Small Hotel Room / Original 2026).
+ * and theme-aware accent styling (Small Hotel Room / Basic).
  */
 import React, { useContext, useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Moon, Repeat, Square, Sun, Volume2 } from 'lucide-react';
@@ -14,9 +14,9 @@ import {
     playNoteFrequency,
 } from '../shared/audioEngine';
 
-export const __version__ = '1.0.2';
+export const __version__ = '1.0.4';
 
-const TUNER_SOUND_MODE_KEY = 'acordismo_tuner_sound_mode';
+const TUNER_SOUND_MODE_KEY = 'shr_tuner_sound_mode';
 
 export default function TunerScreen({ onBack }) {
     const { darkMode, setDarkMode } = useContext(AppContext);

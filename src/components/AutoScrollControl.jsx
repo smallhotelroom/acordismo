@@ -1,15 +1,15 @@
 /**
  * @file src/components/AutoScrollControl.jsx
- * @version 1.0.0
+ * @version 1.0.1
  * Self-contained 60fps Auto-Scroll header pill and vertical speed popover for SongScreen.
  */
 import React, { useEffect, useState } from 'react';
 import { Pause, Play } from 'lucide-react';
 import { APP_DEFAULTS } from '../shared/AppContext';
 
-export const __version__ = '1.0.0';
+export const __version__ = '1.0.1';
 
-const SCROLL_SPEED_STORAGE_KEY = 'acordismo_scroll_speed';
+const SCROLL_SPEED_STORAGE_KEY = 'shr_scroll_speed';
 const TARGET_DURATION_SECONDS =
     APP_DEFAULTS.scroll_target_duration_seconds || 210; // 3 minutes 30 seconds at 1.0x
 
