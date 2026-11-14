@@ -1,6 +1,6 @@
-# acordismo
+# smallhotelroom-app
 
-Offline chord and lyric reader built with Vite, React, SQLite (`sql.js` WASM), and Capacitor.
+Offline chord and lyric reader, 6-string strum/arpeggio sequencer, polyrhythm metronome, and reference ear tuner built with Vite, React, SQLite (`sql.js` WASM), Capacitor, and Tauri.
 
 Depends on `smallhotelroom.github.io` (git clone it next to this repository).
 
@@ -12,7 +12,7 @@ npm run linter:install
 
 ## 1. Database (`songs-official.db`)
 
-Generate the default official ("clean") SQLite database (`public/songs-official.db`) from `smallhotelroom.github.io` Markdown songs:
+Generate the default official ("clean") SQLite database (`public/songs.db` & `dist-dbs/songs-official.db`) from `smallhotelroom.github.io` Markdown songs:
 
 ```bash
 npm run db:build
@@ -20,7 +20,7 @@ npm run db:build
 
 ## 2. PDF Generator
 
-Build PDF from `public/songs-official.db`:
+Build PDF from `public/songs.db`:
 
 ```bash
 npm run pdf:build -- --output SmallHotelRoom.pdf 
@@ -60,6 +60,7 @@ The build environment is hosted privately on the GitHub Container Registry to sa
 2. Log in to the registry (replace with your username and token):
    ```bash
    echo "YOUR_TOKEN" | docker login ghcr.io -u YOUR_USERNAME --password-stdin
+   ```
 3. Later on (when you run the compiler), Docker will automatically pull the image.
 
 **Option B: Build locally**
@@ -103,7 +104,7 @@ docker compose run --rm android-builder bash
 
 ### 4.2. Android (via Docker): Release APK
 
-Or compile the release APK (`ls android/app/build/outputs/apk/release/acordismo-release-*.apk`):
+Or compile the release APK (`ls android/app/build/outputs/apk/release/app-release-*.apk`):
 
 ```bash
 GRADLE_TASK=assembleRelease docker compose up
@@ -134,17 +135,17 @@ npx cap open ios
 
 ## 6. How to bump version
 
-E.g. bumping patch `v0.1.0` to `v0.1.1`, annotated tag on latest commit:
+E.g. bumping `v0.2.0` to `v0.2.1`, annotated tag on latest commit:
 
 ```bash
-npm version v0.1.1 --no-git-tag-version # updates package.json and package-lock.json
-git tag -a v0.1.1 -m "v0.1.1 - <msg>"
-git push origin v0.1.1
+npm version v0.2.1 --no-git-tag-version # updates package.json and package-lock.json
+git tag -a v0.2.1 -m "v0.2.1 - <msg>"
+git push origin v0.2.1
 ```
 
 Required for Google Play `android/app/build.gradle`:
 
-- versionName "0.1.1" (the version string shown in Android App Info).
+- versionName "0.2.1" (the version string shown in Android App Info).
 - versionCode 2 (an integer that must increment by +1 for every APK/AAB uploaded)
 
 ## 7. Notes on syntax
