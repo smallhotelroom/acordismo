@@ -1,8 +1,8 @@
 /**
  * @file src/shared/chordTransposer.js
- * @version 5.1.1
+ * @version 5.1.2
  * Pure canonical chord parser, harmonic key/enharmonic analyzer, and parenthetical transposer
- * (hosted in Acordismo). Contains zero crawler-specific heuristics.
+ * (hosted in Small Hotel Room). Contains zero crawler-specific heuristics.
  * Biases enharmonic ties toward Sharps (`#`) when letter collisions are equal.
  */
 import {
@@ -16,7 +16,7 @@ import {
     SYNTAX_PALETTE,
 } from './songSchema.js';
 
-export const __version__ = '5.1.1';
+export const __version__ = '5.1.2';
 
 export {
     SHARP_NOTES,

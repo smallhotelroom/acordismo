@@ -1,6 +1,6 @@
 /**
  * @file src/screens/SettingsScreen.jsx
- * @version 3.12.3
+ * @version 3.13.0
  */
 import React, { useContext, useEffect, useRef, useState } from 'react';
 import {
@@ -26,10 +26,10 @@ import { APP_DEFAULTS, AppContext } from '../shared/AppContext';
 import { COLOR_THEMES } from '../shared/songSchema.js';
 import pkg from '../../package.json';
 
-export const __version__ = '3.12.2';
+export const __version__ = '3.13.0';
 
-export const FREEZE_CHORDS_STORAGE_KEY = 'acordismo_freeze_chords';
-export const HIDE_CRAWLER_TABS_STORAGE_KEY = 'acordismo_hide_crawler_tabs';
+export const FREEZE_CHORDS_STORAGE_KEY = 'shr_freeze_chords';
+export const HIDE_CRAWLER_TABS_STORAGE_KEY = 'shr_hide_crawler_tabs';
 
 function formatLayerSubtitle(layer, hideCrawlerTabsEnabled) {
     const hasFilteredSongs =
@@ -136,10 +136,10 @@ export default function SettingsScreen({ onBack }) {
     const handleAddPackClick = () => {
         if (
             typeof window !== 'undefined' &&
-            window.AcordismoNative &&
-            typeof window.AcordismoNative.pickDatabaseFile === 'function'
+            window.ShrNative &&
+            typeof window.ShrNative.pickDatabaseFile === 'function'
         ) {
-            window.AcordismoNative.pickDatabaseFile();
+            window.ShrNative.pickDatabaseFile();
             return;
         }
         fileInputRef.current?.click();
@@ -655,10 +655,11 @@ export default function SettingsScreen({ onBack }) {
                                 fontWeight: 600,
                             }}>
                             Small Hotel Room
-                        </a> App!
+                        </a>{' '}
+                        App!
                     </div>
                     <div>
-                        <span>v{pkg.version || '0.1.0'}</span>
+                        <span>v{pkg.version || '0.2.0'}</span>
                     </div>
                 </div>
             </main>

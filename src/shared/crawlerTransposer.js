@@ -1,6 +1,6 @@
 /**
  * @file src/shared/crawlerTransposer.js
- * @version 1.5.0
+ * @version 1.6.0
  * Crawler-specific chord line heuristics, ASCII tablature stripper, and key deduction adapter.
  * Imports core harmony/chord logic directly from local `./chordTransposer.js`.
  */
@@ -11,7 +11,7 @@ import {
     parseChordToken,
 } from './chordTransposer.js';
 
-export const __version__ = '1.5.0';
+export const __version__ = '1.6.0';
 
 /**
  * Splits leading and trailing punctuation (such as `(`, `)`, `[`, `]`, `,`, `:`, `;`)
@@ -186,7 +186,7 @@ export function extractCrawlerChordsFromLyrics(lyrics = '') {
     return parsedChords;
 }
 
-export function deduceAcordismoSongUseFlats(
+export function deduceShrSongUseFlats(
     lyrics = '',
     semitones = 0,
     songKeyHint = null,
@@ -201,7 +201,7 @@ export function deduceAcordismoSongUseFlats(
     );
 }
 
-export function deduceAcordismoSongKeyInfo(
+export function deduceShrSongKeyInfo(
     lyrics = '',
     semitones = 0,
     songKeyHint = null,
@@ -216,7 +216,7 @@ export function deduceAcordismoSongKeyInfo(
     );
 }
 
-export function deduceAcordismoSongKey(
+export function deduceShrSongKey(
     lyrics = '',
     semitones = 0,
     songKeyHint = null,

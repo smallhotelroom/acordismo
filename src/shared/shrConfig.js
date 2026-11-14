@@ -1,10 +1,10 @@
 /**
  * @file src/shared/shrConfig.js
- * @version 2.0.0
+ * @version 2.0.1
  * Universal zero-dependency parser for `shr-config.yaml` (shared by React App and Node scripts).
  */
 
-export const __version__ = '2.0.0';
+export const __version__ = '2.0.1';
 
 export const FALLBACK_SHR_CONFIG = {
     app: {
@@ -48,9 +48,6 @@ export const FALLBACK_SHR_CONFIG = {
     merged_output: 'dist-dbs/songs-all.db',
     layers: [],
 };
-
-// Backwards-compatible alias
-export const FALLBACK_ACORDISMO_CONFIG = FALLBACK_SHR_CONFIG;
 
 function parseScalarValue(rawVal) {
     const s = String(rawVal || '').trim();
@@ -184,6 +181,3 @@ export function parseShrConfigYaml(yamlText = '') {
 
     return config;
 }
-
-// Backwards-compatible alias
-export const parseAcordismoConfigYaml = parseShrConfigYaml;

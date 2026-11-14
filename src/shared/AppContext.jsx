@@ -1,6 +1,6 @@
 /**
  * @file src/shared/AppContext.jsx
- * @version 3.5.0
+ * @version 3.5.1
  */
 import React, { createContext, useEffect, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
@@ -9,10 +9,9 @@ import { parseShrConfigYaml } from './shrConfig';
 import rawConfigYaml from '../../shr-config.yaml?raw';
 import { COLOR_THEMES } from './songSchema.js';
 
-export const __version__ = '3.5.0';
+export const __version__ = '3.5.1';
 
 export const SHR_CONFIG = parseShrConfigYaml(rawConfigYaml);
-export const ACORDISMO_CONFIG = SHR_CONFIG;
 export const APP_DEFAULTS = SHR_CONFIG.app;
 
 export const AppContext = createContext(null);
@@ -194,19 +193,19 @@ export function AppProvider({ children }) {
             }
         };
 
-        if (window.__acordismoPendingDb) {
-            const pending = window.__acordismoPendingDb;
-            window.__acordismoPendingDb = null;
+        if (window.__shrPendingDb) {
+            const pending = window.__shrPendingDb;
+            window.__shrPendingDb = null;
             importIncomingDbPayload(pending);
         }
 
         const handleOpenDbEvent = (e) => {
-            window.__acordismoPendingDb = null;
+            window.__shrPendingDb = null;
             importIncomingDbPayload(e.detail);
         };
 
-        window.addEventListener('acordismo-open-db', handleOpenDbEvent);
-        return () => window.removeEventListener('acordismo-open-db', handleOpenDbEvent);
+        window.addEventListener('shr-open-db', handleOpenDbEvent);
+        return () => window.removeEventListener('shr-open-db', handleOpenDbEvent);
     }, []);
 
     useEffect(() => {

@@ -24,7 +24,7 @@ import java.nio.charset.StandardCharsets;
 
 /**
  * @file android/app/src/main/java/com/smallhotelroom/app/MainActivity.java
- * @version 1.5.0
+ * @version 1.6.0
  * Streams incoming ACTION_VIEW ("Open with..."), ACTION_SEND ("Share to..."),
  * AND native Settings file-picker .db files via a 64 KB buffer so 170MB+ databases load effortlessly.
  */
@@ -49,15 +49,15 @@ public class MainActivity extends BridgeActivity {
                 }
         );
 
-        // Expose window.AcordismoNative.pickDatabaseFile() to the WebView
+        // Expose window.ShrNative.pickDatabaseFile() to the WebView
         if (this.bridge != null && this.bridge.getWebView() != null) {
-            this.bridge.getWebView().addJavascriptInterface(new AcordismoNativeBridge(), "AcordismoNative");
+            this.bridge.getWebView().addJavascriptInterface(new ShrNativeBridge(), "ShrNative");
         }
 
         handleIncomingDbIntent(getIntent());
     }
 
-    public class AcordismoNativeBridge {
+    public class ShrNativeBridge {
         @JavascriptInterface
         public void pickDatabaseFile() {
             runOnUiThread(() -> {
@@ -152,8 +152,8 @@ public class MainActivity extends BridgeActivity {
     private void dispatchDbToWebView(String jsPayload, String fileName, int attempt) {
         if (this.bridge != null && this.bridge.getWebView() != null) {
             WebView webView = this.bridge.getWebView();
-            String script = "window.__acordismoPendingDb = " + jsPayload + ";" +
-                    "window.dispatchEvent(new CustomEvent('acordismo-open-db', { detail: " + jsPayload + " }));";
+            String script = "window.__shrPendingDb = " + jsPayload + ";" +
+                    "window.dispatchEvent(new CustomEvent('shr-open-db', { detail: " + jsPayload + " }));";
             webView.evaluateJavascript(script, null);
             Toast.makeText(this, "Importing database pack: " + fileName + "...", Toast.LENGTH_LONG).show();
         } else if (attempt < 20) {
